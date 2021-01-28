@@ -10,8 +10,10 @@ edition = "2018"
 
 [dependencies]
 reed-solomon-erasure = { version = "4.0", features = ["simd-accel"] }
+polkadot-erasure-coding = { git = "git://github.com/paritytech/polkadot", package = "polkadot-erasure-coding" }
 fffft = "*"
 ff = "*"
+
 rand = { version = "0.8", features = ["alloc"] }
 
 [dev-dependencies]

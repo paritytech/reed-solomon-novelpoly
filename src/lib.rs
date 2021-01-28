@@ -1,34 +1,34 @@
-// FIXME use galois_16, but requires AsRef<[u8]>
-use reed_solomon_erasure::galois_8::ReedSolomon;
+mod wrapped_shard;
+pub use wrapped_shard::*;
 
+use reed_solomon_erasure::galois_16::ReedSolomon;
 
 
 // we want one message per validator, so this is the total number of shards that we should own
 // after
-const N_VALIDATORS: usize = 255;
+const N_VALIDATORS: usize = 10_000;
 const DATA_SHARDS: usize = N_VALIDATORS / 3;
 const PARITY_SHARDS: usize = N_VALIDATORS - DATA_SHARDS;
 
 
-fn to_shards(payload: &[u8]) -> Vec<Vec<u8>> {
+fn to_shards(payload: &[u8]) -> Vec<WrappedShard> {
 
 	let base_len = payload.len();
 
 	// how many bytes we actually need.
-	let needed_shard_len = base_len / DATA_SHARDS +
-		(base_len % DATA_SHARDS != 0) as usize;
+	let needed_shard_len = (base_len + DATA_SHARDS - 1 ) / DATA_SHARDS;
 
 	// round up, ing GF(2^16) there are only 2 byte values, so each shard must a multiple of 2
 	let needed_shard_len = needed_shard_len + (needed_shard_len & 0x01);
 
-
 	let shard_len = needed_shard_len;
 
-	let mut shards = vec![vec![0u8; shard_len]; N_VALIDATORS];
+	let mut shards = vec![WrappedShard::new(vec![0u8; shard_len]); N_VALIDATORS];
 	for (data_chunk, blank_shard) in payload.chunks(shard_len).zip(&mut shards) {
 		// fill the empty shards with the corresponding piece of the payload,
 		// zero-padded to fit in the shards.
 		let len = std::cmp::min(shard_len, data_chunk.len());
+		let blank_shard: & mut [u8] = blank_shard.as_mut();
 		blank_shard[..len].copy_from_slice(&data_chunk[..len]);
 	}
 
@@ -40,15 +40,14 @@ fn rs() -> ReedSolomon {
 			.expect("this struct is not created with invalid shard number; qed")
 }
 
-
-pub fn status_quo_encode(data: &[u8]) -> Vec<Vec<u8>> {
+pub fn status_quo_encode(data: &[u8]) -> Vec<WrappedShard> {
 	let encoder = rs();
 	let mut shards = to_shards(data);
 	encoder.encode(&mut shards).unwrap();
 	shards
 }
 
-pub fn status_quo_reconstruct(mut received_shards: Vec<Option<Vec<u8>>>) -> Option<Vec<u8>> {
+pub fn status_quo_reconstruct(mut received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>> {
 
 	let r = rs();
 
@@ -61,14 +60,14 @@ pub fn status_quo_reconstruct(mut received_shards: Vec<Option<Vec<u8>>>) -> Opti
     // let result_data_shards= received_shards
 	// 	.into_iter()
 	// 	.filter_map(|x| x)
-	// 	.collect::<Vec<Vec<u8>>>();
+	// 	.collect::<Vec<WrappedShard>>();
 
 	let result = received_shards
 		.into_iter()
 		.filter_map(|x| x)
 		.take(DATA_SHARDS)
 		.fold(Vec::with_capacity(12<<20), |mut acc, x| {
-			acc.extend_from_slice(&x);
+			acc.extend_from_slice(x.into_inner().as_slice());
 			acc
 		});
 
@@ -78,8 +77,8 @@ pub fn status_quo_reconstruct(mut received_shards: Vec<Option<Vec<u8>>>) -> Opti
 
 pub fn roundtrip<E,R>(encode: E, reconstruct: R, payload: &[u8])
 where
-	E: Fn(&[u8]) -> Vec<Vec<u8>>,
-	R: Fn(Vec<Option<Vec<u8>>>) -> Option<Vec<u8>>,
+	E: Fn(&[u8]) -> Vec<WrappedShard>,
+	R: Fn(Vec<Option<WrappedShard>>) -> Option<Vec<u8>>,
 {
     // Construct the shards
     let encoded = encode(payload);
