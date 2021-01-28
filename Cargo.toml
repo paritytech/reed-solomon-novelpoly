@@ -1,3 +1,5 @@
+cargo-features = ["named-profiles"]
+
 [package]
 name = "rs-ec-perf"
 version = "0.1.0"
@@ -10,10 +12,21 @@ edition = "2018"
 reed-solomon-erasure = { version = "4.0", features = ["simd-accel"] }
 fffft = "*"
 ff = "*"
+rand = { version = "0.8", features = ["alloc"] }
 
 [dev-dependencies]
 iai = "0.1"
 
+[profile.bench]
+debug = true
+
+[profile.dev]
+debug = true
+
+[profile.release]
+debug = true
+
 [[bench]]
 name = "iai"
 harness = false
+bench = true

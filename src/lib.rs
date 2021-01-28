@@ -1,10 +1,11 @@
-
 // FIXME use galois_16, but requires AsRef<[u8]>
 use reed_solomon_erasure::galois_8::ReedSolomon;
 
 
-// we want one message per validator
-const N_VALIDATORS: usize = 13;
+
+// we want one message per validator, so this is the total number of shards that we should own
+// after
+const N_VALIDATORS: usize = 255;
 const DATA_SHARDS: usize = N_VALIDATORS / 3;
 const PARITY_SHARDS: usize = N_VALIDATORS - DATA_SHARDS;
 
@@ -17,11 +18,8 @@ fn to_shards(payload: &[u8]) -> Vec<Vec<u8>> {
 	let needed_shard_len = base_len / DATA_SHARDS +
 		(base_len % DATA_SHARDS != 0) as usize;
 
-	// round up to next even number
-	// (no actual space overhead since we are working in GF(2^16)).
-	// XXX I find this statement rather questionable, while we work in GF(2^16)
-	// XXX that does not necessarily apply to the chunk to be transfered
-	// let needed_shard_len = needed_shard_len + (needed_shard_len & 0x01);
+	// round up, ing GF(2^16) there are only 2 byte values, so each shard must a multiple of 2
+	let needed_shard_len = needed_shard_len + (needed_shard_len & 0x01);
 
 
 	let shard_len = needed_shard_len;
@@ -91,18 +89,20 @@ where
     let mut shards = encoded.clone().into_iter().map(Some).collect::<Vec<_>>();
 
 	// Drop 3 shards
-	let n = shards.len();
-    shards[0] = None;
-	// shards[7] = None;
-    shards[n.saturating_sub(2)] = None;
+	let mut rng = rand::thread_rng();
 
+	// randomly lose 1/3 of the messages
+	let iv = rand::seq::index::sample(&mut rng, N_VALIDATORS, N_VALIDATORS / 3);
+	iv.into_iter().for_each(|idx| { shards[idx] = None; });
 
 	dbg!(shards.len());
-	dbg!(shards[1].as_ref().unwrap().len());
 
 	let result = reconstruct(shards).expect("must qork");
-    assert_eq!(payload, result);
+
+	// the result might have trailing zeros
+    assert_eq!(&payload[..], &result[0..payload.len()]);
 }
+
 
 
 #[cfg(test)]
