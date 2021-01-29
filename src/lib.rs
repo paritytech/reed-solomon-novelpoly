@@ -3,7 +3,7 @@ pub use wrapped_shard::*;
 
 pub mod status_quo;
 
-// pub mod ffaster;
+pub mod binaryfield;
 
 // we want one message per validator, so this is the total number of shards that we should own
 // after
