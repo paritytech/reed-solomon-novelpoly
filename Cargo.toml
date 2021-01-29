@@ -7,17 +7,23 @@ authors = ["Bernhard Schuster <bernhard@ahoi.io>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[build-dependencies]
+rand = { version = "0.8", features = ["alloc"] }
+fs-err = "2"
 
 [dependencies]
 reed-solomon-erasure = { version = "4.0", features = ["simd-accel"] }
-polkadot-erasure-coding = { git = "git://github.com/paritytech/polkadot", package = "polkadot-erasure-coding" }
-fffft = "*"
-ff = "*"
+# fffft = "*"
+# ff = "*"
+# subtle = "2.4"
+# ffaster = { path = "../reed-solomon-erasure", features = ["simd-accel"] }
 
+# required for randomly dropping shards
 rand = { version = "0.8", features = ["alloc"] }
 
 [dev-dependencies]
 iai = "0.1"
+criterion = "0.3"
 
 [profile.bench]
 debug = true
@@ -30,5 +36,10 @@ debug = true
 
 [[bench]]
 name = "iai"
+harness = false
+bench = true
+
+[[bench]]
+name = "criterion"
 harness = false
 bench = true
