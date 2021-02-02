@@ -28,8 +28,8 @@ where
 	// Drop 3 shards
 	let mut rng = rand::thread_rng();
 
-	// randomly lose 1/3 of the messages
-	let iv = rand::seq::index::sample(&mut rng, N_VALIDATORS, N_VALIDATORS / 3);
+	// randomly lose 2/3 of the messages
+	let iv = rand::seq::index::sample(&mut rng, N_VALIDATORS, (N_VALIDATORS << 1) / 3 );
 	iv.into_iter().for_each(|idx| { shards[idx] = None; });
 
 	let result = reconstruct(shards).expect("must qork");
