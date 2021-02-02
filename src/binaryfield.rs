@@ -139,15 +139,29 @@ impl From<usize> for Element {
     }
 }
 
-impl<R> PartialEq<R> for Element where R: Into<Element> {
-    fn eq(&self, other: &R) -> bool {
-        let other: Element = other.into();
+impl PartialEq<usize> for Element {
+    fn eq(&self, other: &usize) -> bool {
+        self.0.eq(&(*other as u16))
+    }
+}
+impl PartialEq<i32> for Element {
+    fn eq(&self, other: &i32) -> bool {
+        self.0.eq(&(*other as u16))
+    }
+}
+impl PartialEq<u16> for Element {
+    fn eq(&self, other: &u16) -> bool {
+        self.0.eq(other)
+    }
+}
+impl PartialEq<Element> for Element {
+    fn eq(&self, other: &Element) -> bool {
         self.0.eq(&other.0)
     }
 }
 
-const fn log2(x: u16) -> u16 {
-    let o = 0;
+const fn log2(mut x: u16) -> u16 {
+    let mut o = 0;
     while x > 1 {
         x >>= 1;
         o += 1;
@@ -164,7 +178,7 @@ fn raw_mul(a: u16, b: u16) -> u16 {
     if a*b == 0 {
         return 0
     }
-    let o = 0;
+    let mut o = 0;
     for i in 0..(log2(b) + 1) {
         if (b & (1<<i)) != 0x0 {
             o ^= a<<i
@@ -174,8 +188,8 @@ fn raw_mul(a: u16, b: u16) -> u16 {
 }
 
 #[inline(always)]
-const fn raw_mod(a: u16, b: u16) -> u16 {
-    let alog = log2(a);
+const fn raw_mod(mut a: u16, b: u16) -> u16 {
+    let mut alog = log2(a);
     let blog = log2(b);
     while alog >= blog {
         if a & (1 << alog) != 0x0 {
@@ -210,7 +224,7 @@ impl BinaryField {
         let modulus = self.modulus.0;
         let order = self.order.0 as usize;
         for base in 2..cmp::min(modulus - 1, 80_u16) {
-            let powers: Vec<Element> = vec![Element::one()];
+            let mut powers: Vec<Element> = vec![Element::one()];
             'p: while powers.len() < order + 2 {
                 let previous = powers.last().unwrap();
                 let val = raw_mod(raw_mul(previous.0, base), modulus);
@@ -235,7 +249,7 @@ impl BinaryField {
 
     pub fn new(modulus: Element) -> Result<Self> {
         let height = modulus.log2();
-        let field = Self {
+        let mut field = Self {
             modulus,
             height,
             order: (Element::one() << height) - Element::one(),
@@ -279,8 +293,8 @@ impl BinaryField {
         if x == 0 {
             Element::zero()
         } else {
-            let idx = self.order.0 + self.invcache[x.0 as usize].unwrap() - self.invcache[y.0 as usize].unwrap();
-            self.cache[idx as usize]
+            let idx: Element = self.order + self.invcache[x.0 as usize].unwrap() - self.invcache[y.0 as usize].unwrap();
+            self.cache[idx.0 as usize]
         }
     }
 
@@ -296,26 +310,26 @@ impl BinaryField {
         } else if x == Element::zero() {
             Element::one()
         } else {
-            let idx = (self.invcache[x].unwrap() as usize * p) % self.order.0 as usize;
+            let idx = (self.invcache[x.0 as usize].unwrap() * (p.0 as usize)) % self.order.0 as usize;
             self.cache[idx]
         }
     }
 
-    fn multi_inv(self, values: Vec<Option<Element>>) -> Vec<Element> {
-        let partials = vec![Element::one()];
+    fn multi_inv(&self, values: Vec<Option<Element>>) -> Vec<Element> {
+        let mut partials = vec![Element::one()];
         for i in 0..values.len() {
             let last = partials.last().unwrap().clone();
             partials.push(self.mul(last, values[i].unwrap_or(Element::zero())))
         }
         let mut inv = self.inv(partials.last().unwrap().clone());
-        let outputs = vec![Element::zero(); values.len()];
+        let mut outputs = vec![Element::zero(); values.len()];
         for (i, value) in values.into_iter().enumerate().rev() {
-            outputs[i] = if let Some(value ) = value {
+            outputs[i] = if value.is_some() {
                  self.mul(partials[i], inv)
-            } else  {
-                Element::zero()
-            };
-            inv = self.mul(inv, values[i].unwrap_or(Element::one()))
+                } else  {
+                    Element::zero()
+                };
+            inv = self.mul(inv, value.unwrap_or(Element::one()))
         }
         outputs
     }
@@ -326,7 +340,7 @@ impl BinaryField {
     }
 
     // Evaluate a polynomial at a point
-    fn eval_poly_at(self, p: &[Element], x: Element) -> Element {
+    fn eval_poly_at(&self, p: &[Element], x: Element) -> Element {
         let mut y = Element::zero();
         let mut power_of_x = Element::one();
         for (i, &p_coeff) in p.into_iter().enumerate() {
@@ -357,17 +371,17 @@ impl BinaryField {
         a.into_iter().map(move |x| self.mul(*x, c)).collect::<Vec<Element>>()
     }
 
-    fn mul_polys(self, a: Vec<Element>, b: Vec<Element>) -> Vec<Element> {
+    fn mul_polys(&self, a: Vec<Element>, b: Vec<Element>) -> Vec<Element> {
         let mut o = vec![Element::zero(); a.len() + b.len() - 1];
-        for (i, aval) in a.into_iter().enumerate() {
-            for (j, bval) in b.into_iter().enumerate() {
-                o[i+j] ^= self.mul(a[i], b[j])
+        for (i, &aval) in a.iter().enumerate() {
+            for (j, &bval) in b.iter().enumerate() {
+                o[i+j] ^= self.mul(aval, bval)
             }
         }
         o
     }
 
-    fn div_polys(self, a: Vec<Element>, b: Vec<Element>) -> Vec<Element> {
+    fn div_polys(&self, mut a: Vec<Element>, b: Vec<Element>) -> Vec<Element> {
         assert!(a.len() >= b.len());
         let mut o = vec![];
         let mut apos = a.len() - 1_usize;
@@ -377,7 +391,7 @@ impl BinaryField {
             let quot = self.div(a[apos], b[bpos]);
             o.insert(0, quot);
             for (i,b) in (0..bpos).into_iter().enumerate().rev() {
-                a[diff+i] ^= self.mul(b, quot)
+                a[diff+i] ^= self.mul(Element::from(b), quot);
             }
             apos -= 1_usize;
             diff -= 1_usize;
@@ -386,13 +400,14 @@ impl BinaryField {
     }
 
     // Build a polynomial that returns 0 at all specified xs
-    fn zpoly(&self, xs: Vec<Element>) -> Vec<Element> {
+    fn zpoly(&self, xs: &[Element]) -> Vec<Element> {
         let mut roots = vec![Element::one()];
-        for x in xs {
+        for &x in xs {
             roots.insert(0, Element::zero());
             let rl = roots.len()-1;
             for j in 0..rl {
-                roots[j] ^= self.mul(roots[j+1], x);
+                let val = roots[j+1];
+                roots[j] ^= self.mul(val, x);
             }
         }
         roots
@@ -408,20 +423,21 @@ impl BinaryField {
 
     fn lagrange_interp(&self, xs: Vec<Element>, ys: Vec<Element>) -> Vec<Element> {
         // // Generate master numerator polynomial, eg. (x - x1) * (x - x2) * ... * (x - xn)
-        let mut root = self.zpoly(xs);
+        let root = self.zpoly(&xs);
         assert_eq!(root.len(), ys.len() + 1);
         // // print(root)
         // // Generate per-value numerator polynomials, eg. for x=x2,
         // // (x - x1) * (x - x3) * ... * (x - xn), by dividing the master
         // // polynomial back by each x coordinate
-        let mut nums = xs.iter().map(|&x| self.div_polys(root, vec![x, Element::one()]) ).collect::<Vec<Vec<Element>>>();
+        let mut nums = xs.iter().map(|&x| self.div_polys(root.clone(), vec![x, Element::one()]) ).collect::<Vec<Vec<Element>>>();
         // Generate denominators by evaluating numerator polys at each x
         let denoms = xs.iter().zip(nums.iter()).map(|(&x, num)| Some(self.eval_poly_at(num, x))).collect::<Vec<Option<Element>>>();
         let invdenoms = self.multi_inv(denoms);
         // Generate output polynomial, which is the sum of the per-value numerator
         // polynomials rescaled to have the right y values
         let mut b = vec![Element::zero(); ys.len()];
-        for i in 0..xs.len() {
+        let xsl = xs.len();
+        for i in 0..xsl {
             let yslice = self.mul(ys[i], invdenoms[i]);
             for j in 0..ys.len() {
                 if nums[i][j] != Element::zero() && ys[i] != Element::zero() {
@@ -460,16 +476,17 @@ fn cast(field: &BinaryField, poly: &[Element], k: Element) -> (Vec<Element>, Vec
     // Calculate low = poly % (x**2 - k*x)**half_mod_power
     // && high = poly // (x**2 - k*x)**half_mod_power
     // Note that (x**2 - k*x)**n = x**2n - k**n * x**n in binary fields
-    let low_and_high = poly.to_vec();
+    let mut low_and_high = poly.to_vec();
+    let (low, high) = low_and_high.split_at_mut(half_mod_power);
     for i in mod_power..(half_mod_power * 3) {
-        low_and_high[i] ^= field.mul(low_and_high[i+half_mod_power], k_to_half_mod_power);
+        low[i] ^= field.mul(high[i].clone(), k_to_half_mod_power);
     }
     for i in half_mod_power..mod_power {
-        low_and_high[i] ^= field.mul(low_and_high[i+half_mod_power], k_to_half_mod_power);
+        low[i] ^= field.mul(high[i].clone(), k_to_half_mod_power);
     }
     // Recursively compute two half-size sub-problems, low && high
-    let mut low_cast = cast(field, &low_and_high[..mod_power], k);
-    let high_cast = cast(field, &low_and_high[mod_power..], k);
+    let mut low_cast = cast(field, low, k);
+    let high_cast = cast(field, high, k);
     // Combine the results
     (
         { low_cast.0.extend(high_cast.0.into_iter()); low_cast.0 },
@@ -653,10 +670,11 @@ fn shift(field: &BinaryField, poly: &[Element], k: Element) -> Vec<Element> {
     // && high = poly // (x+k)**mod_power
     // Note that (x+k)**n = x**n + k**n for power-of-two powers in binary fields
     let mut low_and_high = poly.to_vec();
+    let (low, high) = low_and_high.split_at_mut(mod_power);
     for i in 0..mod_power {
-        low_and_high[i].0 ^= field.mul(low_and_high[i+mod_power], k_to_mod_power).0;
+        low[i].0 ^= field.mul(high[i], k_to_mod_power).0;
     }
-    [shift(field, &low_and_high[..mod_power], k), shift(field, &low_and_high[mod_power..], k)].concat()
+    [shift(field, low, k), shift(field, high, k)].concat()
 }
 
 // Interpolates the polynomial where `p(xs[i]) = vals[i]`
@@ -664,14 +682,14 @@ fn interpolate(field: &BinaryField, xs: &[Element], vals: &[Element]) -> Vec<Ele
 {
     assert!(!xs.is_empty());
     let domain_size = Element::one() << xs.iter().max().unwrap().log2() + Element::one();
-    assert!((domain_size << 1) <= (Element::one() << field.height));
+    assert!((domain_size << 1_usize) <= (Element::one() << field.height));
     let domain = (0..domain_size.0).into_iter().map(Element::from).collect::<Vec<_>>();
     let big_domain = (0..(domain_size.0 << 1_usize)).into_iter().map(Element::from).collect::<Vec<_>>();
     let z = zpoly(field, domain.iter().filter(|&x| !xs.contains(x)).copied().collect());
     // print("z = ", z)
     let z_values = fft(field, &big_domain[..], &z);
     // print("z_values = ", z_values)
-    let p_times_z_values = vec![Element::zero(); domain.len()];
+    let mut p_times_z_values = vec![Element::zero(); domain.len()];
     for (&v, &d) in vals.iter().zip(xs.into_iter()) {
         let i = d.0 as usize;
         p_times_z_values[i] = field.mul(v, z_values[i]);
