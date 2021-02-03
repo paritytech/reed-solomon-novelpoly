@@ -27,6 +27,10 @@ impl Element {
     fn is_power_of_2(&self) -> bool {
         is_power_of_2(self.0)
     }
+
+    fn pow<R>(&self, exp: R) -> Self where R: Into<Self> {
+        Self(self.0.overflowing_pow(exp.into().0 as u32).0)
+    }
 }
 
 // #[target_feature = "step_trait"]
@@ -139,6 +143,14 @@ impl From<usize> for Element {
     }
 }
 
+
+impl From<i32> for Element {
+    #[inline(always)]
+    fn from(inner: i32) -> Self {
+        Self(inner as u16)
+    }
+}
+
 impl PartialEq<usize> for Element {
     fn eq(&self, other: &usize) -> bool {
         self.0.eq(&(*other as u16))
@@ -175,7 +187,7 @@ const fn is_power_of_2(x: u16) -> bool {
 
 #[inline(always)]
 fn raw_mul(a: u16, b: u16) -> u16 {
-    if a*b == 0 {
+    if a.saturating_mul(b) == 0 {
         return 0
     }
     let mut o = 0;
@@ -201,15 +213,15 @@ const fn raw_mod(mut a: u16, b: u16) -> u16 {
 }
 
 
-//[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
 enum Error {
-    //[error("The provided modulues {1.0} is bad")]
-    BadModulus(Element),
+    #[error("The provided modulues {0:?} is bad")]
+    Badpd(Element),
 }
 
 //[derive(Debug)]
 struct BinaryField{
-    modulus: Element,
+    pd: Element,
     height: Element,
     order: Element,
 
@@ -221,13 +233,14 @@ impl BinaryField {
 
     fn setup(&mut self) -> Result<()> {
         // XXX why 80?
-        let modulus = self.modulus.0;
+        let pd = self.pd.0;
         let order = self.order.0 as usize;
-        for base in 2..cmp::min(modulus - 1, 80_u16) {
+
+        for base in 2..cmp::min(pd - 1, 80_u16) {
             let mut powers: Vec<Element> = vec![Element::one()];
             'p: while powers.len() < order + 2 {
                 let previous = powers.last().unwrap();
-                let val = raw_mod(raw_mul(previous.0, base), modulus);
+                let val = raw_mod(raw_mul(previous.0, base), pd);
                 powers.push(val.into());
                 if val == 1 {
                     break 'p;
@@ -244,13 +257,13 @@ impl BinaryField {
                 return Ok(())
             }
         }
-        Err(Error::BadModulus(self.modulus))
+        Err(Error::Badpd(self.pd))
     }
 
-    pub fn new(modulus: Element) -> Result<Self> {
-        let height = modulus.log2();
+    pub fn new(pd: Element) -> Result<Self> {
+        let height = pd.log2();
         let mut field = Self {
-            modulus,
+            pd,
             height,
             order: (Element::one() << height) - Element::one(),
             cache: Default::default(),
@@ -468,25 +481,36 @@ fn cast(field: &BinaryField, poly: &[Element], k: Element) -> (Vec<Element>, Vec
             vec![poly[0]],
             vec![if poly.len() == 2 { poly[1] } else { Element::zero() } ])
     }
-    assert!(is_power_of_2(poly.len() as u16));
+    assert!(is_power_of_2(dbg!(poly.len()) as u16));
 
-    let mod_power = poly.len() >> 1_usize;
-    let half_mod_power = mod_power >> 1_usize;
-    let k_to_half_mod_power = field.exp(k, half_mod_power.into());
+    let mod_power = dbg!(poly.len() >> 1_usize);
+    let half_mod_power = dbg!(mod_power >> 1_usize);
+    let k_to_half_mod_power = dbg!(field.exp(k, half_mod_power.into()));
+
+    assert_eq!(mod_power, 2 * half_mod_power); // holds since poly is single val / one bit set / 2^x
+
     // Calculate low = poly % (x**2 - k*x)**half_mod_power
     // && high = poly // (x**2 - k*x)**half_mod_power
     // Note that (x**2 - k*x)**n = x**2n - k**n * x**n in binary fields
     let mut low_and_high = poly.to_vec();
-    let (low, high) = low_and_high.split_at_mut(half_mod_power);
-    for i in mod_power..(half_mod_power * 3) {
-        low[i] ^= field.mul(high[i].clone(), k_to_half_mod_power);
+    dbg!(poly.len());
+
+    {
+        let (low, high) = low_and_high.split_at_mut(mod_power + half_mod_power);
+        for i in mod_power..(mod_power + half_mod_power) {
+            low[i] ^= field.mul(high[i], k_to_half_mod_power);
+        }
     }
-    for i in half_mod_power..mod_power {
-        low[i] ^= field.mul(high[i].clone(), k_to_half_mod_power);
+    {
+        let (low, high) = low_and_high.split_at_mut(half_mod_power);
+        for i in half_mod_power..mod_power {
+            low[i] ^= field.mul(high[i], k_to_half_mod_power);
+        }
     }
+    let (low, high) = low_and_high.split_at(mod_power);
     // Recursively compute two half-size sub-problems, low && high
-    let mut low_cast = cast(field, low, k);
-    let high_cast = cast(field, high, k);
+    let mut low_cast = dbg!(cast(field, dbg!(low), k));
+    let high_cast = dbg!(cast(field, dbg!(high), k));
     // Combine the results
     (
         { low_cast.0.extend(high_cast.0.into_iter()); low_cast.0 },
@@ -530,24 +554,30 @@ fn fft(field: &BinaryField, domain: &[Element], poly: &[Element]) -> Vec<Element
     // Base case: constant polynomials
     // if domain.len() == 1{
     //     return [poly[0]]
+    dbg!(domain.len());
+    dbg!(poly.len());
     if domain.len() <= 8{
         return _simple_ft(field, domain, poly)
     }
     // Split the domain into two cosets A && B, where for x in A, x+offset is in B
     let offset = domain[1];
+    dbg!(offset);
     // Get evens, odds such that{
     // poly(x) = evens(x**2+offset*x) + x * odds(x**2+offset*x)
     // poly(x+k) = evens(x**2+offset*x) + (x+k) * odds(x**2+offset*x)
     let (evens, odds) = cast(field, poly, offset);
+    dbg!(&evens[..]);
+    dbg!(&odds[..]);
     // The smaller domain D = [x**2 - offset*x for x in A] = [x**2 - offset*x for x in B]
     let cast_domain = domain.iter().step_by(2).map(|&x| field.mul(x, offset ^ x)).collect::<Vec<Element>>();
+    dbg!(&cast_domain[..]);
     // Two half-size sub-problems over the smaller domain, recovering
     // evaluations of evens && odds over the smaller domain
     let even_points = fft(field, &cast_domain[..], &evens[..]);
     let odd_points = fft(field, &cast_domain[..], &odds[..]);
     // Combine the evaluations of evens && odds into evaluations of poly
     let dl = domain.len() >> 1_usize;
-    let mut o = Vec::with_capacity(dl);
+    let mut o = Vec::with_capacity(dl << 1_usize);
     for i in 0..dl {
         o.push(even_points[i] ^ field.mul(domain[i*2], odd_points[i]));
         o.push(even_points[i] ^ field.mul(domain[i*2+1], odd_points[i]));
@@ -631,8 +661,6 @@ fn invfft2(field: &BinaryField, vals: &[Element]) -> Vec<Element> {
     o
 }
 
-// fn invfft(field, domain, vals) { return invfft2(field, vals)
-
 // Multiplies two polynomials using the FFT method
 fn mul(field: &BinaryField, domain: &[Element], p1: &[Element], p2: &[Element]) -> Vec<Element> {
     assert!(p1.len() <= domain.len() && p2.len() <= domain.len());
@@ -708,4 +736,51 @@ fn interpolate(field: &BinaryField, xs: &[Element], vals: &[Element]) -> Vec<Ele
     // print("shifted_p_values =", shifted_p_values)
     let shifted_p = invfft(field, &domain, &shifted_p_values);
     shift(field, &shifted_p, domain_size)
+}
+
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fft_edr() {
+        // for GF(2^16)
+        let poly = 0x01_02_10 as u32;
+
+
+
+        let field = BinaryField::new(1033.into()).unwrap();
+
+        let pd = 1024;
+        let poly = (0_usize..pd).into_iter().map(Element::from).map(|x| x.pow(9) % pd).collect::<Vec<Element>>();
+
+
+        let domain = (0_usize..pd).into_iter().map(Element::from).collect::<Vec<_>>();
+        let z = fft(&field, &domain[..], &poly[..]);
+        let z2 = _simple_ft(&field, &domain[..], &poly[..]);
+        assert_eq!(&z[..], &z2);
+
+        let poly2 = invfft(&field, &domain[..], &z[..]);
+        assert_eq!(&poly2[..], &poly[..]);
+
+
+        let poly3 = (0..25).into_iter().map(Element::from).map(|x: Element| x.pow(9) % pd).collect::<Vec<Element>>();
+
+        let xs = (0..25).into_iter().map(|x| (x * 11) % 32).map(Element::from).collect::<Vec<Element>>();
+
+        let ys = xs.iter().map(|&x| {
+            field.eval_poly_at(&poly3, x)
+        }).collect::<Vec<Element>>();
+        let poly4 = interpolate(&field, &xs[..], &ys[..]);
+
+        assert_eq!(&poly4[..poly3.len()], &poly3[..]);
+
+        let xs = (1..25).into_iter().map(|x| (x * 11) % 32).map(Element::from).collect::<Vec<Element>>();
+        let ys = xs.iter().map(|&x| { field.eval_poly_at(&poly3[..], x) }).collect::<Vec<_>>();
+        let poly5 = interpolate(&field, &xs[..], &ys[..]);
+
+        assert_eq!(&poly5[..poly3.len()], &poly3);
+    }
 }

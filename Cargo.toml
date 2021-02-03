@@ -17,7 +17,7 @@ reed-solomon-erasure = { version = "4.0", features = ["simd-accel"] }
 # ff = "*"
 # subtle = "2.4"
 # ffaster = { path = "../reed-solomon-erasure", features = ["simd-accel"] }
-
+thiserror = "1.0.23"
 # required for randomly dropping shards
 rand = { version = "0.8", features = ["alloc"] }
 
