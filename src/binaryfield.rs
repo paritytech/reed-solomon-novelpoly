@@ -358,7 +358,7 @@ impl BinaryField {
 	}
 
 	fn mul(&self, x: Element, y: Element) -> Element {
-		if x * y == 0_u16 {
+		if x.0 as u32 * y.0 as u32 == 0 {
 			Element::zero()
 		} else {
 			let idx = self.invcache[x.0 as usize].unwrap() + self.invcache[y.0 as usize].unwrap();
@@ -367,7 +367,7 @@ impl BinaryField {
 	}
 
 	fn sqr(&self, x: Element) -> Element {
-		if x == 0_usize {
+		if x == Element::zero() {
 			Element::zero()
 		} else {
 			let idx = (self.invcache[x.0 as usize].unwrap() << 1_usize) % self.order.0 as usize;
@@ -857,6 +857,14 @@ mod tests {
 		assert_eq!(field.mul(37.into(), 11.into()), Element::from(327));
 		assert_eq!(field.mul(1.into(), 1.into()), Element::one());
 		assert_eq!(field.mul(1023.into(), 2.into()), Element::from(1015));
+
+
+		assert_eq!(field.mul(256.into(), 256.into()), Element::from(576));
+
+		assert_eq!(field.mul(256.into(), Element::zero()), Element::zero());
+		assert_eq!(field.mul(Element::zero(), 256.into()), Element::zero());
+		assert_eq!(field.mul(256.into(), Element::one()), Element::from(256));
+		assert_eq!(field.mul(Element::one(), 256.into()), Element::from(256));
 	}
 
 	#[test]
