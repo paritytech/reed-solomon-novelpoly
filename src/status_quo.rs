@@ -2,7 +2,7 @@ use super::*;
 
 use reed_solomon_erasure::galois_16::ReedSolomon;
 
-fn to_shards(payload: &[u8]) -> Vec<WrappedShard> {
+pub fn to_shards(payload: &[u8]) -> Vec<WrappedShard> {
 	let base_len = payload.len();
 
 	// how many bytes we actually need.
@@ -25,7 +25,7 @@ fn to_shards(payload: &[u8]) -> Vec<WrappedShard> {
 	shards
 }
 
-fn rs() -> ReedSolomon {
+pub fn rs() -> ReedSolomon {
 	ReedSolomon::new(DATA_SHARDS, PARITY_SHARDS).expect("this struct is not created with invalid shard number; qed")
 }
 
