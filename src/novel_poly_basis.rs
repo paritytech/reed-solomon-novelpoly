@@ -1,13 +1,19 @@
 // Encoding/erasure decoding for Reed-Solomon codes over binary extension fields
-// Author: Sian-Jheng Lin (King Abdullah University of Science and Technology (KAUST), email: sianjheng.lin@kaust.edu.sa)
-
-// This program is the implementation of
+//
+// Derived impl of `RSAErasureCode.c`.
+//
 // Lin, Han and Chung, "Novel Polynomial Basis and Its Application to Reed-Solomon Erasure Codes," FOCS14.
 // (http://arxiv.org/abs/1404.3458)
+
 use super::*;
 
-use rand::distributions::{Distribution, Uniform};
-use rand::RngCore;
+use core::mem::transmute;
+
+use std::{
+	cmp,
+	mem::transmute_copy,
+	ops::{AddAssign, ShrAssign},
+};
 
 type GFSymbol = u16;
 
@@ -49,8 +55,8 @@ fn mul_table(a: GFSymbol, b: GFSymbol) -> GFSymbol {
 	}
 }
 
-const fn log2(mut x: GFSymbol) -> GFSymbol {
-	let mut o = 0;
+const fn log2(mut x: usize) -> usize {
+	let mut o: usize = 0;
 	while x > 1 {
 		x >>= 1;
 		o += 1;
@@ -81,13 +87,13 @@ fn formal_derivative(cos: &mut [GFSymbol], size: usize) {
 	for i in 1..size {
 		let length = ((i ^ i - 1) + 1) >> 1;
 		for j in (i - length)..i {
-			cos[j] ^= cos[j + length];
+			cos[j] ^= cos.get(j + length).copied().unwrap_or_default();
 		}
 	}
 	let mut i = size;
-	while i < FIELD_SIZE {
+	while i < FIELD_SIZE && i < cos.len() {
 		for j in 0..size {
-			cos[j] ^= cos[j + i];
+			cos[j] ^= cos.get(j + i).copied().unwrap_or_default();
 		}
 		i <<= 1;
 	}
@@ -103,7 +109,7 @@ fn inverse_fft_in_novel_poly_basis(data: &mut [GFSymbol], size: usize, index: us
 				data[i + depart_no] ^= data[i];
 			}
 
-			let mut skew = unsafe { SKEW_FACTOR[j + index - 1] };
+			let skew = unsafe { SKEW_FACTOR[j + index - 1] };
 			if skew != MODULO {
 				for i in (j - depart_no)..j {
 					data[i] ^= mul_table(data[i + depart_no], skew);
@@ -122,7 +128,7 @@ fn fft_in_novel_poly_basis(data: &mut [GFSymbol], size: usize, index: usize) {
 	while depart_no > 0 {
 		let mut j = depart_no;
 		while j < size {
-			let mut skew = unsafe { SKEW_FACTOR[j + index - 1] };
+			let skew = unsafe { SKEW_FACTOR[j + index - 1] };
 			if skew != MODULO {
 				for i in (j - depart_no)..j {
 					data[i] ^= mul_table(data[i + depart_no], skew);
@@ -194,7 +200,7 @@ unsafe fn init_dec() {
 		base[m] = MODULO - LOG_TABLE[idx as usize];
 
 		for i in (m + 1)..(FIELD_BITS - 1) {
-			let b = (LOG_TABLE[(base[i] as u16 ^ 1_u16) as usize] as u32 + base[m] as u32);
+			let b = LOG_TABLE[(base[i] as u16 ^ 1_u16) as usize] as u32 + base[m] as u32;
 			let b = b % MODULO as u32;
 			base[i] = mul_table(base[i], b as u16);
 		}
@@ -221,19 +227,19 @@ unsafe fn init_dec() {
 	walsh(&mut LOG_WALSH[..], FIELD_SIZE);
 }
 
-//Encoding alg for k/n<0.5: message is a power of two
-fn encode_low(data: &[GFSymbol], k: usize, codeword: &mut [GFSymbol]) {
+//Encoding alg for k/n < 0.5: message is a power of two
+fn encode_low(data: &[GFSymbol], k: usize, codeword: &mut [GFSymbol], n: usize) {
 	mem_cpy(&mut codeword[0..k], &data[0..k]);
 
 	inverse_fft_in_novel_poly_basis(codeword, k, 0);
 
 	let (first_k, skip_first_k) = codeword.split_at_mut(k);
-	let mut i = 0;
-	while i < FIELD_SIZE {
+	let mut i = k;
+	while i < n {
 		// mem_cpy(&mut codeword[i..(i+k)], &codeword[0..k]);
 		// fft_in_novel_poly_basis(&mut codeword[i..(i+k)], k, i);
-		mem_cpy(&mut skip_first_k[i..(i + k)], first_k);
-		fft_in_novel_poly_basis(&mut skip_first_k[i..(i + k)], k, i + k);
+		mem_cpy(&mut skip_first_k[(i - k)..i], first_k);
+		fft_in_novel_poly_basis(&mut skip_first_k[(i - k)..i], k, i);
 		i += k;
 	}
 
@@ -256,13 +262,13 @@ fn mem_cpy(dest: &mut [GFSymbol], src: &[GFSymbol]) {
 
 //data: message array. parity: parity array. mem: buffer(size>= n-k)
 //Encoding alg for k/n>0.5: parity is a power of two.
-fn encode_high(data: &[GFSymbol], k: usize, parity: &mut [GFSymbol], mem: &mut [GFSymbol]) {
-	let t: usize = FIELD_SIZE - k;
+fn encode_high(data: &[GFSymbol], k: usize, parity: &mut [GFSymbol], mem: &mut [GFSymbol], n: usize) {
+	let t: usize = n - k;
 
 	mem_zero(&mut parity[0..t]);
 
 	let mut i = t;
-	while i < FIELD_SIZE {
+	while i < n {
 		mem_cpy(&mut mem[..t], &data[(i - t)..t]);
 
 		inverse_fft_in_novel_poly_basis(mem, t, i);
@@ -275,34 +281,34 @@ fn encode_high(data: &[GFSymbol], k: usize, parity: &mut [GFSymbol], mem: &mut [
 }
 
 //Compute the evaluations of the error locator polynomial
-fn decode_init(erasure: &[bool], log_walsh2: &mut [GFSymbol]) {
-	for i in 0..FIELD_SIZE {
+fn decode_init(erasure: &[bool], log_walsh2: &mut [GFSymbol], n: usize) {
+	for i in 0..n {
 		log_walsh2[i] = erasure[i] as u16;
 	}
-	walsh(log_walsh2, FIELD_SIZE);
-	for i in 0..FIELD_SIZE {
+	walsh(log_walsh2, n);
+	for i in 0..n {
 		log_walsh2[i] = (log_walsh2[i] as usize * unsafe { LOG_WALSH[i] } as usize % MODULO as usize) as GFSymbol;
 	}
-	walsh(log_walsh2, FIELD_SIZE);
-	for i in 0..FIELD_SIZE {
+	walsh(log_walsh2, n);
+	for i in 0..n {
 		if erasure[i] {
 			log_walsh2[i] = MODULO - log_walsh2[i];
 		}
 	}
 }
 
-fn decode_main(codeword: &mut [GFSymbol], erasure: &[bool], log_walsh2: &[GFSymbol]) {
-	let k2 = FIELD_SIZE; //k2 can be replaced with k
-	for i in 0..FIELD_SIZE {
+fn decode_main(codeword: &mut [GFSymbol], k: usize, erasure: &[bool], log_walsh2: &[GFSymbol], n: usize) {
+	let k2 = n; //k2 can be replaced with k XXX what does this mean?
+	for i in 0..n {
 		codeword[i] = if erasure[i] { mul_table(codeword[i], log_walsh2[i]) } else { 0_u16 };
 	}
-	inverse_fft_in_novel_poly_basis(codeword, FIELD_SIZE, 0);
+	inverse_fft_in_novel_poly_basis(codeword, n, 0);
 
 	let modulo = MODULO;
 
 	//formal derivative
 	let mut i = 0;
-	while i < FIELD_SIZE {
+	while i < n {
 		let b = unsafe { B[i >> 1] };
 		codeword[i] = mul_table(codeword[i], modulo - b);
 		codeword[i + 1] = mul_table(codeword[i + 1], modulo - b);
@@ -310,7 +316,7 @@ fn decode_main(codeword: &mut [GFSymbol], erasure: &[bool], log_walsh2: &[GFSymb
 	}
 	formal_derivative(codeword, k2);
 	let mut i = 0;
-	while i < k2 {
+	while i < k {
 		let b = unsafe { B[i >> 1] };
 		codeword[i] = mul_table(codeword[i], b);
 		codeword[i + 1] = mul_table(codeword[i + 1], b);
@@ -326,22 +332,92 @@ fn decode_main(codeword: &mut [GFSymbol], erasure: &[bool], log_walsh2: &[GFSymb
 pub fn encode(data: &[u8]) -> Vec<WrappedShard> {
 	unsafe { init() };
 
-	unimplemented!("foo")
+	// must be power of 2
+	let l = log2(data.len());
+	let l = 1 << l;
+	assert!(l >= data.len());
+
+	const N: usize = crate::N_VALIDATORS;
+	const K: usize = crate::DATA_SHARDS;
+
+	let mut aligned_data: Vec<GFSymbol> = Vec::with_capacity(l >> 1);
+	*aligned_data.last_mut().unwrap() = 0_u16;
+	unsafe {
+		// XXX there must be a better way to achieve this
+		transmute::<&mut [GFSymbol], &mut [u8]>(&mut aligned_data[..]).copy_from_slice(data);
+	}
+
+	let mut data = aligned_data;
+
+	//---------encoding----------
+	let mut codeword = [0_u16; N];
+
+	if K << 1 > N {
+		let (data_till_t, data_skip_t) = data.split_at_mut(N - K);
+		encode_high(data_skip_t, K, data_till_t, &mut codeword[..], N);
+	} else {
+		encode_low(&data[..], K, &mut codeword[..], N);
+	}
+
+	mem_cpy(&mut codeword[..], &data[..]);
+
+	println!("Codeword:");
+	for i in 0..FIELD_SIZE {
+		print!("{:04x} ", codeword[i]);
+	}
+	println!("");
+
+	unimplemented!("foooooo")
 }
 
-pub fn reconstruct(mut received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>> {
-	unsafe { init_dec() };
-	unimplemented!("foo")
-}
+// pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>> {
+
+// let n = crate::DATA_SHARDS + crate::PARITY_SHARDS;
+// let k = crate::DATA_SHARDS;
+// 	unsafe { init_dec() };
+
+// 	let erasures = received_shards.map(|x| x.is_some()).collec::<Vec<bool>>();
+
+// 	//---------Erasure decoding----------------
+// 	let mut log_walsh2: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
+// 	//Evaluate error locator polynomial
+// 	decode_init(&erasure[..], &mut log_walsh2[..]);
+// 	//---------main processing----------
+// 	decode_main(&mut codeword[..], &erasure[..], &log_walsh2[..]);
+
+// 	println!("Decoded result:");
+// 	for i in 0..FIELD_SIZE {
+// 		if erasure[i] {
+// 			print!("{:02x}", codeword[i]);
+// 		} else {
+// 			print!("XX ");
+// 		};
+// 	}
+// 	println!("");
+
+// 	for i in 0..FIELD_SIZE {
+// 		//Check the correctness of the result
+// 		if erasure[i] {
+// 			if data[i] != codeword[i] {
+// 				println!("Decoding Error!");
+// 				return None;
+// 			}
+// 		}
+// 	}
+// 	println!("Decoding is successful!");
+// }
 
 #[cfg(test)]
 mod test {
 	use super::*;
 
 	/// Generate a random index
-	fn rand() -> usize {
-		let mut rng = rand::thread_rng();
-		let uni = Uniform::<usize>::new_inclusive(0, FIELD_SIZE - 1);
+	fn rand_gf_element() -> GFSymbol {
+		use rand::distributions::{Distribution, Uniform};
+		use rand::thread_rng;
+
+		let mut rng = thread_rng();
+		let uni = Uniform::<GFSymbol>::new_inclusive(0, MODULO);
 		uni.sample(&mut rng)
 	}
 
@@ -353,32 +429,38 @@ mod test {
 		}
 
 		// message size `k`s
-		let k = FIELD_SIZE / 2;
+		const N: usize = 128;
+		const K: usize = 16;
+
 		//-----------Generating message----------
 		//message array
-		let mut data: [GFSymbol; FIELD_SIZE] = [0; FIELD_SIZE];
+		let mut data: [GFSymbol; N] = [0; N];
 
-		for i in (FIELD_SIZE - k)..FIELD_SIZE {
-			data[i] = rand() as GFSymbol & MODULO; //filled with random numbers
+		for i in (N - K)..N {
+			//filled with random numbers
+			data[i] = rand_gf_element();
 		}
 
 		println!("Message(First n-k are zeros): ");
-		for i in 0..FIELD_SIZE {
+		for i in 0..N {
 			print!("{:02x} ", data[i]);
 		}
 		println!("");
 
 		//---------encoding----------
-		let mut codeword = [0_u16; FIELD_SIZE];
+		let mut codeword = [0_u16; N];
 
-		let (data_till_t, data_skip_t) = data.split_at_mut(FIELD_SIZE - k);
-		encode_high(data_skip_t, k, data_till_t, &mut codeword[..]);
-		//encode_low(data, k, codeword);
+		if K + K > N {
+			let (data_till_t, data_skip_t) = data.split_at_mut(N - K);
+			encode_high(data_skip_t, K, data_till_t, &mut codeword[..], N);
+		} else {
+			encode_low(&data[..], K, &mut codeword[..], N);
+		}
 
 		mem_cpy(&mut codeword[..], &data[..]);
 
 		println!("Codeword:");
-		for i in 0..FIELD_SIZE {
+		for i in 0..N {
 			print!("{:02x} ", codeword[i]);
 		}
 		println!("");
@@ -386,22 +468,22 @@ mod test {
 		//--------erasure simulation---------
 
 		//Array indicating erasures
-		let mut erasure: [bool; FIELD_SIZE] = [false; FIELD_SIZE];
-		for i in k..FIELD_SIZE {
+		let mut erasure: [bool; N] = [false; N];
+		for i in K..N {
 			erasure[i] = true;
 		}
 
 		//permuting the erasure array
-		let mut i = FIELD_SIZE - 1;
+		let mut i = N - 1;
 		while i > 0 {
-			let pos: usize = rand() % (i + 1);
-			if (i != pos) {
+			let pos: usize = rand_gf_element() as usize % (i + 1);
+			if i != pos {
 				erasure.swap(i, pos);
 			}
 			i -= 1;
 		}
 
-		for i in 0..FIELD_SIZE {
+		for i in 0..N {
 			//erasure codeword symbols
 			if erasure[i] {
 				codeword[i] = 0;
@@ -409,7 +491,7 @@ mod test {
 		}
 
 		println!("Erasure (XX is erasure):");
-		for i in 0..FIELD_SIZE {
+		for i in 0..N {
 			if erasure[i] {
 				print!("XX ");
 			} else {
@@ -419,13 +501,13 @@ mod test {
 		println!("");
 
 		//---------Erasure decoding----------------
-		let mut log_walsh2: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
-		decode_init(&erasure[..], &mut log_walsh2[..]); //Evaluate error locator polynomial
-												//---------main processing----------
-		decode_main(&mut codeword[..], &erasure[..], &log_walsh2[..]);
+		let mut log_walsh2: [GFSymbol; N] = [0_u16; N];
+		decode_init(&erasure[..], &mut log_walsh2[..], N); //Evaluate error locator polynomial
+												   //---------main processing----------
+		decode_main(&mut codeword[..], K, &erasure[..], &log_walsh2[..], N);
 
 		println!("Decoded result:");
-		for i in 0..FIELD_SIZE {
+		for i in 0..N {
 			if erasure[i] {
 				print!("{:02x}", codeword[i]);
 			} else {
@@ -434,16 +516,13 @@ mod test {
 		}
 		println!("");
 
-		for i in 0..FIELD_SIZE {
+		for i in 0..N {
 			//Check the correctness of the result
-			if erasure[i] {
-				if (data[i] != codeword[i]) {
-					println!("Decoding Error!");
-					return;
-				}
+			if data[i] != codeword[i] {
+				println!("Decoding Error!");
+				return;
 			}
 		}
 		println!("Decoding is successful!");
-		return;
 	}
 }

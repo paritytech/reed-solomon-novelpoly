@@ -7,7 +7,7 @@ pub mod novel_poly_basis;
 
 // we want one message per validator, so this is the total number of shards that we should own
 // after
-const N_VALIDATORS: usize = 200;
+const N_VALIDATORS: usize = 256;
 const DATA_SHARDS: usize = N_VALIDATORS / 3;
 const PARITY_SHARDS: usize = N_VALIDATORS - DATA_SHARDS;
 
