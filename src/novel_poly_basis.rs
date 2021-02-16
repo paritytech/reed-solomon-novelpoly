@@ -60,6 +60,11 @@ const fn log2(mut x: usize) -> usize {
 	o
 }
 
+const fn is_power_of_2(x: usize) -> bool {
+	return x > 0_usize && x & (x - 1) == 0;
+}
+
+
 //fast Walsh–Hadamard transform over modulo mod
 fn walsh(data: &mut [GFSymbol], size: usize) {
 	let mut depart_no = 1_usize;
@@ -207,14 +212,14 @@ unsafe fn init_dec() {
 
 	base[0] = MODULO - base[0];
 	for i in 1..(FIELD_BITS - 1) {
-		base[i] = (MODULO - base[i] + base[i - 1]) % MODULO;
+		base[i] = ((MODULO as u32 - base[i] as u32 + base[i - 1] as u32) % MODULO as u32) as GFSymbol;
 	}
 
 	B[0] = 0;
 	for i in 0..(FIELD_BITS - 1) {
 		let depart = 1 << i;
 		for j in 0..depart {
-			B[j + depart] = (B[j] + base[i]) % MODULO;
+			B[j + depart] = ((B[j] as u32 + base[i] as u32) % MODULO as u32) as GFSymbol;
 		}
 	}
 
@@ -298,7 +303,7 @@ fn decode_init(erasure: &[bool], log_walsh2: &mut [GFSymbol], n: usize) {
 
 fn decode_main(codeword: &mut [GFSymbol], k: usize, erasure: &[bool], log_walsh2: &[GFSymbol], n: usize) {
 	assert!(codeword.len() >= K);
-	assert_eq!(codeword.len(), k);
+	assert_eq!(codeword.len(), n);
 	assert!(erasure.len() >= k);
 	assert_eq!(erasure.len(), n);
 
@@ -323,7 +328,7 @@ fn decode_main(codeword: &mut [GFSymbol], k: usize, erasure: &[bool], log_walsh2
 		codeword[i + 1] = mul_table(codeword[i + 1], MODULO - b);
 		i += 2;
 	}
-	formal_derivative(codeword, k);
+	formal_derivative(codeword, n);
 	let mut i = 0;
 	while i < k {
 		let b = unsafe { B[i >> 1] };
@@ -356,8 +361,13 @@ pub fn encode(data: &[u8]) -> Vec<WrappedShard> {
 	} else {
 		l << 1
 	};
+	assert!(l >= data.len());
+	assert!(is_power_of_2(l));
+	assert!(is_power_of_2(N), "Algorithm only works for 2^m sizes for N");
+	assert!(is_power_of_2(K), "Algorithm only works for 2^m sizes for K");
 
-	// XXX assumed to be super slow
+
+	// pad the incoming data with trailing 0s
 	let zero_bytes_to_add = dbg!(l) - dbg!(data.len());
 	let mut data: Vec<GFSymbol> = data.into_iter().copied().chain(
 		std::iter::repeat(0u8).take(zero_bytes_to_add)
@@ -367,10 +377,12 @@ pub fn encode(data: &[u8]) -> Vec<WrappedShard> {
 		.map(|(a,b)| { (b as u16) << 8 | a as u16 })
 		.collect::<Vec<GFSymbol>>();
 
+	assert_eq!(K, data.len());
 	assert_eq!(data.len() * 2, l + zero_bytes_to_add);
 
+	// two bytes make one `l / 2`
 	let l = l / 2;
-	assert_eq!(l, N, "for now we only want to test of variants that don't have to be 0 padded");
+	assert_eq!(l, N, "For now we only want to test of variants that don't have to be 0 padded");
 	let mut codeword = data.clone();
 	assert_eq!(codeword.len(), N);
 
@@ -425,11 +437,12 @@ pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>
 		.enumerate()
 		.map(|(idx, wrapped)| {
 			// fill the gaps with `0_u16` codewords
-			wrapped.map(|wrapped| { (idx, wrapped) }).unwrap_or((idx, 0_u16))
-		})
-		.map(|(idx, wrapped)| {
-			let v: &[[u8; 2]] = wrapped.as_ref();
-			(idx, u16::from_le_bytes(v[0]))
+			if let Some(wrapped) = wrapped {
+				let v: &[[u8; 2]] = wrapped.as_ref();
+				(idx, u16::from_le_bytes(v[0]))
+			} else {
+				(idx, 0_u16)
+			}
 		})
 		.map(|(idx, codeword)| {
 			// copy the good messages (here it's just one codeword/u16 right now)
@@ -437,7 +450,7 @@ pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>
 				recovered[idx] = codeword;
 			}
 			codeword
-		}).chain(std::iter::repeat(0u16).take(erased_count))
+		})
 		.collect::<Vec<u16>>();
 
 	// filled up the remaining spots with 0s
@@ -446,7 +459,7 @@ pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>
 	// XXX the erase portions
 	assert_eq!(codeword.len(), N);
 
-	let k = codeword.len();
+	let k = K; //N - erased_count;
 
 	//---------Erasure decoding----------------
 	let mut log_walsh2: [GFSymbol; N] = [0_u16; N];
@@ -458,13 +471,13 @@ pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>
 	println!("Decoded result:");
 	for idx in 0..N {
 		if erasures[idx] {
-			print!("{:04x}", codeword[idx]);
+			print!("{:04x} ", codeword[idx]);
 			recovered[idx] = codeword[idx];
 		} else {
 			print!("XXXX ");
 		};
 	}
-	println!("Decoding is successful!");
+
 	let recovered = unsafe {
 		// TODO assure this does not leak memory
 		let x = from_raw_parts(recovered.as_ptr() as *const u8, recovered.len() * 2);
@@ -489,15 +502,11 @@ mod test {
 	}
 
 	#[test]
-	fn novel_poly_basis() {
+	fn ported_c_test() {
 		unsafe {
 			init(); //fill log table and exp table
 			init_dec(); //compute factors used in erasure decoder
 		}
-
-		// message size `k`s
-		const N: usize = 128;
-		const K: usize = 16;
 
 		//-----------Generating message----------
 		//message array
@@ -508,9 +517,11 @@ mod test {
 			data[i] = rand_gf_element();
 		}
 
+		assert_eq!(data.len(), N);
+
 		println!("Message(First n-k are zeros): ");
 		for i in 0..N {
-			print!("{:02x} ", data[i]);
+			print!("{:04x} ", data[i]);
 		}
 		println!("");
 
@@ -528,7 +539,7 @@ mod test {
 
 		println!("Codeword:");
 		for i in 0..N {
-			print!("{:02x} ", codeword[i]);
+			print!("{:04x} ", codeword[i]);
 		}
 		println!("");
 
@@ -541,28 +552,30 @@ mod test {
 		}
 
 		//permuting the erasure array
-		let mut i = N - 1;
-		while i > 0 {
-			let pos: usize = rand_gf_element() as usize % (i + 1);
-			if i != pos {
-				erasure.swap(i, pos);
+		{
+			let mut i = N - 1;
+			while i > 0 {
+				let pos: usize = rand_gf_element() as usize % (i + 1);
+				if i != pos {
+					erasure.swap(i, pos);
+				}
+				i -= 1;
 			}
-			i -= 1;
+
+			for i in 0..N {
+				//erasure codeword symbols
+				if erasure[i] {
+					codeword[i] = 0 as GFSymbol;
+				}
+			}
 		}
 
-		for i in 0..N {
-			//erasure codeword symbols
-			if erasure[i] {
-				codeword[i] = 0;
-			}
-		}
-
-		println!("Erasure (XX is erasure):");
+		println!("Erasure (XXXX is erasure):");
 		for i in 0..N {
 			if erasure[i] {
-				print!("XX ");
+				print!("XXXX ");
 			} else {
-				print!("{:02x} ", codeword[i]);
+				print!("{:04x} ", codeword[i]);
 			}
 		}
 		println!("");
@@ -576,9 +589,9 @@ mod test {
 		println!("Decoded result:");
 		for i in 0..N {
 			if erasure[i] {
-				print!("{:02x}", codeword[i]);
+				print!("{:04x} ", codeword[i]);
 			} else {
-				print!("XX ");
+				print!("XXXX ");
 			};
 		}
 		println!("");
@@ -586,8 +599,7 @@ mod test {
 		for i in 0..N {
 			//Check the correctness of the result
 			if data[i] != codeword[i] {
-				println!("Decoding Error!");
-				return;
+				panic!("Decoding Error! value at [{}] should={:04x} vs is={:04x}", i, data[i], codeword[i]);
 			}
 		}
 		println!("Decoding is successful!");
