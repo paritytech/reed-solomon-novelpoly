@@ -312,7 +312,7 @@ fn decode_main(codeword: &mut [GFSymbol], k: usize, erasure: &[bool], log_walsh2
 	// would include parity chunks.
 	let recover_up_to = n;
 	for i in 0..recover_up_to {
-		codeword[i] = if erasure[i] {
+		codeword[i] = if !erasure[i] {
 			mul_table(codeword[i], log_walsh2[i])
 		} else {
 			0_u16
@@ -377,7 +377,7 @@ pub fn encode(data: &[u8]) -> Vec<WrappedShard> {
 		.map(|(a,b)| { (b as u16) << 8 | a as u16 })
 		.collect::<Vec<GFSymbol>>();
 
-	assert_eq!(K, data.len());
+	// assert_eq!(K, data.len());
 	assert_eq!(data.len() * 2, l + zero_bytes_to_add);
 
 	// two bytes make one `l / 2`
