@@ -20,6 +20,7 @@ reed-solomon-erasure = { version = "4.0", features = ["simd-accel"] }
 thiserror = "1.0.23"
 # required for randomly dropping shards
 rand = { version = "0.8", features = ["alloc"] }
+itertools = "0.10"
 
 [dev-dependencies]
 iai = "0.1"

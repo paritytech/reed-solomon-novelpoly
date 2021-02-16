@@ -7,8 +7,8 @@ pub mod novel_poly_basis;
 
 // we want one message per validator, so this is the total number of shards that we should own
 // after
-const N_VALIDATORS: usize = 256;
-const DATA_SHARDS: usize = N_VALIDATORS / 3;
+const N_VALIDATORS: usize = 32;//256;
+const DATA_SHARDS: usize = 8;// N_VALIDATORS / 3;
 const PARITY_SHARDS: usize = N_VALIDATORS - DATA_SHARDS;
 
 pub const BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/rand_data.bin"));
@@ -46,6 +46,12 @@ mod test {
 
 	#[test]
 	fn status_quo_roundtrip() {
-		roundtrip(status_quo::encode, status_quo::reconstruct, &BYTES[0..100])
+		roundtrip(status_quo::encode, status_quo::reconstruct, &BYTES[0..64])
+	}
+
+
+	#[test]
+	fn status_quo_roundtrip() {
+		roundtrip(novel_poly_basis::encode, novel_poly_basis::reconstruct, &BYTES[0..64])
 	}
 }

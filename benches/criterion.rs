@@ -3,20 +3,38 @@ use std::time::Duration;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use rs_ec_perf::*;
 
-fn bench_status_quo_roundtrip(crit: &mut Criterion) {
-	crit.bench_function("status_quo roudtrip", |b| {
-		b.iter(|| {
-			roundtrip(status_quo::encode, status_quo::reconstruct, black_box(BYTES));
-		})
-	});
+
+
+/// Create a new testset for a particular RS encoding.
+macro_rules! instanciate_test {
+	($name:literal, $mp:ident) => {
+		pub mod $mp {
+			use criterion::{Criterion, black_box};
+			use super::super::{roundtrip, BYTES};
+			use super::super::$mp::{encode, reconstruct};
+
+			pub fn bench_roundtrip(crit: &mut Criterion) {
+				crit.bench_function(concat!($name, " roudtrip"), |b| {
+					b.iter(|| {
+						roundtrip(encode, reconstruct, black_box(&BYTES[..256]));
+					})
+				});
+			}
+
+			pub fn bench_encode(crit: &mut Criterion) {
+				crit.bench_function(concat!($name, " encode"), |b| {
+					b.iter(|| {
+						let _ = encode(black_box(&BYTES[..256]));
+					})
+				});
+			}
+		}
+	};
 }
 
-fn bench_status_quo_encode(crit: &mut Criterion) {
-	crit.bench_function("status_quo encode", |b| {
-		b.iter(|| {
-			let _ = status_quo::encode(black_box(BYTES));
-		})
-	});
+pub mod tests {
+	instanciate_test!("novel poly basis", novel_poly_basis);
+	instanciate_test!("status quo", status_quo);
 }
 
 fn adjusted_criterion() -> Criterion {
@@ -27,6 +45,7 @@ fn adjusted_criterion() -> Criterion {
 	crit
 }
 
-criterion_group!(name = benches; config = adjusted_criterion(); targets =  bench_status_quo_roundtrip, bench_status_quo_encode);
+criterion_group!(name = acc_novel_poly_basis; config = adjusted_criterion(); targets =  tests::novel_poly_basis::bench_roundtrip, tests::novel_poly_basis::bench_encode);
+criterion_group!(name = acc_status_quo; config = adjusted_criterion(); targets =  tests::status_quo::bench_roundtrip, tests::status_quo::bench_encode);
 
-criterion_main!(benches);
+criterion_main!(acc_novel_poly_basis, acc_status_quo);

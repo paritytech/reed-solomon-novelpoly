@@ -486,6 +486,7 @@ dependencies = [
  "criterion",
  "fs-err",
  "iai",
+ "itertools 0.10.0",
  "rand",
  "reed-solomon-erasure",
  "thiserror",
