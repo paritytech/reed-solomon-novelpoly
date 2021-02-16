@@ -229,25 +229,35 @@ unsafe fn init_dec() {
 	walsh(&mut LOG_WALSH[..], FIELD_SIZE);
 }
 
-//Encoding alg for k/n < 0.5: message is a power of two
+// Encoding alg for k/n < 0.5: message is a power of two
 fn encode_low(data: &[GFSymbol], k: usize, codeword: &mut [GFSymbol], n: usize) {
 	assert!(k + k <  n);
 	assert_eq!(codeword.len(), n);
 	assert_eq!(data.len(), n);
 
+	// k | n is guaranteed
+	assert_eq!( n / k * k,  n);
+
+	// move the data to the codeword
 	mem_cpy(&mut codeword[0..k], &data[0..k]);
 
-	inverse_fft_in_novel_poly_basis(codeword, k, 0);
+	// split after the first k
+	let (codeword_first_k, codeword_skip_first_k) = codeword.split_at_mut(k);
 
-	let (first_k, skip_first_k) = codeword.split_at_mut(k);
-	let mut i = k;
-	while i < n {
-		let s = i - k;
-		mem_cpy(&mut skip_first_k[s..i], first_k);
-		fft_in_novel_poly_basis(&mut skip_first_k[s..i], k, i);
-		i += k;
+	inverse_fft_in_novel_poly_basis(codeword_first_k, k, 0);
+
+	// the first codeword is now the basis for the remaining transforms
+	// denoted `M_topdash`
+
+	for i in 1..(n/k) {
+		let shift = i * k;
+		let codeword_at_shift = dbg!(&mut codeword_skip_first_k[(shift-k)..shift]);
+		// copy `M_topdash` to the position we are currently at, the n transform
+		mem_cpy(codeword_at_shift, codeword_first_k);
+		fft_in_novel_poly_basis(codeword_at_shift,k, shift);
 	}
 
+	/// restore `M` from the derived ones
 	mem_cpy(&mut codeword[0..k], &data[0..k]);
 }
 
@@ -285,14 +295,17 @@ fn encode_high(data: &[GFSymbol], k: usize, parity: &mut [GFSymbol], mem: &mut [
 	fft_in_novel_poly_basis(parity, t, 0);
 }
 
-//Compute the evaluations of the error locator polynomial
-fn decode_init(erasure: &[bool], log_walsh2: &mut [GFSymbol], n: usize) {
+// Compute the evaluations of the error locator polynomial
+// `fn decode_init`
+// since this has only to be called once per reconstruction
+fn eval_error_polynomial(erasure: &[bool], log_walsh2: &mut [GFSymbol], n: usize) {
 	for i in 0..n {
-		log_walsh2[i] = erasure[i] as u16;
+		log_walsh2[i] = erasure[i] as GFSymbol;
 	}
 	walsh(log_walsh2, n);
 	for i in 0..n {
-		log_walsh2[i] = (log_walsh2[i] as usize * unsafe { LOG_WALSH[i] } as usize % MODULO as usize) as GFSymbol;
+		let tmp = log_walsh2[i] as u32 * unsafe { LOG_WALSH[i] } as u32;
+		log_walsh2[i] = (tmp % MODULO as u32) as GFSymbol;
 	}
 	walsh(log_walsh2, n);
 	for i in 0..n {
@@ -312,7 +325,8 @@ fn decode_main(codeword: &mut [GFSymbol], k: usize, erasure: &[bool], log_walsh2
 	// the first `k` instead of all `n` which
 	// would include parity chunks.
 	let recover_up_to = n;
-	for i in 0..recover_up_to {
+
+	for i in 0..n {
 		codeword[i] = if !erasure[i] {
 			mul_table(codeword[i], log_walsh2[i])
 		} else {
@@ -324,14 +338,16 @@ fn decode_main(codeword: &mut [GFSymbol], k: usize, erasure: &[bool], log_walsh2
 	//formal derivative
 	let mut i = 0;
 	while i < n {
-		let b = unsafe { B[i >> 1] };
-		codeword[i] = mul_table(codeword[i], MODULO - b);
-		codeword[i + 1] = mul_table(codeword[i + 1], MODULO - b);
+		let b = MODULO - unsafe { B[i >> 1] };
+		codeword[i] = mul_table(codeword[i], b);
+		codeword[i + 1] = mul_table(codeword[i + 1], b);
 		i += 2;
 	}
-	formal_derivative(codeword, n);
+
+	formal_derivative(codeword, recover_up_to);
+
 	let mut i = 0;
-	while i < k {
+	while i < recover_up_to {
 		let b = unsafe { B[i >> 1] };
 		codeword[i] = mul_table(codeword[i], b);
 		codeword[i + 1] = mul_table(codeword[i + 1], b);
@@ -340,7 +356,11 @@ fn decode_main(codeword: &mut [GFSymbol], k: usize, erasure: &[bool], log_walsh2
 
 	fft_in_novel_poly_basis(codeword, recover_up_to, 0);
 	for i in 0..recover_up_to {
-		codeword[i] = if erasure[i] { mul_table(codeword[i], log_walsh2[i]) } else { 0_u16 };
+		codeword[i] = if erasure[i] {
+			mul_table(codeword[i], log_walsh2[i])
+		} else {
+			0_u16
+		};
 	}
 }
 
@@ -431,7 +451,9 @@ pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>
 		.collect::<Vec<bool>>();
 
 	// The recovered _data_ chunks AND parity chunks
-	let mut recovered: Vec<u16> = std::iter::repeat(0u16).take(N).collect();
+	let mut recovered: Vec<GFSymbol> = std::iter::repeat(0u16)
+		.take(N)
+		.collect();
 
 	// get rid of all `None`s
 	let mut codeword = received_shards.into_iter()
@@ -455,19 +477,17 @@ pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>
 		.collect::<Vec<u16>>();
 
 	// filled up the remaining spots with 0s
-	// XXX TODO now all valid codewords are in the front, which
-	// XXX is not what we want, since decode_main overwrites
-	// XXX the erase portions
 	assert_eq!(codeword.len(), N);
 
-	let k = K; //N - erased_count;
+	let recover_up_to = N; // the first k would suffice for the original k message codewords
 
 	//---------Erasure decoding----------------
 	let mut log_walsh2: [GFSymbol; N] = [0_u16; N];
-	//Evaluate error locator polynomial
-	decode_init(&erasures[..], &mut log_walsh2[..], N);
+	// Evaluate error locator polynomial
+	eval_error_polynomial(&erasures[..], &mut log_walsh2[..], N);
+
 	//---------main processing----------
-	decode_main(&mut codeword[..], k, &erasures[..], &log_walsh2[..], N);
+	decode_main(&mut codeword[..], recover_up_to, &erasures[..], &log_walsh2[..], N);
 
 	println!("Decoded result:");
 	for idx in 0..N {
@@ -500,6 +520,26 @@ mod test {
 		let mut rng = thread_rng();
 		let uni = Uniform::<GFSymbol>::new_inclusive(0, MODULO);
 		uni.sample(&mut rng)
+	}
+
+
+	#[test]
+	fn flt_back_and_forth() {
+		const N: usize = 128;
+		const K: usize = 32;
+		let mut data = (0..N).into_iter().map(|_x| rand_gf_element()).collect::<Vec<GFSymbol>>();
+		let expected = data.clone();
+
+		fft_in_novel_poly_basis(&mut data, N, K);
+
+		// make sure something is done
+		assert!(
+			data.iter().zip(expected.iter())
+			.filter(|(a,b)| { a != b }).count() > 0);
+
+		inverse_fft_in_novel_poly_basis(&mut data,  N, K);
+
+		itertools::assert_equal(data, expected);
 	}
 
 	#[test]
@@ -583,7 +623,7 @@ mod test {
 
 		//---------Erasure decoding----------------
 		let mut log_walsh2: [GFSymbol; N] = [0_u16; N];
-		decode_init(&erasure[..], &mut log_walsh2[..], N); //Evaluate error locator polynomial
+		eval_error_polynomial(&erasure[..], &mut log_walsh2[..], N); //Evaluate error locator polynomial
 												   //---------main processing----------
 		decode_main(&mut codeword[..], K, &erasure[..], &log_walsh2[..], N);
 
