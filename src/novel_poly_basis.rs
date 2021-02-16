@@ -17,7 +17,7 @@ const FIELD_BITS: usize = 16;
 
 const GENERATOR: GFSymbol = 0x2D; //x^16 + x^5 + x^3 + x^2 + 1
 
-//Cantor basis
+// Cantor basis
 const BASE: [GFSymbol; FIELD_BITS] =
 	[1_u16, 44234, 15374, 5694, 50562, 60718, 37196, 16402, 27800, 4312, 27250, 47360, 64952, 64308, 65336, 39198];
 
@@ -70,6 +70,7 @@ fn walsh(data: &mut [GFSymbol], size: usize) {
 	let mut depart_no = 1_usize;
 	while depart_no < size {
 		let mut j = 0;
+		let depart_no_next = depart_no << 1;
 		while j < size {
 			for i in j..(depart_no + j) {
 				let tmp2: u32 = data[i] as u32 + MODULO as u32 - data[i + depart_no] as u32;
@@ -77,9 +78,9 @@ fn walsh(data: &mut [GFSymbol], size: usize) {
 					+ (data[i] as u32 + data[i + depart_no] as u32 >> FIELD_BITS)) as GFSymbol;
 				data[i + depart_no] = ((tmp2 & MODULO as u32) + (tmp2 >> FIELD_BITS)) as GFSymbol;
 			}
-			j += depart_no << 1;
+			j += depart_no_next;
 		}
-		depart_no <<= 1;
+		depart_no = depart_no_next;
 	}
 }
 
