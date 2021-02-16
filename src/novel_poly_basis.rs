@@ -9,11 +9,7 @@ use super::*;
 
 use core::mem::transmute;
 
-use std::{
-	cmp,
-	mem::transmute_copy,
-	ops::{AddAssign, ShrAssign},
-};
+use std::{cmp, mem::{self, transmute_copy}, ops::{AddAssign, ShrAssign}, slice::from_raw_parts};
 
 type GFSymbol = u16;
 
@@ -229,6 +225,10 @@ unsafe fn init_dec() {
 
 //Encoding alg for k/n < 0.5: message is a power of two
 fn encode_low(data: &[GFSymbol], k: usize, codeword: &mut [GFSymbol], n: usize) {
+	assert!(k + k <  n);
+	assert_eq!(codeword.len(), n);
+	assert_eq!(data.len(), n);
+
 	mem_cpy(&mut codeword[0..k], &data[0..k]);
 
 	inverse_fft_in_novel_poly_basis(codeword, k, 0);
@@ -236,10 +236,9 @@ fn encode_low(data: &[GFSymbol], k: usize, codeword: &mut [GFSymbol], n: usize) 
 	let (first_k, skip_first_k) = codeword.split_at_mut(k);
 	let mut i = k;
 	while i < n {
-		// mem_cpy(&mut codeword[i..(i+k)], &codeword[0..k]);
-		// fft_in_novel_poly_basis(&mut codeword[i..(i+k)], k, i);
-		mem_cpy(&mut skip_first_k[(i - k)..i], first_k);
-		fft_in_novel_poly_basis(&mut skip_first_k[(i - k)..i], k, i);
+		let s = i - k;
+		mem_cpy(&mut skip_first_k[s..i], first_k);
+		fft_in_novel_poly_basis(&mut skip_first_k[s..i], k, i);
 		i += k;
 	}
 
@@ -298,23 +297,33 @@ fn decode_init(erasure: &[bool], log_walsh2: &mut [GFSymbol], n: usize) {
 }
 
 fn decode_main(codeword: &mut [GFSymbol], k: usize, erasure: &[bool], log_walsh2: &[GFSymbol], n: usize) {
-	let k2 = n; //k2 can be replaced with k XXX what does this mean?
-	for i in 0..n {
-		codeword[i] = if erasure[i] { mul_table(codeword[i], log_walsh2[i]) } else { 0_u16 };
+	assert!(codeword.len() >= K);
+	assert_eq!(codeword.len(), k);
+	assert!(erasure.len() >= k);
+	assert_eq!(erasure.len(), n);
+
+	// technically we only need to recover
+	// the first `k` instead of all `n` which
+	// would include parity chunks.
+	let recover_up_to = n;
+	for i in 0..recover_up_to {
+		codeword[i] = if erasure[i] {
+			mul_table(codeword[i], log_walsh2[i])
+		} else {
+			0_u16
+		};
 	}
 	inverse_fft_in_novel_poly_basis(codeword, n, 0);
-
-	let modulo = MODULO;
 
 	//formal derivative
 	let mut i = 0;
 	while i < n {
 		let b = unsafe { B[i >> 1] };
-		codeword[i] = mul_table(codeword[i], modulo - b);
-		codeword[i + 1] = mul_table(codeword[i + 1], modulo - b);
+		codeword[i] = mul_table(codeword[i], MODULO - b);
+		codeword[i + 1] = mul_table(codeword[i + 1], MODULO - b);
 		i += 2;
 	}
-	formal_derivative(codeword, k2);
+	formal_derivative(codeword, k);
 	let mut i = 0;
 	while i < k {
 		let b = unsafe { B[i >> 1] };
@@ -323,11 +332,18 @@ fn decode_main(codeword: &mut [GFSymbol], k: usize, erasure: &[bool], log_walsh2
 		i += 2;
 	}
 
-	fft_in_novel_poly_basis(codeword, k2, 0);
-	for i in 0..k2 {
+	fft_in_novel_poly_basis(codeword, recover_up_to, 0);
+	for i in 0..recover_up_to {
 		codeword[i] = if erasure[i] { mul_table(codeword[i], log_walsh2[i]) } else { 0_u16 };
 	}
 }
+
+
+const N: usize = crate::N_VALIDATORS;
+const K: usize = crate::DATA_SHARDS;
+
+use itertools::Itertools;
+use mem::zeroed;
 
 pub fn encode(data: &[u8]) -> Vec<WrappedShard> {
 	unsafe { init() };
@@ -335,24 +351,30 @@ pub fn encode(data: &[u8]) -> Vec<WrappedShard> {
 	// must be power of 2
 	let l = log2(data.len());
 	let l = 1 << l;
-	assert!(l >= data.len());
+	let l = if l >= data.len() {
+		l
+	} else {
+		l << 1
+	};
 
-	const N: usize = crate::N_VALIDATORS;
-	const K: usize = crate::DATA_SHARDS;
+	// XXX assumed to be super slow
+	let zero_bytes_to_add = dbg!(l) - dbg!(data.len());
+	let mut data: Vec<GFSymbol> = data.into_iter().copied().chain(
+		std::iter::repeat(0u8).take(zero_bytes_to_add)
+	)
+		.tuple_windows()
+		.step_by(2)
+		.map(|(a,b)| { (b as u16) << 8 | a as u16 })
+		.collect::<Vec<GFSymbol>>();
 
-	let mut aligned_data: Vec<GFSymbol> = Vec::with_capacity(l >> 1);
-	*aligned_data.last_mut().unwrap() = 0_u16;
-	unsafe {
-		// XXX there must be a better way to achieve this
-		transmute::<&mut [GFSymbol], &mut [u8]>(&mut aligned_data[..]).copy_from_slice(data);
-	}
+	assert_eq!(data.len() * 2, l + zero_bytes_to_add);
 
-	let mut data = aligned_data;
+	let l = l / 2;
+	assert_eq!(l, N, "for now we only want to test of variants that don't have to be 0 padded");
+	let mut codeword = data.clone();
+	assert_eq!(codeword.len(), N);
 
-	//---------encoding----------
-	let mut codeword = [0_u16; N];
-
-	if K << 1 > N {
+	if K + K > N {
 		let (data_till_t, data_skip_t) = data.split_at_mut(N - K);
 		encode_high(data_skip_t, K, data_till_t, &mut codeword[..], N);
 	} else {
@@ -362,50 +384,95 @@ pub fn encode(data: &[u8]) -> Vec<WrappedShard> {
 	mem_cpy(&mut codeword[..], &data[..]);
 
 	println!("Codeword:");
-	for i in 0..FIELD_SIZE {
+	for i in 0..N {
 		print!("{:04x} ", codeword[i]);
 	}
 	println!("");
 
-	unimplemented!("foooooo")
+	// XXX currently this is only done for one codeword!
+
+	let shards = (0..N).into_iter().map(|i| {
+		WrappedShard::new({
+			let arr = codeword[i].to_le_bytes();
+			arr.to_vec()
+		}
+		)
+	})
+	.collect::<Vec<WrappedShard>>();
+
+	shards
 }
 
-// pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>> {
+pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>> {
 
-// let n = crate::DATA_SHARDS + crate::PARITY_SHARDS;
-// let k = crate::DATA_SHARDS;
-// 	unsafe { init_dec() };
+	unsafe { init_dec() };
 
-// 	let erasures = received_shards.map(|x| x.is_some()).collec::<Vec<bool>>();
+	// collect all `None` values
+	let mut erased_count = 0;
+	let erasures = received_shards
+		.iter()
+		.map(|x| x.is_none())
+		.inspect(|v| { if *v {
+			erased_count += 1;
+		}})
+		.collect::<Vec<bool>>();
 
-// 	//---------Erasure decoding----------------
-// 	let mut log_walsh2: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
-// 	//Evaluate error locator polynomial
-// 	decode_init(&erasure[..], &mut log_walsh2[..]);
-// 	//---------main processing----------
-// 	decode_main(&mut codeword[..], &erasure[..], &log_walsh2[..]);
+	// The recovered _data_ chunks AND parity chunks
+	let mut recovered: Vec<u16> = std::iter::repeat(0u16).take(N).collect();
 
-// 	println!("Decoded result:");
-// 	for i in 0..FIELD_SIZE {
-// 		if erasure[i] {
-// 			print!("{:02x}", codeword[i]);
-// 		} else {
-// 			print!("XX ");
-// 		};
-// 	}
-// 	println!("");
+	// get rid of all `None`s
+	let mut codeword = received_shards.into_iter()
+		.enumerate()
+		.map(|(idx, wrapped)| {
+			// fill the gaps with `0_u16` codewords
+			wrapped.map(|wrapped| { (idx, wrapped) }).unwrap_or((idx, 0_u16))
+		})
+		.map(|(idx, wrapped)| {
+			let v: &[[u8; 2]] = wrapped.as_ref();
+			(idx, u16::from_le_bytes(v[0]))
+		})
+		.map(|(idx, codeword)| {
+			// copy the good messages (here it's just one codeword/u16 right now)
+			if idx < N {
+				recovered[idx] = codeword;
+			}
+			codeword
+		}).chain(std::iter::repeat(0u16).take(erased_count))
+		.collect::<Vec<u16>>();
 
-// 	for i in 0..FIELD_SIZE {
-// 		//Check the correctness of the result
-// 		if erasure[i] {
-// 			if data[i] != codeword[i] {
-// 				println!("Decoding Error!");
-// 				return None;
-// 			}
-// 		}
-// 	}
-// 	println!("Decoding is successful!");
-// }
+	// filled up the remaining spots with 0s
+	// XXX TODO now all valid codewords are in the front, which
+	// XXX is not what we want, since decode_main overwrites
+	// XXX the erase portions
+	assert_eq!(codeword.len(), N);
+
+	let k = codeword.len();
+
+	//---------Erasure decoding----------------
+	let mut log_walsh2: [GFSymbol; N] = [0_u16; N];
+	//Evaluate error locator polynomial
+	decode_init(&erasures[..], &mut log_walsh2[..], N);
+	//---------main processing----------
+	decode_main(&mut codeword[..], k, &erasures[..], &log_walsh2[..], N);
+
+	println!("Decoded result:");
+	for idx in 0..N {
+		if erasures[idx] {
+			print!("{:04x}", codeword[idx]);
+			recovered[idx] = codeword[idx];
+		} else {
+			print!("XXXX ");
+		};
+	}
+	println!("Decoding is successful!");
+	let recovered = unsafe {
+		// TODO assure this does not leak memory
+		let x = from_raw_parts(recovered.as_ptr() as *const u8, recovered.len() * 2);
+		std::mem::forget(recovered);
+		x
+	};
+	Some(recovered.to_vec())
+}
 
 #[cfg(test)]
 mod test {
