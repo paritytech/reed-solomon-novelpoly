@@ -5,11 +5,12 @@
 // Lin, Han and Chung, "Novel Polynomial Basis and Its Application to Reed-Solomon Erasure Codes," FOCS14.
 // (http://arxiv.org/abs/1404.3458)
 
+
+#![allow(dead_code)]
+
 use super::*;
 
-use core::mem::transmute;
-
-use std::{cmp, mem::{self, transmute_copy}, ops::{AddAssign, ShrAssign}, slice::from_raw_parts};
+use std::{slice::from_raw_parts};
 
 type GFSymbol = u16;
 
@@ -256,7 +257,7 @@ fn encode_low(data: &[GFSymbol], k: usize, codeword: &mut [GFSymbol], n: usize) 
 		fft_in_novel_poly_basis(codeword_at_shift,k, shift);
 	}
 
-	/// restore `M` from the derived ones
+	// restore `M` from the derived ones
 	mem_cpy(&mut codeword[0..k], &data[0..k]);
 }
 
@@ -386,7 +387,7 @@ pub fn encode(data: &[u8]) -> Vec<WrappedShard> {
 
 	// pad the incoming data with trailing 0s
 	let zero_bytes_to_add = dbg!(l) - dbg!(data.len());
-	let mut data: Vec<GFSymbol> = data.into_iter().copied().chain(
+	let data: Vec<GFSymbol> = data.into_iter().copied().chain(
 		std::iter::repeat(0u8).take(zero_bytes_to_add)
 	)
 		.tuple_windows()
@@ -506,20 +507,6 @@ pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>
 }
 
 
-fn print_sha256(txt: &'static str, data: &[GFSymbol]) {
-	use sha2::Digest;
-	let data = unsafe { ::std::slice::from_raw_parts(
-		data.as_ptr() as *const u8, data.len() * 2)
-	};
-
-	let mut digest = sha2::Sha256::new();
-	digest.update(data);
-	println!("sha256(rs|{}):", txt);
-	for byte in digest.finalize().into_iter() {
-		print!("{:02x}", byte);
-	}
-	println!("")
-}
 
 #[cfg(test)]
 mod test {
@@ -527,6 +514,20 @@ mod test {
 
     use super::*;
 
+	fn print_sha256(txt: &'static str, data: &[GFSymbol]) {
+		use sha2::Digest;
+		let data = unsafe { ::std::slice::from_raw_parts(
+			data.as_ptr() as *const u8, data.len() * 2)
+		};
+
+		let mut digest = sha2::Sha256::new();
+		digest.update(data);
+		println!("sha256(rs|{}):", txt);
+		for byte in digest.finalize().into_iter() {
+			print!("{:02x}", byte);
+		}
+		println!("")
+	}
 
 	/// Generate a random index
 	fn rand_gf_element() -> GFSymbol {
@@ -603,6 +604,8 @@ mod test {
 			print!("{:04x} ", data[i]);
 		}
 		println!("");
+		print_sha256("data", &data[..]);
+
 
 		//---------encoding----------
 		let mut codeword = [0_u16; N];
@@ -614,11 +617,11 @@ mod test {
 			encode_low(&data[..], K, &mut codeword[..], N);
 		}
 
-		println!("Codeword:");
-		for i in 0..N {
-			print!("{:04x} ", codeword[i]);
+		// println!("Codeword:");
+		for i in K..(K+100) {
+			// print!("{:04x} ", codeword[i]);
 		}
-		println!("");
+		// println!("");
 
 		print_sha256("encoded", &codeword);
 
@@ -649,9 +652,9 @@ mod test {
 		println!("Erasure (XXXX is erasure):");
 		for i in 0..N {
 			if erasure[i] {
-				print!("XXXX ");
+				// print!("XXXX ");
 			} else {
-				print!("{:04x} ", codeword[i]);
+				// print!("{:04x} ", codeword[i]);
 			}
 		}
 		println!("");
@@ -668,11 +671,7 @@ mod test {
 
 		println!("Decoded result:");
 		for i in 0..N {
-			if erasure[i] {
-				print!("{:04x} ", codeword[i]);
-			} else {
-				print!("XXXX ");
-			};
+			// print!("{:04x} ", codeword[i]);
 		}
 		println!("");
 
