@@ -231,15 +231,15 @@ unsafe fn init_dec() {
 
 // Encoding alg for k/n < 0.5: message is a power of two
 fn encode_low(data: &[GFSymbol], k: usize, codeword: &mut [GFSymbol], n: usize) {
-	assert!(k + k <  n);
+	assert!(k + k <= n);
 	assert_eq!(codeword.len(), n);
 	assert_eq!(data.len(), n);
 
 	// k | n is guaranteed
-	assert_eq!( n / k * k,  n);
+	assert_eq!( (n / k) * k,  n);
 
 	// move the data to the codeword
-	mem_cpy(&mut codeword[0..k], &data[0..k]);
+	mem_cpy(&mut codeword[0..], &data[0..]);
 
 	// split after the first k
 	let (codeword_first_k, codeword_skip_first_k) = codeword.split_at_mut(k);
@@ -249,9 +249,8 @@ fn encode_low(data: &[GFSymbol], k: usize, codeword: &mut [GFSymbol], n: usize) 
 	// the first codeword is now the basis for the remaining transforms
 	// denoted `M_topdash`
 
-	for i in 1..(n/k) {
-		let shift = i * k;
-		let codeword_at_shift = dbg!(&mut codeword_skip_first_k[(shift-k)..shift]);
+	for shift in (k..n).into_iter().step_by(k) {
+		let codeword_at_shift = &mut codeword_skip_first_k[(shift-k)..shift];
 		// copy `M_topdash` to the position we are currently at, the n transform
 		mem_cpy(codeword_at_shift, codeword_first_k);
 		fft_in_novel_poly_basis(codeword_at_shift,k, shift);
@@ -336,25 +335,22 @@ fn decode_main(codeword: &mut [GFSymbol], k: usize, erasure: &[bool], log_walsh2
 	inverse_fft_in_novel_poly_basis(codeword, n, 0);
 
 	//formal derivative
-	let mut i = 0;
-	while i < n {
+	for i in  (0..n).into_iter().step_by(2) {
 		let b = MODULO - unsafe { B[i >> 1] };
 		codeword[i] = mul_table(codeword[i], b);
 		codeword[i + 1] = mul_table(codeword[i + 1], b);
-		i += 2;
 	}
 
 	formal_derivative(codeword, recover_up_to);
 
-	let mut i = 0;
-	while i < recover_up_to {
+	for i in  (0..recover_up_to).into_iter().step_by(2) {
 		let b = unsafe { B[i >> 1] };
 		codeword[i] = mul_table(codeword[i], b);
 		codeword[i + 1] = mul_table(codeword[i + 1], b);
-		i += 2;
 	}
 
 	fft_in_novel_poly_basis(codeword, recover_up_to, 0);
+
 	for i in 0..recover_up_to {
 		codeword[i] = if erasure[i] {
 			mul_table(codeword[i], log_walsh2[i])
@@ -407,12 +403,13 @@ pub fn encode(data: &[u8]) -> Vec<WrappedShard> {
 	let mut codeword = data.clone();
 	assert_eq!(codeword.len(), N);
 
-	if K + K > N {
-		let (data_till_t, data_skip_t) = data.split_at_mut(N - K);
-		encode_high(data_skip_t, K, data_till_t, &mut codeword[..], N);
-	} else {
+	assert!(K <= N/2);
+	// if K + K > N {
+	// 	let (data_till_t, data_skip_t) = data.split_at_mut(N - K);
+	// 	encode_high(data_skip_t, K, data_till_t, &mut codeword[..], N);
+	// } else {
 		encode_low(&data[..], K, &mut codeword[..], N);
-	}
+	// }
 
 	mem_cpy(&mut codeword[..], &data[..]);
 
@@ -553,7 +550,7 @@ mod test {
 		//message array
 		let mut data: [GFSymbol; N] = [0; N];
 
-		for i in (N - K)..N {
+		for i in 0..K {
 			//filled with random numbers
 			data[i] = rand_gf_element();
 		}
@@ -586,29 +583,18 @@ mod test {
 
 		//--------erasure simulation---------
 
-		//Array indicating erasures
-		let mut erasure: [bool; N] = [false; N];
-		for i in K..N {
+		// erase random `(N-K)` codewords
+		let mut rng = rand::thread_rng();
+		let erasures_iv = rand::seq::index::sample(&mut rng, N, N-K);
+		assert_eq!(erasures_iv.len(), N - K);
+
+		// Array indicating erasures
+		let mut erasure = [false; N];
+
+		for i in erasures_iv {
+			//erasure codeword symbols
 			erasure[i] = true;
-		}
-
-		//permuting the erasure array
-		{
-			let mut i = N - 1;
-			while i > 0 {
-				let pos: usize = rand_gf_element() as usize % (i + 1);
-				if i != pos {
-					erasure.swap(i, pos);
-				}
-				i -= 1;
-			}
-
-			for i in 0..N {
-				//erasure codeword symbols
-				if erasure[i] {
-					codeword[i] = 0 as GFSymbol;
-				}
-			}
+			codeword[i] = 0 as GFSymbol;
 		}
 
 		println!("Erasure (XXXX is erasure):");
