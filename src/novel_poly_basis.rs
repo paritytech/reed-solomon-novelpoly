@@ -351,7 +351,7 @@ fn decode_main(codeword: &mut [GFSymbol], k: usize, erasure: &[bool], log_walsh2
 	}
 }
 
-const N: usize = FIELD_SIZE / 2;
+const N: usize = FIELD_SIZE;
 const K: usize = 4;
 
 use itertools::Itertools;

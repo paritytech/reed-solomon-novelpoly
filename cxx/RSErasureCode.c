@@ -364,5 +364,5 @@ int main(){
 
 	init();//fill log table and exp table
 	init_dec();//compute factors used in erasure decoder
-	return roundtrip(FIELD_SIZE / 2, 4);//test(n, k), k: message size, n: domain size
+	return roundtrip(FIELD_SIZE, 4);//test(n, k), k: message size, n: domain size
 }
