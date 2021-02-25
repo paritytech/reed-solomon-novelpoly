@@ -670,12 +670,12 @@ mod test {
 		print_sha256("decoded", &codeword);
 
 		println!("Decoded result:");
-		for i in 0..N {
-			// print!("{:04x} ", codeword[i]);
+		for i in 0..(K+5) { // the data word plus a few more
+			print!("{:04x} ", codeword[i]);
 		}
 		println!("");
 
-		for i in 0..N {
+		for i in 0..K {
 			//Check the correctness of the result
 			if data[i] != codeword[i] {
 				panic!("Decoding Error! value at [{}] should={:04x} vs is={:04x}", i, data[i], codeword[i]);

@@ -307,9 +307,9 @@ void test(int k){
 	print_sha256("recovered", (uint8_t*)codeword, Size*2);
 
 	printf("Decoded result:\n");
-	for(int i=0; i<Size; i++){
-		// if(erasure[i]) printf("%02X ", codeword[i]);
-		// else printf("%02X ", data[i]); // printf("XX ");
+	for(int i=0; i<(k+10); i++){
+		if(erasure[i]) printf("%04X ", codeword[i]);
+		else printf("%04X ", data[i]);
 	}
 	printf("\n");
 
