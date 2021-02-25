@@ -540,6 +540,28 @@ mod test {
 	}
 
 	#[test]
+	fn flt_rountrip_small() {
+		const N: usize = 16;
+		const EXPECTED: [GFSymbol; N] = [
+			1, 2, 3, 5, 8, 13, 21, 44,
+			65, 0, 0xFFFF, 2, 3, 5, 7, 11,
+		];
+
+		let mut data = EXPECTED.clone();
+
+		fft_in_novel_poly_basis(&mut data, N, N/4);
+
+		println!("novel basis(rust):");
+		data.iter().for_each(|sym| {
+			print!(" {:04X}", sym);
+		});
+		println!("");
+
+		inverse_fft_in_novel_poly_basis(&mut data, N, N / 4);
+		itertools::assert_equal(data.iter(), EXPECTED.iter());
+	}
+
+	#[test]
 	fn ported_c_test() {
 		unsafe {
 			init(); //fill log table and exp table
