@@ -228,7 +228,7 @@ void print_sha256(char* txt, uint8_t* data, size_t lx) {
 	calc_sha_256(hash, data, lx);
 	printf("sha256(c|%s):\n", txt);
 	for(int i=0; i<32; i++) {
-		printf("%02X", hash[i]);
+		printf("%02x", hash[i]);
 	}
 	printf("\n");
 }
@@ -264,10 +264,10 @@ void test(int k){
 
 	//--------erasure simulation---------
 	_Bool erasure[Size] = {0};//Array indicating erasures
-	for(int i=k; i<Size; i++)
+	for(int i=0; i<(Size-k); i++)
 		erasure[i] = 1;
 
-	if false {
+	#if 0
 		for(int i=Size-1; i>0; i--){//permuting the erasure array
 			int pos = rand()%(i+1);
 			if(i != pos){
@@ -276,10 +276,11 @@ void test(int k){
 				erasure[pos] = tmp;
 			}
 		}
-	}
+	#endif
 
-	for (int i=0; i<Size; i++)//erasure codeword symbols
+	for (int i=0; i<Size; i++) {
 		if(erasure[i]) codeword[i] = 0;
+	}
 
 
 	print_sha256("erased", (uint8_t*)codeword, Size);

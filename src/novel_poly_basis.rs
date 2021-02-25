@@ -315,7 +315,7 @@ fn eval_error_polynomial(erasure: &[bool], log_walsh2: &mut [GFSymbol], n: usize
 }
 
 fn decode_main(codeword: &mut [GFSymbol], k: usize, erasure: &[bool], log_walsh2: &[GFSymbol], n: usize) {
-	assert!(codeword.len() >= K);
+	assert!(codeword.len() >= k);
 	assert_eq!(codeword.len(), n);
 	assert!(erasure.len() >= k);
 	assert_eq!(erasure.len(), n);
@@ -505,9 +505,28 @@ pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>
 	Some(recovered.to_vec())
 }
 
+
+fn print_sha256(txt: &'static str, data: &[GFSymbol]) {
+	use sha2::Digest;
+	let data = unsafe { ::std::slice::from_raw_parts(
+		data.as_ptr() as *const u8, data.len() * 2)
+	};
+
+	let mut digest = sha2::Sha256::new();
+	digest.update(data);
+	println!("sha256(rs|{}):", txt);
+	for byte in digest.finalize().into_iter() {
+		print!("{:02x}", byte);
+	}
+	println!("")
+}
+
 #[cfg(test)]
 mod test {
-	use super::*;
+	use rand::seq::index::IndexVec;
+
+    use super::*;
+
 
 	/// Generate a random index
 	fn rand_gf_element() -> GFSymbol {
@@ -588,7 +607,7 @@ mod test {
 		//---------encoding----------
 		let mut codeword = [0_u16; N];
 
-		if K + K > N {
+		if K + K > N && false {
 			let (data_till_t, data_skip_t) = data.split_at_mut(N - K);
 			encode_high(data_skip_t, K, data_till_t, &mut codeword[..], N);
 		} else {
@@ -601,21 +620,31 @@ mod test {
 		}
 		println!("");
 
-		//--------erasure simulation---------
+		print_sha256("encoded", &codeword);
 
-		// erase random `(N-K)` codewords
-		let mut rng = rand::thread_rng();
-		let erasures_iv = rand::seq::index::sample(&mut rng, N, N-K);
-		assert_eq!(erasures_iv.len(), N - K);
+		//--------erasure simulation---------
 
 		// Array indicating erasures
 		let mut erasure = [false; N];
+
+		let erasures_iv = if false {
+			// erase random `(N-K)` codewords
+			let mut rng = rand::thread_rng();
+			let erasures_iv: IndexVec = rand::seq::index::sample(&mut rng, N, N-K);
+
+			erasures_iv
+		} else {
+			IndexVec::from((0..(N-K)).into_iter().collect::<Vec<usize>>())
+		};
+		assert_eq!(erasures_iv.len(), N - K);
 
 		for i in erasures_iv {
 			//erasure codeword symbols
 			erasure[i] = true;
 			codeword[i] = 0 as GFSymbol;
 		}
+
+		print_sha256("erased", &codeword);
 
 		println!("Erasure (XXXX is erasure):");
 		for i in 0..N {
@@ -629,9 +658,13 @@ mod test {
 
 		//---------Erasure decoding----------------
 		let mut log_walsh2: [GFSymbol; N] = [0_u16; N];
-		eval_error_polynomial(&erasure[..], &mut log_walsh2[..], N); //Evaluate error locator polynomial
-												   //---------main processing----------
+		eval_error_polynomial(&erasure[..], &mut log_walsh2[..], N);
+
+		print_sha256("log_walsh2", &log_walsh2);
+
 		decode_main(&mut codeword[..], K, &erasure[..], &log_walsh2[..], N);
+
+		print_sha256("decoded", &codeword);
 
 		println!("Decoded result:");
 		for i in 0..N {

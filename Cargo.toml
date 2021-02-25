@@ -21,6 +21,7 @@ thiserror = "1.0.23"
 # required for randomly dropping shards
 rand = { version = "0.8", features = ["alloc"] }
 itertools = "0.10"
+sha2 = "0.9"
 
 [dev-dependencies]
 iai = "0.1"
