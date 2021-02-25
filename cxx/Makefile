@@ -1,5 +1,5 @@
 CC      := gcc
-CCFLAGS :=
+CCFLAGS := -ggdb
 LDFLAGS :=
 
 TARGETS:= rsec
@@ -20,4 +20,4 @@ $(TARGETS): % : $(OBJ)
 	$(CC) -o $@ $(LIBS) $^ $(CCFLAGS) $(LDFLAGS)
 
 run: $(TARGETS)
-	./rsec
+	valgrind ./rsec

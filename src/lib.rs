@@ -7,8 +7,8 @@ pub mod novel_poly_basis;
 
 // we want one message per validator, so this is the total number of shards that we should own
 // after
-const N_VALIDATORS: usize = 16;//256;
-const DATA_SHARDS: usize = 4;// N_VALIDATORS / 3;
+const N_VALIDATORS: usize = 16; //256;
+const DATA_SHARDS: usize = 4; // N_VALIDATORS / 3;
 const PARITY_SHARDS: usize = N_VALIDATORS - DATA_SHARDS;
 
 pub const BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/rand_data.bin"));

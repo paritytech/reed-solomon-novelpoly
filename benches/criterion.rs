@@ -3,15 +3,13 @@ use std::time::Duration;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use rs_ec_perf::*;
 
-
-
 /// Create a new testset for a particular RS encoding.
 macro_rules! instanciate_test {
 	($name:literal, $mp:ident) => {
 		pub mod $mp {
-			use criterion::{Criterion, black_box};
-			use super::super::{roundtrip, BYTES};
 			use super::super::$mp::{encode, reconstruct};
+			use super::super::{roundtrip, BYTES};
+			use criterion::{black_box, Criterion};
 
 			pub fn bench_roundtrip(crit: &mut Criterion) {
 				crit.bench_function(concat!($name, " roudtrip"), |b| {
