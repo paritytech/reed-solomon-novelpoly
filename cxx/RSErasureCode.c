@@ -241,18 +241,21 @@ void test(int k){
     for(int i=0; i<k; i++)
 		data[i] = i*i % mod; // rand()&mod;//filled with random numbers
 
+
 	printf("Message(Last n-k are zeros): \n");
-	for(int i=0; i<Size; i++) {
-		// printf("%02X ", data[i]);
+	for(int i=0; i<k; i++) {
+		printf("%04x ", data[i]);
 	}
 	printf("\n");
+
+	print_sha256("data", (uint8_t*)data, Size * 2);
 
 	//---------encoding----------
 	GFSymbol codeword[Size];
 	// encodeH(&data[Size-k], k, &data, codeword);
 	encodeL(data, k, codeword);
 
-	print_sha256("encoded", (uint8_t*)codeword, Size);
+	print_sha256("encoded", (uint8_t*)codeword, Size*2);
 
 	// memcpy(codeword, data, sizeof(GFSymbol)*Size);
 
@@ -283,7 +286,7 @@ void test(int k){
 	}
 
 
-	print_sha256("erased", (uint8_t*)codeword, Size);
+	print_sha256("erased", (uint8_t*)codeword, Size*2);
 
 	printf("Erasure (XX is erasure):\n");
 	for(int i=0; i<Size; i++) {
@@ -296,12 +299,12 @@ void test(int k){
 	//---------Erasure decoding----------------
 	GFSymbol log_walsh2[Size];
 	decode_init(erasure, log_walsh2);//Evaluate error locator polynomial
-	print_sha256("log_walsh2", (uint8_t*)log_walsh2, Size);
+	print_sha256("log_walsh2", (uint8_t*)log_walsh2, Size*2);
 
 	//---------main processing----------
 	decode_main(codeword, erasure, log_walsh2);
 
-	print_sha256("recovered", (uint8_t*)codeword, Size);
+	print_sha256("recovered", (uint8_t*)codeword, Size*2);
 
 	printf("Decoded result:\n");
 	for(int i=0; i<Size; i++){
@@ -348,10 +351,10 @@ int flt_roundtrip() {
 }
 
 int main(){
-	flt_roundtrip();
+	// flt_roundtrip();
 
 	init();//fill log table and exp table
 	init_dec();//compute factors used in erasure decoder
-	test(Size/4);//test(int k), k: message size
+	test(32);//test(int k), k: message size
 	return 1;
 }
