@@ -1,0 +1,300 @@
+/*
+Encoding/erasure decoding for Reed-Solomon codes over binary extension fields
+Author: Sian-Jheng Lin (King Abdullah University of Science and Technology (KAUST), email: sianjheng.lin@kaust.edu.sa)
+
+This program is the implementation of
+Lin, Han and Chung, "Novel Polynomial Basis and Its Application to Reed-Solomon Erasure Codes," FOCS14.
+(http://arxiv.org/abs/1404.3458)
+*/
+
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include <stdint.h>
+
+#if 0
+typedef unsigned char GFSymbol;
+#define len 8//2^len: the size of Galois field
+GFSymbol mask = 0x1D; //GF(2^8): x^8 + x^4 + x^3 + x^2 + 1
+GFSymbol Base[] = {1, 214, 152, 146, 86, 200, 88, 230};//Cantor basis
+#else
+
+typedef unsigned short GFSymbol;
+#define len 16
+GFSymbol mask = 0x2D;//x^16 + x^5 + x^3 + x^2 + 1
+GFSymbol Base[len] = {1, 44234, 15374, 5694, 50562, 60718, 37196, 16402, 27800, 4312, 27250, 47360, 64952, 64308, 65336, 39198};//Cantor basis
+
+#endif
+
+#define Size (1<<len)//Field size
+#define mod (Size-1)
+
+GFSymbol log[Size];
+GFSymbol exp[Size];
+
+//-----Used in decoding procedure-------
+GFSymbol skewVec[mod];//twisted factors used in FFT
+GFSymbol B[Size>>1];//factors used in formal derivative
+GFSymbol log_walsh[Size];//factors used in the evaluation of the error locator polynomial
+
+GFSymbol mulE(GFSymbol a, GFSymbol b){//return a*exp[b] over GF(2^r)
+	return a? exp[(log[a]+b &mod) + (log[a]+b >>len)]: 0;
+}
+
+void walsh(GFSymbol* data, int size){//fast Walsh–Hadamard transform over modulo mod
+	for (int depart_no=1; depart_no<size; depart_no <<= 1){
+		for (int j = 0; j < size; j += depart_no<<1){
+			for (int i=j; i<depart_no+j; i++){
+				unsigned tmp2 = data[i] + mod - data[i+depart_no];
+				data[i] = (data[i] + data[i+depart_no]&mod) + (data[i] + data[i+depart_no]>>len);
+				data[i+depart_no] = (tmp2&mod) + (tmp2>>len);
+			}
+		}
+	}
+	return;
+}
+
+void formal_derivative(GFSymbol* cos, int size){//formal derivative of polynomial in the new basis
+	for(int i=1; i<size; i++){
+		int leng = ((i^i-1)+1)>>1;
+		for(int j=i-leng; j<i; j++)
+			cos[j] ^= cos[j+leng];
+	}
+	for(int i=size; i<Size; i<<=1)
+		for(int j=0; j<size; j++)
+			cos[j] ^= cos[j+i];
+	return;
+}
+
+void IFLT(GFSymbol* data, int size, int index){//IFFT in the proposed basis
+	for (int depart_no=1; depart_no<size; depart_no <<= 1){
+		for (int j=depart_no; j < size; j += depart_no<<1){
+			for (int i=j-depart_no; i<j; i++)
+				data[i+depart_no] ^= data[i];
+
+			GFSymbol skew = skewVec[j+index-1];
+			if (skew != mod)
+				for (int i=j-depart_no; i<j; i++)
+					data[i] ^= mulE(data[i+depart_no], skew);
+		}
+	}
+	return;
+}
+
+void FLT(GFSymbol* data, int size, int index){//FFT in the proposed basis
+	for(int depart_no = size>>1; depart_no > 0; depart_no >>= 1){
+		for (int j = depart_no; j < size; j += depart_no<<1){
+			GFSymbol skew = skewVec[j+index-1];
+			if (skew != mod)
+				for (int i=j-depart_no; i<j; i++)
+					data[i] ^= mulE(data[i+depart_no], skew);
+			for (int i=j-depart_no; i<j; i++)
+				data[i+depart_no] ^= data[i];
+		}
+	}
+	return;
+}
+
+void init(){//initialize log[], exp[]
+	GFSymbol mas = (1<<len-1)-1;
+	GFSymbol state=1;
+	for(int i=0; i<mod; i++){
+		exp[state]=i;
+        if(state>>len-1){
+        	state &= mas;
+        	state = state<<1^mask;
+        }else
+        	state <<= 1;
+    }
+    exp[0] = mod;
+
+    log[0] = 0;
+	for(int i=0; i<len; i++)
+		for(int j=0; j<1<<i; j++)
+			log[j+(1<<i)] = log[j] ^ Base[i];
+    for(int i=0; i<Size; i++)
+        log[i]=exp[log[i]];
+
+    for(int i=0; i<Size; i++)
+        exp[log[i]]=i;
+    exp[mod] = exp[0];
+}
+
+
+void init_dec(){//initialize skewVec[], B[], log_walsh[]
+	GFSymbol base[len-1];
+
+	for(int i=1; i<len; i++)
+		base[i-1] = 1<<i;
+
+	for(int m=0; m<len-1; m++){
+		int step = 1<<(m+1);
+		skewVec[(1<<m)-1] = 0;
+		for(int i=m; i<len-1; i++){
+			int s = 1<<(i+1);
+			for(int j=(1<<m)-1; j<s; j+=step)
+				skewVec[j+s] = skewVec[j] ^ base[i];
+		}
+		base[m] = mod-log[mulE(base[m], log[base[m]^1])];
+		for(int i=m+1; i<len-1; i++)
+			base[i] = mulE(base[i], (log[base[i]^1]+base[m])%mod);
+	}
+	for(int i=0; i<Size; i++)
+		skewVec[i] = log[skewVec[i]];
+
+	base[0] = mod-base[0];
+	for(int i=1; i<len-1; i++)
+		base[i] = (mod-base[i]+base[i-1])%mod;
+
+	B[0] = 0;
+	for(int i=0; i<len-1; i++){
+		int depart = 1<<i;
+		for(int j=0; j<depart; j++)
+			B[j+depart] = (B[j] + base[i])%mod;
+	}
+
+	memcpy(log_walsh, log, Size*sizeof(GFSymbol));
+	log_walsh[0] = 0;
+	walsh(log_walsh, Size);
+}
+
+void encodeL(GFSymbol* data, int k, GFSymbol* codeword){//Encoding alg for k/n<0.5: message is a power of two
+	memcpy(codeword, data, sizeof(GFSymbol)*k);
+	IFLT(codeword, k, 0);
+	for(int i=k; i<Size; i+=k){
+		memcpy(&codeword[i], codeword, sizeof(GFSymbol)*k);
+		FLT(&codeword[i], k, i);
+	}
+	memcpy(codeword, data, sizeof(GFSymbol)*k);
+	return;
+}
+
+void encodeH(GFSymbol* data, int k, GFSymbol* parity, GFSymbol* mem){//Encoding alg for k/n>0.5: parity is a power of two.
+//data: message array. parity: parity array. mem: buffer(size>= n-k)
+	int t = Size-k;
+	memset(parity, 0, sizeof(GFSymbol)*t);
+	for(int i=t; i<Size; i+=t){
+		memcpy(mem, &data[i-t], sizeof(GFSymbol)*t);
+		IFLT(mem, t, i);
+		for(int j=0; j<t; j++)
+			parity[j] ^= mem[j];
+	}
+	FLT(parity, t, 0);
+	return;
+}
+
+void decode_init(_Bool* erasure, GFSymbol* log_walsh2){//Compute the evaluations of the error locator polynomial
+	for(int i=0; i<Size; i++)
+		log_walsh2[i] = erasure[i];
+	walsh(log_walsh2, Size);
+	for (int i=0; i<Size; i++)
+		log_walsh2[i] = (unsigned long)log_walsh2[i]*log_walsh[i]%mod;
+	walsh(log_walsh2,Size);
+	for (int i=0; i<Size; i++)
+		if(erasure[i]) log_walsh2[i] = mod-log_walsh2[i];
+}
+
+void decode_main(GFSymbol* codeword, _Bool* erasure, GFSymbol* log_walsh2){
+
+	int k2 = Size;//k2 can be replaced with k
+	for (int i=0; i<Size; i++)
+		codeword[i] = erasure[i]? 0 : mulE(codeword[i], log_walsh2[i]);
+	IFLT(codeword, Size, 0);
+
+	//formal derivative
+	for(int i=0; i<Size; i+=2){
+		codeword[i] = mulE(codeword[i], mod-B[i>>1]);
+		codeword[i+1] = mulE(codeword[i+1], mod-B[i>>1]);
+	}
+	formal_derivative(codeword, k2);
+	for(int i=0; i<k2; i+=2){
+		codeword[i] = mulE(codeword[i], B[i>>1]);
+		codeword[i+1] = mulE(codeword[i+1], B[i>>1]);
+	}
+
+	FLT(codeword, k2, 0);
+	for (int i=0; i<k2; i++)
+		codeword[i] = erasure[i]? mulE(codeword[i], log_walsh2[i]) : 0;
+}
+
+void test(int k){
+	//-----------Generating message----------
+	GFSymbol data[Size] = {0};//message array
+	srand(time(NULL));
+	for(int i=0; i<(Size-k); i++)
+		data[i] = rand()&mod;//filled with random numbers
+	for(int i=Size-k; i<Size; i++)
+		data[i] = rand()&mod;//filled with random numbers
+
+	printf("Message(First n-k are zeros): \n");
+	for(int i=0; i<Size; i++)
+		printf("%02X ", data[i]);
+	printf("\n");
+
+	//---------encoding----------
+	GFSymbol codeword[Size];
+	// encodeH(&data[Size-k], k, &data, codeword);
+	encodeL(data, k, codeword);
+
+	memcpy(codeword, data, sizeof(GFSymbol)*Size);
+
+	printf("Codeword:\n");
+	for(int i=0; i<Size; i++)
+		printf("%02X ", codeword[i]);
+	printf("\n");
+
+	//--------erasure simulation---------
+	_Bool erasure[Size] = {0};//Array indicating erasures
+	for(int i=k; i<Size; i++)
+		erasure[i] = 1;
+
+	for(int i=Size-1; i>0; i--){//permuting the erasure array
+		int pos = rand()%(i+1);
+		if(i != pos){
+			_Bool tmp = erasure[i];
+			erasure[i] = erasure[pos];
+			erasure[pos] = tmp;
+		}
+	}
+
+	for (int i=0; i<Size; i++)//erasure codeword symbols
+		if(erasure[i]) codeword[i] = 0;
+
+	printf("Erasure (XX is erasure):\n");
+	for(int i=0; i<Size; i++){
+		if(erasure[i]) printf("XX ");
+		else printf("%02X ", codeword[i]);
+	}
+	printf("\n");
+
+
+	//---------Erasure decoding----------------
+	GFSymbol log_walsh2[Size];
+	decode_init(erasure, log_walsh2);//Evaluate error locator polynomial
+	//---------main processing----------
+	decode_main(codeword, erasure, log_walsh2);
+
+	printf("Decoded result:\n");
+	for(int i=0; i<Size; i++){
+		if(erasure[i]) printf("%02X ", codeword[i]);
+		else printf("XX ");
+	}
+	printf("\n");
+
+	for (int i=0; i<Size; i++){//Check the correctness of the result
+		if(erasure[i] == 1)
+			if(data[i] != codeword[i]){
+				printf("Decoding Error!\n");
+				return;
+			}
+	}
+	printf("Decoding is successful!\n");
+	return;
+}
+
+int main(){
+	init();//fill log table and exp table
+	init_dec();//compute factors used in erasure decoder
+	test(Size/2);//test(int k), k: message size
+	return 1;
+}
