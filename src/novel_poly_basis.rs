@@ -552,13 +552,13 @@ mod test {
 
 		for i in 0..K {
 			//filled with random numbers
-			data[i] = rand_gf_element();
+			data[i] = (i*i % MODULO as usize) as u16; // rand_gf_element();
 		}
 
 		assert_eq!(data.len(), N);
 
-		println!("Message(First n-k are zeros): ");
-		for i in 0..N {
+		println!("Message(Last n-k are zeros): ");
+		for i in 0..K {
 			print!("{:04x} ", data[i]);
 		}
 		println!("");
@@ -572,8 +572,6 @@ mod test {
 		} else {
 			encode_low(&data[..], K, &mut codeword[..], N);
 		}
-
-		mem_cpy(&mut codeword[..], &data[..]);
 
 		println!("Codeword:");
 		for i in 0..N {
