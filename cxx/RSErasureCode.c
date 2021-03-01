@@ -321,12 +321,12 @@ int roundtrip(int n, int k) {
 	for (int i=0; i<k; i++){//Check the correctness of the result
 		if(erasure[i] == 1) {
 			if(data[i] != codeword[i]){
-				printf("Decoding Error!\n");
+				printf("XXXXXXXXXXXXX Decoding ERROR! XXXXXXXXXXXXXX\n");
 				return 1;
 			}
 		}
 	}
-	printf("Decoding is successful!\n");
+	printf(">>>>>>>>>>>>>> Decoding is **SUCCESS** ful!\n");
 	return 0;
 }
 
