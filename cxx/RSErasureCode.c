@@ -303,7 +303,8 @@ int roundtrip(int n, int k) {
 
 	//---------Erasure decoding----------------
 	GFSymbol log_walsh2[FIELD_SIZE];
-	decode_init(erasure, log_walsh2, FIELD_SIZE);//Evaluate error locator polynomial
+	decode_init(erasure, log_walsh2, FIELD_SIZE);
+
 	print_sha256("log_walsh2", (uint8_t*)log_walsh2, nx2);
 
 	//---------main processing----------
@@ -321,12 +322,16 @@ int roundtrip(int n, int k) {
 	for (int i=0; i<k; i++){//Check the correctness of the result
 		if(erasure[i] == 1) {
 			if(data[i] != codeword[i]){
-				printf("XXXXXXXXXXXXX Decoding ERROR! XXXXXXXXXXXXXX\n");
+				printf("XXXX🐍XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\n");
+				printf("XXXXXXXXXXXXX Decoding ERROR! XXXXXXX🐍XXXXXX\n");
+				printf("XXXXXXXXXXXXXXXX🐍XXXXXXXXXXXXXXXXXXXXXXXXXXX\n");
 				return 1;
 			}
 		}
 	}
-	printf(">>>>>>>>>>>>>> Decoding is **SUCCESS** ful!\n");
+	printf(">>>>>>>>> 🎉🎉🎉🎉\n");
+	printf(">>>>>>>>> > Decoding is **SUCCESS** ful! 🎈\n");
+	printf(">>>>>>>>>\n");
 	return 0;
 }
 
