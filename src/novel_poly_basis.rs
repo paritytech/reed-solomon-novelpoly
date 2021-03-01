@@ -142,7 +142,6 @@ fn fft_in_novel_poly_basis(data: &mut [GFSymbol], size: usize, index: usize) {
 		}
 		depart_no >>= 1;
 	}
-	return;
 }
 
 //initialize LOG_TABLE[], EXP_TABLE[]
@@ -233,6 +232,9 @@ fn encode_low(data: &[GFSymbol], k: usize, codeword: &mut [GFSymbol], n: usize) 
 	assert!(k + k <= n);
 	assert_eq!(codeword.len(), n);
 	assert_eq!(data.len(), n);
+
+	assert!(is_power_of_2(n));
+	assert!(is_power_of_2(k));
 
 	// k | n is guaranteed
 	assert_eq!((n / k) * k, n);
@@ -336,22 +338,22 @@ fn decode_main(codeword: &mut [GFSymbol], k: usize, erasure: &[bool], log_walsh2
 		codeword[i + 1] = mul_table(codeword[i + 1], b);
 	}
 
-	formal_derivative(codeword, recover_up_to);
+	formal_derivative(codeword, n);
 
-	for i in (0..recover_up_to).into_iter().step_by(2) {
+	for i in (0..n).into_iter().step_by(2) {
 		let b = unsafe { B[i >> 1] };
 		codeword[i] = mul_table(codeword[i], b);
 		codeword[i + 1] = mul_table(codeword[i + 1], b);
 	}
 
-	fft_in_novel_poly_basis(codeword, recover_up_to, 0);
+	fft_in_novel_poly_basis(codeword, n, 0);
 
 	for i in 0..recover_up_to {
 		codeword[i] = if erasure[i] { mul_table(codeword[i], log_walsh2[i]) } else { 0_u16 };
 	}
 }
 
-const N: usize = FIELD_SIZE;
+const N: usize = FIELD_SIZE / 8;
 const K: usize = 4;
 
 use itertools::Itertools;
@@ -625,13 +627,14 @@ mod test {
 
 		//---------Erasure decoding----------------
 		let mut log_walsh2: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
+
 		eval_error_polynomial(&erasure[..], &mut log_walsh2[..], N);
 
 		print_sha256("log_walsh2", &log_walsh2);
 
 		decode_main(&mut codeword[..], K, &erasure[..], &log_walsh2[..], N);
 
-		print_sha256("decoded", &codeword);
+		print_sha256("decoded", &codeword[0..K]);
 
 		println!("Decoded result:");
 		for i in 0..(K + 5) {

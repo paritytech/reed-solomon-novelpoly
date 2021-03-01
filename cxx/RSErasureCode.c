@@ -221,20 +221,22 @@ void decode_main(GFSymbol* codeword, int k, _Bool* erasure, GFSymbol* log_walsh2
 		codeword[i+1] = mulE(codeword[i+1], MODULO-B[i>>1]);
 	}
 
-	formal_derivative(codeword, recover_chunks);
-	for(int i=0; i<recover_chunks; i+=2){
+	formal_derivative(codeword, n);
+	for(int i=0; i<n; i+=2){
 		codeword[i] = mulE(codeword[i], B[i>>1]);
 		codeword[i+1] = mulE(codeword[i+1], B[i>>1]);
 	}
 
-	FLT(codeword, recover_chunks, 0);
+	FLT(codeword, n, 0);
+
 	for (int i=0; i<recover_chunks; i++) {
 		codeword[i] = erasure[i]? mulE(codeword[i], log_walsh2[i]) : 0;
 	}
 }
 
 void print_sha256(char* txt, uint8_t* data, size_t lx) {
-	uint8_t hash[32] = {0, };
+	uint8_t hash[32];
+	memset(hash, 0x00, 32);
 	calc_sha_256(hash, data, lx);
 	printf("sha256(c|%s):\n", txt);
 	for(int i=0; i<32; i++) {
@@ -273,15 +275,10 @@ int roundtrip(int n, int k) {
 
 	print_sha256("encoded", (uint8_t*)codeword, nx2);
 
-	printf("Codeword:\n");
-	for(int i=k; i<(k+100); i++) {
-		printf("%02X ", codeword[i]);
-	}
-	printf("\n");
 
 	//--------erasure simulation---------
-	_Bool erasure[n];
-	memset(erasure, 0x00, n);
+	_Bool erasure[FIELD_SIZE];
+	memset(erasure, 0x00, FIELD_SIZE);
 
 	for(int i=0; i<(n-k); i++)
 		erasure[i] = 1;
@@ -306,13 +303,13 @@ int roundtrip(int n, int k) {
 
 	//---------Erasure decoding----------------
 	GFSymbol log_walsh2[FIELD_SIZE];
-	decode_init(erasure, log_walsh2, n);//Evaluate error locator polynomial
+	decode_init(erasure, log_walsh2, FIELD_SIZE);//Evaluate error locator polynomial
 	print_sha256("log_walsh2", (uint8_t*)log_walsh2, nx2);
 
 	//---------main processing----------
 	decode_main(codeword, k, erasure, log_walsh2, n);
 
-	print_sha256("recovered", (uint8_t*)codeword, nx2);
+	print_sha256("recovered", (uint8_t*)codeword, k * 2);
 
 	printf("Decoded result:\n");
 	for(int i=0; i<(k+10); i++){
@@ -364,5 +361,5 @@ int main(){
 
 	init();//fill log table and exp table
 	init_dec();//compute factors used in erasure decoder
-	return roundtrip(FIELD_SIZE, 4);//test(n, k), k: message size, n: domain size
+	return roundtrip(FIELD_SIZE/8, 4);//test(n, k), k: message size, n: domain size
 }
