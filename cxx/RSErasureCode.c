@@ -313,7 +313,7 @@ int roundtrip(int n, int k) {
 	print_sha256("recovered", (uint8_t*)codeword, k * 2);
 
 	printf("Decoded result:\n");
-	for(int i=0; i<(k+10); i++){
+	for(int i=0; i<n; i++){
 		if(erasure[i]) printf("%04X ", codeword[i]);
 		else printf("%04X ", data[i]);
 	}
@@ -366,5 +366,5 @@ int main(){
 
 	init();//fill log table and exp table
 	init_dec();//compute factors used in erasure decoder
-	return roundtrip(FIELD_SIZE/8, 4);//test(n, k), k: message size, n: domain size
+	return roundtrip(32, 4);//test(n, k), k: message size, n: domain size
 }

@@ -328,7 +328,7 @@ fn decode_main(codeword: &mut [GFSymbol], k: usize, erasure: &[bool], log_walsh2
 	// technically we only need to recover
 	// the first `k` instead of all `n` which
 	// would include parity chunks.
-	let recover_up_to = k;
+	let recover_up_to = n;
 
 	for i in 0..n {
 		codeword[i] = if erasure[i] { 0_u16 } else { mul_table(codeword[i], log_walsh2[i]) };
@@ -357,7 +357,7 @@ fn decode_main(codeword: &mut [GFSymbol], k: usize, erasure: &[bool], log_walsh2
 	}
 }
 
-const N: usize = FIELD_SIZE / 8;
+const N: usize = 32;
 const K: usize = 4;
 
 use itertools::Itertools;
@@ -641,7 +641,7 @@ mod test {
 		print_sha256("decoded", &codeword[0..K]);
 
 		println!("Decoded result:");
-		for i in 0..(K + 5) {
+		for i in 0..N {
 			// the data word plus a few more
 			print!("{:04x} ", codeword[i]);
 		}
