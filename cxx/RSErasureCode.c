@@ -16,6 +16,8 @@ Lin, Han and Chung, "Novel Polynomial Basis and Its Application to Reed-Solomon 
 
 #include "sha-256.h"
 
+#include "RSErasureCode.h"
+
 /*
 typedef unsigned char GFSymbol;
 #define FIELD_BITS 8//2^FIELD_BITS: the size of Galois field
@@ -192,7 +194,7 @@ void encodeL(GFSymbol* data, int k, GFSymbol* codeword, int n){
 // }
 
 //Compute the evaluations of the error locator polynomial
-void decode_init(_Bool* erasure, GFSymbol* log_walsh2, int n){
+void decode_init(Boolean* erasure, GFSymbol* log_walsh2, int n){
 	for(int i=0; i<n; i++)
 		log_walsh2[i] = erasure[i];
 	walsh(log_walsh2, FIELD_SIZE);
@@ -203,7 +205,7 @@ void decode_init(_Bool* erasure, GFSymbol* log_walsh2, int n){
 		if(erasure[i]) log_walsh2[i] = MODULO-log_walsh2[i];
 }
 
-void decode_main(GFSymbol* codeword, int k, _Bool* erasure, GFSymbol* log_walsh2, int n){
+void decode_main(GFSymbol* codeword, int k, Boolean* erasure, GFSymbol* log_walsh2, int n){
 	int recover_chunks = k;//k2 can be replaced with k
 	for (int i=0; i<n; i++)
 		codeword[i] = erasure[i]
@@ -277,7 +279,7 @@ int roundtrip(int n, int k) {
 
 
 	//--------erasure simulation---------
-	_Bool erasure[FIELD_SIZE];
+	Boolean erasure[FIELD_SIZE];
 	memset(erasure, 0x00, FIELD_SIZE);
 
 	for(int i=0; i<(n-k); i++)
@@ -287,7 +289,7 @@ int roundtrip(int n, int k) {
 		for(int i=n-1; i>0; i--){//permuting the erasure array
 			int pos = rand()%(i+1);
 			if(i != pos){
-				_Bool tmp = erasure[i];
+				Boolean tmp = erasure[i];
 				erasure[i] = erasure[pos];
 				erasure[pos] = tmp;
 			}
@@ -333,38 +335,4 @@ int roundtrip(int n, int k) {
 	printf(">>>>>>>>> > Decoding is **SUCCESS** ful! 🎈\n");
 	printf(">>>>>>>>>\n");
 	return 0;
-}
-
-
-#include <assert.h>
-
-int flt_roundtrip() {
-	const int N = 16;
-	GFSymbol expected[16] = {
-		1, 2, 3, 5, 8, 13, 21, 44,
-		65, 0, 0xFFFF, 2, 3, 5, 7, 11,
-	};
-	GFSymbol data[N];
-	memcpy(data, expected, N * sizeof(GFSymbol));
-
-
-	FLT(data, N, N/4);
-	printf("novel basis(c)\n");
-	for(int i=0; i<N; i++){
-		printf("%04X ", data[i]);
-	}
-	printf("\n");
-	IFLT(data, N, N/4);
-	for(int i=0; i<N; i++){
-		assert(data[i] == expected[i]);
-	}
-	return 0;
-}
-
-int main(){
-	// flt_roundtrip();
-
-	init();//fill log table and exp table
-	init_dec();//compute factors used in erasure decoder
-	return roundtrip(32, 4);//test(n, k), k: message size, n: domain size
 }

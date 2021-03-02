@@ -4,6 +4,7 @@ pub use wrapped_shard::*;
 pub mod status_quo;
 
 pub mod novel_poly_basis;
+pub mod novel_poly_basis_cxx;
 
 // we want one message per validator, so this is the total number of shards that we should own
 // after

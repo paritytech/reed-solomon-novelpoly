@@ -1,0 +1,27 @@
+cargo-features = ["named-profiles"]
+
+[package]
+name = "fuzzit"
+version = "0.1.0"
+authors = ["Bernhard Schuster <bernhard@ahoi.io>"]
+edition = "2018"
+
+[build-dependencies]
+rand = { version = "0.8", features = ["alloc"] }
+fs-err = "2"
+bindgen = "0.57"
+
+[dependencies]
+thiserror = "1.0.23"
+# required for randomly dropping shards
+rand = { version = "0.8", features = ["alloc"] }
+itertools = "0.10"
+sha2 = "0.9"
+honggfuzz = "0.5.52"
+rs = { package = "rs-ec-perf", path = ".." }
+
+[profile.dev]
+debug = true
+
+[profile.release]
+debug = true
