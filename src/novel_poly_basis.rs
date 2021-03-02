@@ -376,7 +376,6 @@ pub const N: usize = N_VALIDATORS;
 pub const K: usize = DATA_SHARDS;
 
 use itertools::Itertools;
-use lazy_static::lazy_static;
 
 
 /// Bytes shall only contain payload data
