@@ -1,5 +1,6 @@
 mod wrapped_shard;
-use rand::seq::index::{IndexVec, IndexVecIntoIter};
+
+use rand::prelude::*;
 pub use wrapped_shard::*;
 
 pub mod status_quo;
@@ -20,7 +21,14 @@ where
 E: for<'r> Fn(&'r [u8]) -> Vec<WrappedShard>,
 R: Fn(Vec<Option<WrappedShard>>) -> Option<Vec<u8>>,
 {
-	let mut rng = rand::thread_rng();
+	let mut rng = SmallRng::from_seed([0, 6, 0xFA, 0,
+		0x37, 3, 19, 89,
+		32, 032, 0x37, 0x77,
+		77, 0b11, 112, 52,
+		12, 40, 82, 34,
+		0, 0, 0, 1,
+		4, 4, 1, 4,
+		99, 127, 121, 107]);
 
 	let drop_random = move |shards: &mut [Option<WrappedShard>], n: usize, k: usize| {
 		let iv = rand::seq::index::sample(&mut rng, n, n - k);

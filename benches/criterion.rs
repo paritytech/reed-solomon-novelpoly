@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 use rs_ec_perf::*;
 
 /// Create a new testset for a particular RS encoding.
