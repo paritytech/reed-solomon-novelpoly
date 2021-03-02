@@ -14,7 +14,7 @@ fn main() {
         // For performance reasons, it is recommended that you use the native type
         // `&[u8]` when possible.
         // Here, this slice will contain a "random" quantity of "random" data.
-        fuzz!(|data: [u8; N]| {
+        fuzz!(|data: [u8; K*2]| {
             roundtrip(encode, reconstruct, &data);
         });
     }
