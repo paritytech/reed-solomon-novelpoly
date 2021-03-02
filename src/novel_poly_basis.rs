@@ -227,11 +227,19 @@ unsafe fn init_dec() {
 	walsh(&mut LOG_WALSH[..], FIELD_SIZE);
 }
 
+
+/// Setup both decoder and encoder.
 pub fn setup() {
-	unsafe {
-		init();
-		init_dec();
-	}
+	use std::sync::Once;
+
+	static SETUP: Once = Once::new();
+
+	SETUP.call_once(|| {
+		unsafe {
+			init();
+			init_dec();
+		}
+	});
 }
 
 // Encoding alg for k/n < 0.5: message is a power of two
@@ -364,26 +372,39 @@ fn decode_main(codeword: &mut [GFSymbol], k: usize, erasure: &[bool], log_walsh2
 	}
 }
 
-pub const N: usize = 32;
-pub const K: usize = 4;
+pub const N: usize = N_VALIDATORS;
+pub const K: usize = DATA_SHARDS;
 
 use itertools::Itertools;
+use lazy_static::lazy_static;
 
-pub fn encode(data: &[u8]) -> Vec<WrappedShard> {
-	unsafe { init() };
 
-	// must be power of 2
-	let l = log2(data.len());
-	let l = 1 << l;
-	let l = if l >= data.len() { l } else { l << 1 };
-	assert!(l >= data.len());
-	assert!(is_power_of_2(l));
+/// Bytes shall only contain payload data
+pub fn encode(bytes: &[u8]) -> Vec<WrappedShard> {
 	assert!(is_power_of_2(N), "Algorithm only works for 2^m sizes for N");
 	assert!(is_power_of_2(K), "Algorithm only works for 2^m sizes for K");
+	assert!(bytes.len() <= K << 1);
+	assert!(K <= N / 2);
 
-	// pad the incoming data with trailing 0s
-	let zero_bytes_to_add = dbg!(l) - dbg!(data.len());
-	let data: Vec<GFSymbol> = data
+	setup();
+
+	// must be power of 2
+	let dl = bytes.len();
+	let l = if is_power_of_2(dl) {
+		dl
+	} else {
+		let l = log2(dl);
+		let l = 1 << l;
+		let l = if l >= dl { l } else { l << 1 };
+		l
+	};
+	assert!(is_power_of_2(l));
+	assert!(l >= dl);
+
+	// pad the incoming bytes with trailing 0s
+	// so we get a buffer of size `N` in `GF` symbols
+	let zero_bytes_to_add = N*2 - dl;
+	let data: Vec<GFSymbol> = bytes
 		.into_iter()
 		.copied()
 		.chain(std::iter::repeat(0u8).take(zero_bytes_to_add))
@@ -392,26 +413,19 @@ pub fn encode(data: &[u8]) -> Vec<WrappedShard> {
 		.map(|(a, b)| (b as u16) << 8 | a as u16)
 		.collect::<Vec<GFSymbol>>();
 
-	// assert_eq!(K, data.len());
-	assert_eq!(data.len() * 2, l + zero_bytes_to_add);
+	// update new data bytes with zero padded bytes
+	// `l` is now `GF(2^16)` symbols
+	let l = data.len();
+	assert_eq!(l, N, "Zer0 padding to full buffer size always works. qed");
 
-	// two bytes make one `l / 2`
-	let l = l / 2;
-	assert_eq!(l, N, "For now we only want to test of variants that don't have to be 0 padded");
 	let mut codeword = data.clone();
 	assert_eq!(codeword.len(), N);
 
-	assert!(K <= N / 2);
-	// if K + K > N {
-	// 	let (data_till_t, data_skip_t) = data.split_at_mut(N - K);
-	// 	encode_high(data_skip_t, K, data_till_t, &mut codeword[..], N);
-	// } else {
 	encode_low(&data[..], K, &mut codeword[..], N);
-	// }
 
 	println!("Codeword:");
-	for i in 0..N {
-		print!("{:04x} ", codeword[i]);
+	for codeword in codeword.iter() {
+		print!("{:04x} ", codeword);
 	}
 	println!("");
 
@@ -431,7 +445,7 @@ pub fn encode(data: &[u8]) -> Vec<WrappedShard> {
 }
 
 pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>> {
-	unsafe { init_dec() };
+	setup();
 
 	// collect all `None` values
 	let mut erased_count = 0;
@@ -570,10 +584,7 @@ mod test {
 
 	#[test]
 	fn ported_c_test() {
-		unsafe {
-			init(); //fill log table and exp table
-			init_dec(); //compute factors used in erasure decoder
-		}
+		setup();
 
 		//-----------Generating message----------
 		//message array
