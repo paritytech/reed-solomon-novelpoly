@@ -496,6 +496,7 @@ impl ReedSolomon {
 }
 
 pub fn encode(bytes: &[u8]) -> Vec<WrappedShard> {
+	setup();
 	let validator_count = N_VALIDATORS;
 	let rs = ReedSolomon::new(validator_count);
 
@@ -533,6 +534,7 @@ pub fn encode(bytes: &[u8]) -> Vec<WrappedShard> {
 
 /// each shard contains one symbol of one run of erasure coding
 pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>> {
+	setup();
 	let validator_count = N_VALIDATORS;
 	let rs = ReedSolomon::new(validator_count);
 
@@ -546,10 +548,11 @@ pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>
 					let x = AsRef::<[[u8;2]]>::as_ref(x);
 					x.len()
 				})
-		})?;
+		}).unwrap();
 
 	let mut acc = Vec::<u8>::with_capacity(shard_len * 2 * rs.k);
 	for i in 0..shard_len {
+		// take the i-th element of all shards and try to recover
 		let mut decoding_run = received_shards.iter()
 			.map(|x| {
 				x.as_ref().map(|x| {
@@ -567,7 +570,7 @@ pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>
 		assert_eq!(decoding_run.len(), rs.n);
 
 		// reconstruct from one set of symbols which was spread over all erasure chunks
-		let piece = reconstruct_sub(&decoding_run[..], rs.n, rs.k)?;
+		let piece = reconstruct_sub(&decoding_run[..], rs.n, rs.k).unwrap();
 		acc.extend_from_slice(&piece[..]);
 	}
 	Some(acc)
@@ -640,17 +643,19 @@ pub fn reconstruct_sub(codewords: &[Option<GFSymbol>], n: usize, k: usize) -> Op
 	let mut existential_count = 0;
 	let erasures = codewords
 		.iter()
-		.map(|x| x.is_none())
+		.map(|x| x.is_some())
 		.inspect(|v| {
 			if !*v {
 				existential_count += 1;
 			}
 		})
+		.map(|x| !x)
 		.collect::<Vec<bool>>();
 
 	assert!(existential_count <= n);
 
 	if existential_count < k {
+		println!("Nothing exists");
 		return None;
 	}
 
