@@ -455,18 +455,18 @@ fn decode_main(codeword: &mut [GFSymbol], k: usize, erasure: &[bool], log_walsh2
 	}
 }
 
-pub const N: usize = N_VALIDATORS;
-pub const K: usize = DATA_SHARDS;
-
 use itertools::Itertools;
 
+pub fn encode(bytes: &[u8]) -> Vec<WrappedShard> {
+	encode2(bytes, N_VALIDATORS, DATA_SHARDS)
+}
 
 /// Bytes shall only contain payload data
-pub fn encode(bytes: &[u8]) -> Vec<WrappedShard> {
-	assert!(is_power_of_2(N), "Algorithm only works for 2^m sizes for N");
-	assert!(is_power_of_2(K), "Algorithm only works for 2^m sizes for K");
-	assert!(bytes.len() <= K << 1);
-	assert!(K <= N / 2);
+pub fn encode2(bytes: &[u8], n: usize, k:usize) -> Vec<WrappedShard> {
+	assert!(is_power_of_2(n), "Algorithm only works for 2^m sizes for N");
+	assert!(is_power_of_2(k), "Algorithm only works for 2^m sizes for K");
+	assert!(bytes.len() <= k << 1);
+	assert!(k <= n / 2);
 
 	setup();
 
@@ -485,7 +485,7 @@ pub fn encode(bytes: &[u8]) -> Vec<WrappedShard> {
 
 	// pad the incoming bytes with trailing 0s
 	// so we get a buffer of size `N` in `GF` symbols
-	let zero_bytes_to_add = N*2 - dl;
+	let zero_bytes_to_add = n*2 - dl;
 	let data: Vec<GFSymbol> = bytes
 		.into_iter()
 		.copied()
@@ -498,12 +498,12 @@ pub fn encode(bytes: &[u8]) -> Vec<WrappedShard> {
 	// update new data bytes with zero padded bytes
 	// `l` is now `GF(2^16)` symbols
 	let l = data.len();
-	assert_eq!(l, N, "Zer0 padding to full buffer size always works. qed");
+	assert_eq!(l, n, "Zer0 padding to full buffer size always works. qed");
 
 	let mut codeword = data.clone();
-	assert_eq!(codeword.len(), N);
+	assert_eq!(codeword.len(), n);
 
-	encode_low(&data[..], K, &mut codeword[..], N);
+	encode_low(&data[..], k, &mut codeword[..], n);
 
 	println!("Codeword:");
 	for codeword in codeword.iter() {
@@ -513,7 +513,7 @@ pub fn encode(bytes: &[u8]) -> Vec<WrappedShard> {
 
 	// XXX currently this is only done for one codeword!
 
-	let shards = (0..N)
+	let shards = (0..n)
 		.into_iter()
 		.map(|i| {
 			WrappedShard::new({
@@ -527,6 +527,10 @@ pub fn encode(bytes: &[u8]) -> Vec<WrappedShard> {
 }
 
 pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>> {
+	reconstruct2(received_shards, N_VALIDATORS, DATA_SHARDS)
+}
+
+pub fn reconstruct2(received_shards: Vec<Option<WrappedShard>>, n: usize, k: usize) -> Option<Vec<u8>> {
 	setup();
 
 	// collect all `None` values
@@ -542,7 +546,7 @@ pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>
 		.collect::<Vec<bool>>();
 
 	// The recovered _data_ chunks AND parity chunks
-	let mut recovered: Vec<GFSymbol> = std::iter::repeat(0u16).take(N).collect();
+	let mut recovered: Vec<GFSymbol> = std::iter::repeat(0u16).take(n).collect();
 
 	// get rid of all `None`s
 	let mut codeword = received_shards
@@ -559,7 +563,7 @@ pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>
 		})
 		.map(|(idx, codeword)| {
 			// copy the good messages (here it's just one codeword/u16 right now)
-			if idx < N {
+			if idx < n {
 				recovered[idx] = codeword;
 			}
 			codeword
@@ -567,9 +571,9 @@ pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>
 		.collect::<Vec<u16>>();
 
 	// filled up the remaining spots with 0s
-	assert_eq!(codeword.len(), N);
+	assert_eq!(codeword.len(), n);
 
-	let recover_up_to = N; // the first k would suffice for the original k message codewords
+	let recover_up_to = n; // the first k would suffice for the original k message codewords
 
 	//---------Erasure decoding----------------
 	let mut log_walsh2: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
@@ -578,10 +582,10 @@ pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>
 	eval_error_polynomial(&erasures[..], &mut log_walsh2[..], FIELD_SIZE);
 
 	//---------main processing----------
-	decode_main(&mut codeword[..], recover_up_to, &erasures[..], &log_walsh2[..], N);
+	decode_main(&mut codeword[..], recover_up_to, &erasures[..], &log_walsh2[..], n);
 
 	println!("Decoded result:");
-	for idx in 0..N {
+	for idx in 0..n {
 		if erasures[idx] {
 			print!("{:04x} ", codeword[idx]);
 			recovered[idx] = codeword[idx];
@@ -666,6 +670,8 @@ mod test {
 
 	#[test]
 	fn ported_c_test() {
+		const N: usize = 128;
+		const K: usize = 32;
 		setup();
 
 		//-----------Generating message----------
