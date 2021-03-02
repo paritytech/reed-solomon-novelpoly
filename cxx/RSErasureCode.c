@@ -168,6 +168,11 @@ void init_dec(){//initialize skewVec[], B[], log_walsh[]
 	walsh(log_walsh, FIELD_SIZE);
 }
 
+void setup() {
+	init();
+	init_dec();
+}
+
 //Encoding alg for k/n<0.5: message is a power of two
 void encodeL(GFSymbol* data, int k, GFSymbol* codeword, int n){
 	memcpy(codeword, data, sizeof(GFSymbol)*k);
@@ -334,5 +339,32 @@ int roundtrip(int n, int k) {
 	printf(">>>>>>>>> 🎉🎉🎉🎉\n");
 	printf(">>>>>>>>> > Decoding is **SUCCESS** ful! 🎈\n");
 	printf(">>>>>>>>>\n");
+	return 0;
+}
+
+
+
+#include <assert.h>
+
+int test_flt_roundtrip() {
+	const int N = 16;
+	GFSymbol expected[16] = {
+		1, 2, 3, 5, 8, 13, 21, 44,
+		65, 0, 0xFFFF, 2, 3, 5, 7, 11,
+	};
+	GFSymbol data[N];
+	memcpy(data, expected, N * sizeof(GFSymbol));
+
+
+	FLT(data, N, N/4);
+	printf("novel basis(c)\n");
+	for(int i=0; i<N; i++){
+		printf("%04X ", data[i]);
+	}
+	printf("\n");
+	IFLT(data, N, N/4);
+	for(int i=0; i<N; i++){
+		assert(data[i] == expected[i]);
+	}
 	return 0;
 }

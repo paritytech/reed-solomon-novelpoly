@@ -37,8 +37,7 @@ void formal_derivative(GFSymbol* cos, int size);
 void IFLT(GFSymbol* data, int size, int index);
 void FLT(GFSymbol* data, int size, int index);
 
-void init();
-void init_dec();
+void setup();
 
 //Encoding alg for k/n<0.5: message is a power of two
 void encodeL(GFSymbol* data, int k, GFSymbol* codeword, int n);
@@ -47,4 +46,4 @@ void decode_init(Boolean* erasure, GFSymbol* log_walsh2, int n);
 void decode_main(GFSymbol* codeword, int k, Boolean* erasure, GFSymbol* log_walsh2, int n);
 
 int roundtrip(int n, int k);
-int flt_roundtrip();
+int test_flt_roundtrip();

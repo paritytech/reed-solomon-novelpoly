@@ -18,12 +18,12 @@ pub const FIELD_BITS: usize = 16;
 pub const GENERATOR: GFSymbol = 0x2D; //x^16 + x^5 + x^3 + x^2 + 1
 
 // Cantor basis
-const BASE: [GFSymbol; FIELD_BITS] =
+pub const BASE: [GFSymbol; FIELD_BITS] =
 	[1_u16, 44234, 15374, 5694, 50562, 60718, 37196, 16402, 27800, 4312, 27250, 47360, 64952, 64308, 65336, 39198];
 
-const FIELD_SIZE: usize = 1_usize << FIELD_BITS;
+pub const FIELD_SIZE: usize = 1_usize << FIELD_BITS;
 
-const MODULO: GFSymbol = (FIELD_SIZE - 1) as GFSymbol;
+pub const MODULO: GFSymbol = (FIELD_SIZE - 1) as GFSymbol;
 
 static mut LOG_TABLE: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
 static mut EXP_TABLE: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
