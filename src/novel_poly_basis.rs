@@ -11,11 +11,11 @@ use super::*;
 
 use std::slice::from_raw_parts;
 
-type GFSymbol = u16;
+pub type GFSymbol = u16;
 
-const FIELD_BITS: usize = 16;
+pub const FIELD_BITS: usize = 16;
 
-const GENERATOR: GFSymbol = 0x2D; //x^16 + x^5 + x^3 + x^2 + 1
+pub const GENERATOR: GFSymbol = 0x2D; //x^16 + x^5 + x^3 + x^2 + 1
 
 // Cantor basis
 const BASE: [GFSymbol; FIELD_BITS] =
@@ -39,7 +39,7 @@ static mut B: [GFSymbol; FIELD_SIZE >> 1] = [0_u16; FIELD_SIZE >> 1];
 static mut LOG_WALSH: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
 
 //return a*EXP_TABLE[b] over GF(2^r)
-fn mul_table(a: GFSymbol, b: GFSymbol) -> GFSymbol {
+pub fn mul_table(a: GFSymbol, b: GFSymbol) -> GFSymbol {
 	if a != 0_u16 {
 		unsafe {
 			let offset = (LOG_TABLE[a as usize] as u32 + b as u32 & MODULO as u32)
@@ -51,7 +51,7 @@ fn mul_table(a: GFSymbol, b: GFSymbol) -> GFSymbol {
 	}
 }
 
-const fn log2(mut x: usize) -> usize {
+pub const fn log2(mut x: usize) -> usize {
 	let mut o: usize = 0;
 	while x > 1 {
 		x >>= 1;
@@ -60,12 +60,12 @@ const fn log2(mut x: usize) -> usize {
 	o
 }
 
-const fn is_power_of_2(x: usize) -> bool {
+pub const fn is_power_of_2(x: usize) -> bool {
 	return x > 0_usize && x & (x - 1) == 0;
 }
 
 //fast Walsh–Hadamard transform over modulo mod
-fn walsh(data: &mut [GFSymbol], size: usize) {
+pub fn walsh(data: &mut [GFSymbol], size: usize) {
 	let mut depart_no = 1_usize;
 	while depart_no < size {
 		let mut j = 0;
@@ -84,7 +84,7 @@ fn walsh(data: &mut [GFSymbol], size: usize) {
 }
 
 //formal derivative of polynomial in the new basis
-fn formal_derivative(cos: &mut [GFSymbol], size: usize) {
+pub fn formal_derivative(cos: &mut [GFSymbol], size: usize) {
 	for i in 1..size {
 		let length = ((i ^ i - 1) + 1) >> 1;
 		for j in (i - length)..i {
@@ -101,7 +101,7 @@ fn formal_derivative(cos: &mut [GFSymbol], size: usize) {
 }
 
 //IFFT in the proposed basis
-fn inverse_fft_in_novel_poly_basis(data: &mut [GFSymbol], size: usize, index: usize) {
+pub fn inverse_fft_in_novel_poly_basis(data: &mut [GFSymbol], size: usize, index: usize) {
 	let mut depart_no = 1_usize;
 	while depart_no < size {
 		let mut j = depart_no;
@@ -124,7 +124,7 @@ fn inverse_fft_in_novel_poly_basis(data: &mut [GFSymbol], size: usize, index: us
 }
 
 //FFT in the proposed basis
-fn fft_in_novel_poly_basis(data: &mut [GFSymbol], size: usize, index: usize) {
+pub fn fft_in_novel_poly_basis(data: &mut [GFSymbol], size: usize, index: usize) {
 	let mut depart_no = size >> 1_usize;
 	while depart_no > 0 {
 		let mut j = depart_no;
@@ -227,8 +227,15 @@ unsafe fn init_dec() {
 	walsh(&mut LOG_WALSH[..], FIELD_SIZE);
 }
 
+pub fn setup() {
+	unsafe {
+		init();
+		init_dec();
+	}
+}
+
 // Encoding alg for k/n < 0.5: message is a power of two
-fn encode_low(data: &[GFSymbol], k: usize, codeword: &mut [GFSymbol], n: usize) {
+pub fn encode_low(data: &[GFSymbol], k: usize, codeword: &mut [GFSymbol], n: usize) {
 	assert!(k + k <= n);
 	assert_eq!(codeword.len(), n);
 	assert_eq!(data.len(), n);
@@ -277,7 +284,7 @@ fn mem_cpy(dest: &mut [GFSymbol], src: &[GFSymbol]) {
 
 //data: message array. parity: parity array. mem: buffer(size>= n-k)
 //Encoding alg for k/n>0.5: parity is a power of two.
-fn encode_high(data: &[GFSymbol], k: usize, parity: &mut [GFSymbol], mem: &mut [GFSymbol], n: usize) {
+pub fn encode_high(data: &[GFSymbol], k: usize, parity: &mut [GFSymbol], mem: &mut [GFSymbol], n: usize) {
 	let t: usize = n - k;
 
 	mem_zero(&mut parity[0..t]);
@@ -298,12 +305,12 @@ fn encode_high(data: &[GFSymbol], k: usize, parity: &mut [GFSymbol], mem: &mut [
 // Compute the evaluations of the error locator polynomial
 // `fn decode_init`
 // since this has only to be called once per reconstruction
-fn eval_error_polynomial(erasure: &[bool], log_walsh2: &mut [GFSymbol], n: usize) {
+pub fn eval_error_polynomial(erasure: &[bool], log_walsh2: &mut [GFSymbol], n: usize) {
 	let z = std::cmp::min(n,erasure.len());
 	for i in 0..z {
 		log_walsh2[i] = erasure[i] as GFSymbol;
 	}
-	for i in z..N {
+	for i in z..n {
 		log_walsh2[i] = 0 as GFSymbol;
 	}
 	walsh(log_walsh2, FIELD_SIZE);
@@ -357,8 +364,8 @@ fn decode_main(codeword: &mut [GFSymbol], k: usize, erasure: &[bool], log_walsh2
 	}
 }
 
-const N: usize = 32;
-const K: usize = 4;
+pub const N: usize = 32;
+pub const K: usize = 4;
 
 use itertools::Itertools;
 

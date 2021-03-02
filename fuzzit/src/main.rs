@@ -1,5 +1,6 @@
 use honggfuzz::fuzz;
-use rs::novel_poly_basis::
+use rs::novel_poly_basis::*;
+use rs::roundtrip;
 
 fn main() {
     // Here you can parse `std::env::args and
@@ -13,8 +14,8 @@ fn main() {
         // For performance reasons, it is recommended that you use the native type
         // `&[u8]` when possible.
         // Here, this slice will contain a "random" quantity of "random" data.
-        fuzz!(|data: &[u8]| {
-            
+        fuzz!(|data: [u8; N]| {
+            roundtrip(encode, reconstruct, &data);
         });
     }
 }
