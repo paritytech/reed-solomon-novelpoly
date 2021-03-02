@@ -22,7 +22,7 @@ R: Fn(Vec<Option<WrappedShard>>) -> Option<Vec<u8>>,
 {
 	let mut rng = rand::thread_rng();
 
-	let drop_random = move |shards: &mut [Option<WrappedShard>], n: usize, k: usize| -> IndexVec {
+	let drop_random = move |shards: &mut [Option<WrappedShard>], n: usize, k: usize| {
 		let iv = rand::seq::index::sample(&mut rng, n, n - k);
 		iv.into_iter().for_each(|idx| { shards[idx] = None; });
 	};
