@@ -27,3 +27,14 @@ cargo run
 ```
 
 runs a test case with 10 MB of randomly sampled data which is the recommended way to retrieve a `flamegraph` via `cargo flamegraph` (`cargo install flamegraph` to install).
+
+
+## fuzzing
+
+Currently `honggfuzz` is used.
+
+To build that a `clang` based toolchain is required.
+
+Install `cargo install honggfuzz` and run with
+
+Run the fuzzer with `cargo hfuzz run fuzzit`.
