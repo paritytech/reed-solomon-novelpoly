@@ -20,12 +20,11 @@ where
 E: for<'r> Fn(&'r [u8]) -> Vec<WrappedShard>,
 R: Fn(Vec<Option<WrappedShard>>) -> Option<Vec<u8>>,
 {
-
-	// Drop 3 shards
 	let mut rng = rand::thread_rng();
+
 	let drop_random = move |shards: &mut [Option<WrappedShard>], n: usize, k: usize| -> IndexVec {
-		let iv = rand::seq::index::sample(&mut rng, n, (n-k));
-		iv
+		let iv = rand::seq::index::sample(&mut rng, n, n - k);
+		iv.into_iter().for_each(|idx| { shards[idx] = None; });
 	};
 	roundtrip_w_drop_closure::<E,R,_>(encode, reconstruct, payload, drop_random)
 }
@@ -34,7 +33,7 @@ pub fn roundtrip_w_drop_closure<E, R, F>(encode: E, reconstruct: R, payload: &[u
 where
 	E: for<'r> Fn(&'r [u8]) -> Vec<WrappedShard>,
 	R: Fn(Vec<Option<WrappedShard>>) -> Option<Vec<u8>>,
-	F: for<'z> FnMut(&'z mut [Option<WrappedShard>], usize, usize) -> IndexVec,
+	F: for<'z> FnMut(&'z mut [Option<WrappedShard>], usize, usize),
 {
 
 	assert!(DATA_SHARDS >= payload.len() / 2);
@@ -45,8 +44,7 @@ where
 	// for feeding into reconstruct_shards
 	let mut shards = encoded.clone().into_iter().map(Some).collect::<Vec<_>>();
 
-	let iv = drop_rand(shards.as_mut_slice(), N_VALIDATORS, DATA_SHARDS);
-	iv.into_iter().for_each(|idx| { shards[idx] = None; });
+	drop_rand(shards.as_mut_slice(), N_VALIDATORS, DATA_SHARDS);
 
 	let result = reconstruct(shards).expect("reconstruction must work");
 

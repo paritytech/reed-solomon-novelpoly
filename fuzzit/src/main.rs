@@ -17,7 +17,10 @@ fn main() {
         // `&[u8]` when possible.
         // Here, this slice will contain a "random" quantity of "random" data.
         fuzz!(|data: [u8; novel_poly_basis::K * 2]| {
-            roundtrip(novel_poly_basis::encode, novel_poly_basis::reconstruct, &data);
+            roundtrip(
+                novel_poly_basis::encode,
+                novel_poly_basis::reconstruct,
+                &data);
         });
     }
 }
