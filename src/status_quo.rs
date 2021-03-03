@@ -2,18 +2,23 @@ use super::*;
 
 use reed_solomon_erasure::galois_16::ReedSolomon;
 
-pub fn to_shards(payload: &[u8]) -> Vec<WrappedShard> {
+pub fn to_shards(payload: &[u8], rs: &ReedSolomon) -> Vec<WrappedShard> {
 	let base_len = payload.len();
 
 	// how many bytes we actually need.
-	let needed_shard_len = (base_len + DATA_SHARDS - 1) / DATA_SHARDS;
+	let needed_shard_len = (base_len + rs.data_shard_count() - 1) / rs.data_shard_count();
 
 	// round up, ing GF(2^16) there are only 2 byte values, so each shard must a multiple of 2
 	let needed_shard_len = needed_shard_len + (needed_shard_len & 0x01);
 
 	let shard_len = needed_shard_len;
 
-	let mut shards = vec![WrappedShard::new(vec![0u8; shard_len]); N_VALIDATORS];
+	let mut shards = vec![
+		WrappedShard::new(
+			vec![0u8; shard_len]
+		);
+		rs.total_shard_count()
+	];
 	for (data_chunk, blank_shard) in payload.chunks(shard_len).zip(&mut shards) {
 		// fill the empty shards with the corresponding piece of the payload,
 		// zero-padded to fit in the shards.
@@ -32,7 +37,7 @@ pub fn rs(validator_count: usize) -> ReedSolomon {
 
 pub fn encode(data: &[u8], validator_count: usize) -> Vec<WrappedShard> {
 	let encoder = rs(validator_count);
-	let mut shards = to_shards(data);
+	let mut shards = to_shards(data, &encoder);
 	encoder.encode(&mut shards).unwrap();
 	shards
 }

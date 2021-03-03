@@ -5,7 +5,7 @@ pub(crate) static SMALL_RNG_SEED: [u8; 32] = [
 
 mod wrapped_shard;
 
-use rand::prelude::*;
+use rand::{prelude::*, seq::index::IndexVec};
 pub use wrapped_shard::*;
 
 pub mod status_quo;
@@ -22,23 +22,24 @@ pub const PARITY_SHARDS: usize = N_VALIDATORS - DATA_SHARDS;
 
 pub const BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/rand_data.bin"));
 
+
+pub fn drop_random_max(shards: &mut [Option<WrappedShard>], n: usize, k: usize, rng: &mut impl rand::Rng) {
+	let iv = rand::seq::index::sample(rng, n, n - k);
+	iv.into_iter().for_each(|idx| {
+		shards[idx] = None;
+	});
+}
+
+#[inline(always)]
 pub fn roundtrip<E, R>(encode: E, reconstruct: R, payload: &[u8], validator_count: usize)
 where
 	E: for<'r> Fn(&'r [u8], usize) -> Vec<WrappedShard>,
 	R: Fn(Vec<Option<WrappedShard>>, usize) -> Option<Vec<u8>>,
 {
-	let mut rng = SmallRng::from_seed(SMALL_RNG_SEED);
-
-	let drop_random = move |shards: &mut [Option<WrappedShard>], n: usize, k: usize| {
-		let iv = rand::seq::index::sample(&mut rng, n, n - k);
-		iv.into_iter().for_each(|idx| {
-			shards[idx] = None;
-		});
-	};
-	roundtrip_w_drop_closure::<E, R, _>(encode, reconstruct, payload, validator_count, drop_random)
+	roundtrip_w_drop_closure::<E, R, _, SmallRng>(encode, reconstruct, payload, validator_count, drop_random_max)
 }
 
-pub fn roundtrip_w_drop_closure<E, R, F>(
+pub fn roundtrip_w_drop_closure<E, R, F, G>(
 	encode: E,
 	reconstruct: R,
 	payload: &[u8],
@@ -47,8 +48,12 @@ pub fn roundtrip_w_drop_closure<E, R, F>(
 ) where
 	E: for<'r> Fn(&'r [u8], usize) -> Vec<WrappedShard>,
 	R: Fn(Vec<Option<WrappedShard>>, usize) -> Option<Vec<u8>>,
-	F: for<'z> FnMut(&'z mut [Option<WrappedShard>], usize, usize),
+	F: for<'z> FnMut(&'z mut [Option<WrappedShard>], usize, usize, &mut G),
+	G: rand::Rng + rand::SeedableRng<Seed=[u8;32]>,
 {
+
+	let mut rng = <G as rand::SeedableRng>::from_seed(SMALL_RNG_SEED);
+
 	// Construct the shards
 	let encoded = encode(payload, validator_count);
 
@@ -56,7 +61,7 @@ pub fn roundtrip_w_drop_closure<E, R, F>(
 	// for feeding into reconstruct_shards
 	let mut shards = encoded.clone().into_iter().map(Some).collect::<Vec<_>>();
 
-	drop_rand(shards.as_mut_slice(), validator_count, validator_count / 3);
+	drop_rand(shards.as_mut_slice(), validator_count, validator_count / 3, &mut rng);
 
 	let result = reconstruct(shards, validator_count).expect("reconstruction must work");
 

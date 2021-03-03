@@ -28,6 +28,21 @@ macro_rules! instanciate_test {
 					})
 				});
 			}
+
+			pub fn bench_reconstruct(crit: &mut Criterion) {
+				crit.bench_function(concat!($name, " decode"), |b| {
+					let encoded = encode(black_box(&BYTES[..]), N_VALS);
+
+					let mut rng = rand::thread_rng();
+					let erasures_iv: IndexVec = rand::seq::index::sample(&mut rng, N, N - K);
+
+					erasures_iv
+
+					b.iter(|| {
+						let _ = reconstruct(black_box(encoded), N_VALS);
+					})
+				});
+			}
 		}
 	};
 }
