@@ -10,7 +10,7 @@ fn gen_10mb_rand_data() -> Result<(), std::io::Error> {
 	let data = dice.sample_iter(&mut rng).take(10_000_000).collect::<Vec<_>>();
 
 	let dest =
-		std::path::PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR is set by cargo after process launch. qed"))
+		PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR is set by cargo after process launch. qed"))
 			.join("rand_data.bin");
 
 	let mut f = OpenOptions::new().truncate(true).write(true).create(true).open(&dest)?;
@@ -22,10 +22,12 @@ fn gen_10mb_rand_data() -> Result<(), std::io::Error> {
 	Ok(())
 }
 
+#[cfg(feature = "cmp-with-cxx")]
 fn gen_ffi_novel_poly_basis_lib() {
 	cc::Build::new().file("cxx/RSErasureCode.c").file("cxx/sha-256.c").include("cxx").compile("novelpolycxxffi");
 }
 
+#[cfg(feature = "cmp-with-cxx")]
 fn gen_ffi_novel_poly_basis_bindgen() {
 	println!("cargo:rustc-link-lib=novelpolycxxffi");
 
@@ -43,7 +45,10 @@ fn gen_ffi_novel_poly_basis_bindgen() {
 }
 
 fn main() -> Result<(), std::io::Error> {
-	gen_ffi_novel_poly_basis_lib();
-	gen_ffi_novel_poly_basis_bindgen();
+	#[cfg(feature = "cmp-with-cxx")]
+	{
+		gen_ffi_novel_poly_basis_lib();
+		gen_ffi_novel_poly_basis_bindgen();
+	}
 	gen_10mb_rand_data()
 }

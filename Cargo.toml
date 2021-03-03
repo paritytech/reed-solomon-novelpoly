@@ -29,6 +29,12 @@ sha2 = "0.9"
 iai = "0.1"
 criterion = "0.3"
 
+
+[features]
+default = []
+cmp-with-cxx = []
+
+
 [profile.bench]
 debug = true
 

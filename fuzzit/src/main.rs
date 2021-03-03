@@ -16,8 +16,8 @@ fn main() {
 		// For performance reasons, it is recommended that you use the native type
 		// `&[u8]` when possible.
 		// Here, this slice will contain a "random" quantity of "random" data.
-		fuzz!(|data: [u8; novel_poly_basis::K * 2]| {
-			roundtrip(novel_poly_basis::encode, novel_poly_basis::reconstruct, &data);
+		fuzz!(|data: [u8; crate::DATA_SHARDS]| {
+			roundtrip(novel_poly_basis::encode, novel_poly_basis::reconstruct, &data, crate::N_VALIDATORS);
 		});
 	}
 }

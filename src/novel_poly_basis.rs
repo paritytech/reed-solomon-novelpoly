@@ -67,7 +67,7 @@ pub const fn is_power_of_2(x: usize) -> bool {
 	x > 0_usize && x & (x - 1) == 0
 }
 
-//fast Walsh–Hadamard transform over modulo mod
+//fast Walsh–Hadamard transform over modulo MODULO
 pub fn walsh(data: &mut [GFSymbol], size: usize) {
 	let mut depart_no = 1_usize;
 	while depart_no < size {
@@ -474,8 +474,10 @@ pub const fn next_lower_power_of_2(k: usize) -> usize {
 #[derive(Debug, Clone, Copy)]
 struct ReedSolomon {
 	/// total number of message symbols to send
+	/// Invariant is a power of base 2
 	n: usize,
 	/// number of information containing chunks
+	/// Invariant is a power of base 2, `k < n`
 	k: usize,
 }
 
@@ -492,7 +494,6 @@ impl ReedSolomon {
 
 pub fn encode(bytes: &[u8], validator_count: usize) -> Vec<WrappedShard> {
 	setup();
-	dbg!((bytes.len(), validator_count));
 	let rs = ReedSolomon::new(validator_count);
 
 	// setup the shards, n is likely _larger_, so use the truely required number of shards
@@ -514,10 +515,12 @@ pub fn encode(bytes: &[u8], validator_count: usize) -> Vec<WrappedShard> {
 
 	for (chunk_idx, i) in (0..bytes.len()).into_iter().step_by(k2).enumerate() {
 		let end = std::cmp::min(i + k2, bytes.len());
-		dbg!((i, end));
 		assert_ne!(i, end);
 		assert_ne!(i + 1, end);
-		let mut encoding_run = encode_sub(&bytes[i..end], rs.n, rs.k);
+		let data_piece = &bytes[i..end];
+		assert!(!data_piece.is_empty());
+		assert!(data_piece.len() <= k2);
+		let mut encoding_run = encode_sub(data_piece, rs.n, rs.k);
 		for val_idx in 0..validator_count {
 			AsMut::<[[u8; 2]]>::as_mut(&mut shards[val_idx])[chunk_idx] = encoding_run[val_idx].to_be_bytes();
 		}
@@ -601,27 +604,15 @@ pub fn encode_sub(bytes: &[u8], n: usize, k: usize) -> Vec<GFSymbol> {
 		.map(|(a, b)| u16::from_le_bytes([a, b]))
 		.collect::<Vec<GFSymbol>>();
 
-	println!("Data:");
-	for data in data.iter() {
-		print!("{:04x} ", data);
-	}
-	println!("");
-
 	// update new data bytes with zero padded bytes
 	// `l` is now `GF(2^16)` symbols
 	let l = data.len();
-	assert_eq!(l, n, "Zer0 padding to full buffer size always works. qed");
+	assert_eq!(l, n);
 
 	let mut codeword = data.clone();
 	assert_eq!(codeword.len(), n);
 
 	encode_low(&data[..], k, &mut codeword[..], n);
-
-	println!("Codeword:");
-	for codeword in codeword.iter() {
-		print!("{:04x} ", codeword);
-	}
-	println!("");
 
 	codeword
 }
@@ -638,7 +629,7 @@ pub fn reconstruct_sub(codewords: &[Option<GFSymbol>], n: usize, k: usize) -> Op
 		.iter()
 		.map(|x| x.is_some())
 		.inspect(|v| {
-			if !*v {
+			if *v {
 				existential_count += 1;
 			}
 		})
@@ -648,7 +639,6 @@ pub fn reconstruct_sub(codewords: &[Option<GFSymbol>], n: usize, k: usize) -> Op
 	assert!(existential_count <= n);
 
 	if existential_count < k {
-		println!("Nothing exists");
 		return None;
 	}
 
@@ -681,20 +671,19 @@ pub fn reconstruct_sub(codewords: &[Option<GFSymbol>], n: usize, k: usize) -> Op
 	// filled up the remaining spots with 0s
 	assert_eq!(codeword.len(), n);
 
-	let recover_up_to = k; // the first k would suffice for the original k message codewords
+	// the first k would suffice for the original k message codewords
+	let recover_up_to = k;
 
 	//---------Erasure decoding----------------
-	let mut log_walsh2: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
+	let mut log_walsh2 = vec![0_u16 as GFSymbol; n];
 
 	// Evaluate error locator polynomial
-	eval_error_polynomial(&erasures[..], &mut log_walsh2[..], FIELD_SIZE);
+	eval_error_polynomial(&erasures[..], &mut log_walsh2[..], n);
 
 	//---------main processing----------
 	decode_main(&mut codeword[..], recover_up_to, &erasures[..], &log_walsh2[..], n);
 
-	println!("Decoded result:");
 	for idx in 0..recover_up_to {
-		print!("{:04x} ", codeword[idx]);
 		if erasures[idx] {
 			recovered[idx] = codeword[idx];
 		};
@@ -770,7 +759,7 @@ mod test {
 
 	#[test]
 	fn k_n_construction() {
-		for validator_count in 3_usize..=4096 {
+		for validator_count in 3_usize..=8200 {
 			let ReedSolomon { n, k } = ReedSolomon::new(validator_count);
 
 			assert!(validator_count <= n);
@@ -804,7 +793,8 @@ mod test {
 		const N: usize = 32;
 		const K: usize = 4;
 
-		let mut data = [0u8; K * 2];
+		const K2: usize = K*2;
+		let mut data = [0u8; K2];
 		rng.fill_bytes(&mut data[..]);
 
 		let codewords = encode_sub(&data, N, K);
@@ -818,52 +808,57 @@ mod test {
 		codewords[N - 1] = None;
 
 		let reconstructed = reconstruct_sub(&codewords, N, K).unwrap();
-		itertools::assert_equal(data.iter(), reconstructed.iter().take(K * 2));
+		itertools::assert_equal(data.iter(), reconstructed.iter().take(K2));
 	}
 
+
+	fn modify<T: Sized + Clone>(codewords: &mut [T]) -> Vec<Option<T>> {
+		let mut codewords = codewords.into_iter().map(|x| Some(x.clone())).collect::<Vec<Option<T>>>();		codewords[0] = None;
+		let l = codewords.len();
+		assert!(l > 5);
+		codewords[1] = None;
+		codewords[2] = None;
+		codewords[l - 3] = None;
+		codewords[l - 2] = None;
+		codewords[l - 1] = None;
+		codewords
+	}
+
+	// for shards of length 1
+	fn wrapped_shard_len1_as_gf_sym(w: &WrappedShard) -> GFSymbol {
+		let val = AsRef::<[[u8; 2]]>::as_ref(w)[0];
+		u16::from_be_bytes(val)
+	}
+
+
 	#[test]
-	fn sub_eq_big_for_small_bytes() {
-		fn modify<T: Sized + Clone>(codewords: &mut [T]) -> Vec<Option<T>> {
-			let mut codewords = codewords.into_iter().map(|x| Some(x.clone())).collect::<Vec<Option<T>>>();
-			assert_eq!(codewords.len(), N);
-			codewords[0] = None;
-			codewords[1] = None;
-			codewords[2] = None;
-			codewords[N - 3] = None;
-			codewords[N - 2] = None;
-			codewords[N - 1] = None;
-			codewords
-		};
-
-		// for shards of length 1
-		fn wrapped_shard_len1_as_gf_sym(w: &WrappedShard) -> GFSymbol {
-			let val = AsRef::<[[u8; 2]]>::as_ref(w)[0];
-			u16::from_be_bytes(val)
-		}
-
-		const N_VALIDATORS: usize = 16;
+	fn sub_eq_big_for_small_messages() {
+		const N_VALIDATORS: usize = 128;
 		const N: usize = N_VALIDATORS;
-		const K: usize = 4;
+		const K: usize = 32;
 
 		setup();
+
+		const K2: usize = K * 2;
 
 		// assure the derived sizes match
 		let rs = ReedSolomon::new(N_VALIDATORS);
 		assert_eq!(rs.n, N);
 		assert_eq!(rs.k, K);
 
+
+		// create random predictable bytes
+		// and create a message that results in 1 GF element symbols
+		// per validator
 		let data = {
 			let mut rng = SmallRng::from_seed(crate::SMALL_RNG_SEED);
-			let mut data = [0u8; K * 2];
+			let mut data = [0u8; K2];
 			rng.fill_bytes(&mut data[..]);
-			dbg!(data)
+			data
 		};
 
-		let mut codewords = encode(&data, K);
+		let mut codewords = encode(&data, rs.n);
 		let mut codewords_sub = encode_sub(&data, N, K);
-
-		let foo = dbg!(codewords.iter().map(wrapped_shard_len1_as_gf_sym).collect::<Vec<_>>());
-		let foo_sub = dbg!(codewords_sub.iter().copied().collect::<Vec<_>>());
 
 		itertools::assert_equal(codewords.iter().map(wrapped_shard_len1_as_gf_sym), codewords_sub.iter().copied());
 
@@ -876,10 +871,42 @@ mod test {
 		);
 
 		let reconstructed_sub = reconstruct_sub(&codewords_sub, N, K).unwrap();
-		let reconstructed = reconstruct(codewords, K).unwrap();
-		itertools::assert_equal(reconstructed.iter().take(K * 2), reconstructed_sub.iter().take(K * 2));
-		itertools::assert_equal(reconstructed.iter().take(K * 2), data.iter());
-		itertools::assert_equal(reconstructed_sub.iter().take(K * 2), data.iter());
+		let reconstructed = reconstruct(codewords, rs.n).unwrap();
+		itertools::assert_equal(reconstructed.iter().take(K2), reconstructed_sub.iter().take(K2));
+		itertools::assert_equal(reconstructed.iter().take(K2), data.iter());
+		itertools::assert_equal(reconstructed_sub.iter().take(K2), data.iter());
+	}
+
+	#[test]
+	fn sub_eq_big_for_large_messages() {
+		const N_VALIDATORS: usize = 128;
+		const N: usize = N_VALIDATORS;
+		const K: usize = 32;
+
+		setup();
+
+		const K2: usize = K * 2;
+
+		// assure the derived sizes match
+		let rs = ReedSolomon::new(N_VALIDATORS);
+		assert_eq!(rs.n, N);
+		assert_eq!(rs.k, K);
+
+		const SHARD_LENGTH: usize = 1107; // in GF symbols
+
+		let data = {
+			&crate::BYTES[0..K2 * SHARD_LENGTH - 149]
+		};
+
+		let mut shards = encode(data, rs.n);
+
+		for shard in shards.iter() {
+			assert_eq!(SHARD_LENGTH, AsRef::<[[u8;2]]>::as_ref(shard).len());
+		}
+		let received_shards = modify(&mut shards);
+
+		let reconstructed_data = reconstruct(received_shards, rs.n).unwrap();
+		itertools::assert_equal(reconstructed_data.iter().take(data.len()), data.iter());
 	}
 
 	#[test]

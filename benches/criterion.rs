@@ -7,6 +7,8 @@ use rs_ec_perf::*;
 macro_rules! instanciate_test {
 	($name:literal, $mp:ident) => {
 		pub mod $mp {
+			const N_VALS: usize = 2000;
+
 			use super::super::$mp::{encode, reconstruct};
 			use super::super::{roundtrip, BYTES};
 			use criterion::{black_box, Criterion};
@@ -14,7 +16,7 @@ macro_rules! instanciate_test {
 			pub fn bench_roundtrip(crit: &mut Criterion) {
 				crit.bench_function(concat!($name, " roudtrip"), |b| {
 					b.iter(|| {
-						roundtrip(encode, reconstruct, black_box(&BYTES[..256]));
+						roundtrip(encode, reconstruct, black_box(&BYTES[..]), N_VALS);
 					})
 				});
 			}
@@ -22,7 +24,7 @@ macro_rules! instanciate_test {
 			pub fn bench_encode(crit: &mut Criterion) {
 				crit.bench_function(concat!($name, " encode"), |b| {
 					b.iter(|| {
-						let _ = encode(black_box(&BYTES[..256]));
+						let _ = encode(black_box(&BYTES[..]), N_VALS);
 					})
 				});
 			}

@@ -21,12 +21,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "arbitrary"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "698b65a961a9d730fb45b6b0327e20207810c9f61ee421b082b27ba003f49e2b"
-
-[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -308,18 +302,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bcd1163ae48bda72a20ae26d66a04d3094135cadab911cff418ae5e33f253431"
 
 [[package]]
-name = "fuzzit"
-version = "0.1.0"
-dependencies = [
- "honggfuzz",
- "itertools 0.10.0",
- "rand",
- "rs-ec-perf",
- "sha2",
- "thiserror",
-]
-
-[[package]]
 name = "generic-array"
 version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -359,17 +341,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "322f4de77956e22ed0e5032c359a0f1273f1f7f0d79bfa3b8ffbc730d7fbcc5c"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "honggfuzz"
-version = "0.5.53"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "020c2f0e11b41a58d4188cf343d0f0364a006c5d629539c5483d3cdebe42fc1e"
-dependencies = [
- "arbitrary",
- "lazy_static",
- "memmap",
 ]
 
 [[package]]
@@ -468,16 +439,6 @@ name = "memchr"
 version = "2.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ee1c47aaa256ecabcaea351eae4a9b01ef39ed810004e298d2511ed284b1525"
-
-[[package]]
-name = "memmap"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6585fd95e7bb50d6cc31e20d4cf9afb4e2ba16c5846fc76793f11218da9c475b"
-dependencies = [
- "libc",
- "winapi",
-]
 
 [[package]]
 name = "memoffset"
