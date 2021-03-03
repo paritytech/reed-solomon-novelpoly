@@ -13,12 +13,7 @@ pub fn to_shards(payload: &[u8], rs: &ReedSolomon) -> Vec<WrappedShard> {
 
 	let shard_len = needed_shard_len;
 
-	let mut shards = vec![
-		WrappedShard::new(
-			vec![0u8; shard_len]
-		);
-		rs.total_shard_count()
-	];
+	let mut shards = vec![WrappedShard::new(vec![0u8; shard_len]); rs.total_shard_count()];
 	for (data_chunk, blank_shard) in payload.chunks(shard_len).zip(&mut shards) {
 		// fill the empty shards with the corresponding piece of the payload,
 		// zero-padded to fit in the shards.

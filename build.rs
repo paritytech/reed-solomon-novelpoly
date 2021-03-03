@@ -9,9 +9,8 @@ fn gen_10mb_rand_data() -> Result<(), std::io::Error> {
 	let dice = Uniform::<u8>::new_inclusive(0, 255);
 	let data = dice.sample_iter(&mut rng).take(10_000_000).collect::<Vec<_>>();
 
-	let dest =
-		PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR is set by cargo after process launch. qed"))
-			.join("rand_data.bin");
+	let dest = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR is set by cargo after process launch. qed"))
+		.join("rand_data.bin");
 
 	let mut f = OpenOptions::new().truncate(true).write(true).create(true).open(&dest)?;
 

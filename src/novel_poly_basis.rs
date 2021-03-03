@@ -546,12 +546,10 @@ pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>, validator_count: 
 		})
 		.unwrap();
 
-	let erasures = received_shards.iter().map(|x| {
-		x.is_none()
-	}).collect::<Vec<bool>>();
+	let erasures = received_shards.iter().map(|x| x.is_none()).collect::<Vec<bool>>();
 
 	// Evaluate error locator polynomial only once
-	let mut error_poly_in_log =  [0_u16 as GFSymbol; FIELD_SIZE];
+	let mut error_poly_in_log = [0_u16 as GFSymbol; FIELD_SIZE];
 	eval_error_polynomial(&erasures[..], &mut error_poly_in_log[..], FIELD_SIZE);
 
 	let mut acc = Vec::<u8>::with_capacity(shard_len * 2 * rs.k);
@@ -625,7 +623,12 @@ pub fn encode_sub(bytes: &[u8], n: usize, k: usize) -> Vec<GFSymbol> {
 	codeword
 }
 
-pub fn reconstruct_sub(codewords: &[Option<GFSymbol>], n: usize, k: usize, error_poly: &[GFSymbol; FIELD_SIZE] ) -> Option<Vec<u8>> {
+pub fn reconstruct_sub(
+	codewords: &[Option<GFSymbol>],
+	n: usize,
+	k: usize,
+	error_poly: &[GFSymbol; FIELD_SIZE],
+) -> Option<Vec<u8>> {
 	assert!(is_power_of_2(n), "Algorithm only works for 2^i sizes for N");
 	assert!(is_power_of_2(k), "Algorithm only works for 2^i sizes for K");
 	assert_eq!(codewords.len(), n);
@@ -796,7 +799,7 @@ mod test {
 		const N: usize = 32;
 		const K: usize = 4;
 
-		const K2: usize = K*2;
+		const K2: usize = K * 2;
 		let mut data = [0u8; K2];
 		rng.fill_bytes(&mut data[..]);
 
@@ -810,21 +813,19 @@ mod test {
 		codewords[N - 2] = None;
 		codewords[N - 1] = None;
 
-		let erasures = codewords.iter().map(|x| {
-			x.is_none()
-		}).collect::<Vec<bool>>();
+		let erasures = codewords.iter().map(|x| x.is_none()).collect::<Vec<bool>>();
 
 		// Evaluate error locator polynomial only once
-		let mut error_poly_in_log =  [0_u16 as GFSymbol; FIELD_SIZE];
+		let mut error_poly_in_log = [0_u16 as GFSymbol; FIELD_SIZE];
 		eval_error_polynomial(&erasures[..], &mut error_poly_in_log[..], FIELD_SIZE);
 
 		let reconstructed = reconstruct_sub(&codewords, N, K, &error_poly_in_log).unwrap();
 		itertools::assert_equal(data.iter(), reconstructed.iter().take(K2));
 	}
 
-
 	fn drop_shards<T: Sized + Clone>(codewords: &mut [T]) -> Vec<Option<T>> {
-		let mut codewords = codewords.into_iter().map(|x| Some(x.clone())).collect::<Vec<Option<T>>>();		codewords[0] = None;
+		let mut codewords = codewords.into_iter().map(|x| Some(x.clone())).collect::<Vec<Option<T>>>();
+		codewords[0] = None;
 		let l = codewords.len();
 		assert!(l > 5);
 		codewords[1] = None;
@@ -841,7 +842,6 @@ mod test {
 		u16::from_be_bytes(val)
 	}
 
-
 	#[test]
 	fn sub_eq_big_for_small_messages() {
 		const N_VALIDATORS: usize = 128;
@@ -856,7 +856,6 @@ mod test {
 		let rs = ReedSolomon::new(N_VALIDATORS);
 		assert_eq!(rs.n, N);
 		assert_eq!(rs.k, K);
-
 
 		// create random predictable bytes
 		// and create a message that results in 1 GF element symbols
@@ -881,12 +880,10 @@ mod test {
 			codewords_sub.iter().copied(),
 		);
 
-		let erasures = codewords.iter().map(|x| {
-			x.is_none()
-		}).collect::<Vec<bool>>();
+		let erasures = codewords.iter().map(|x| x.is_none()).collect::<Vec<bool>>();
 
 		// Evaluate error locator polynomial only once
-		let mut error_poly_in_log =  [0_u16 as GFSymbol; FIELD_SIZE];
+		let mut error_poly_in_log = [0_u16 as GFSymbol; FIELD_SIZE];
 		eval_error_polynomial(&erasures[..], &mut error_poly_in_log[..], FIELD_SIZE);
 
 		let reconstructed_sub = reconstruct_sub(&codewords_sub, N, K, &error_poly_in_log).unwrap();
@@ -913,14 +910,12 @@ mod test {
 
 		const SHARD_LENGTH: usize = 1107; // in GF symbols
 
-		let data = {
-			&crate::BYTES[0..K2 * SHARD_LENGTH]
-		};
+		let data = { &crate::BYTES[0..K2 * SHARD_LENGTH] };
 
 		let mut shards = encode(data, rs.n);
 
 		for (idx, shard) in shards.iter().enumerate() {
-			let sl = AsRef::<[[u8;2]]>::as_ref(&shard).len();
+			let sl = AsRef::<[[u8; 2]]>::as_ref(&shard).len();
 			assert_eq!(SHARD_LENGTH, sl, "Shard #{} has an unxpected length {} (expected: {})", idx, sl, SHARD_LENGTH);
 		}
 		let received_shards = drop_shards(&mut shards);

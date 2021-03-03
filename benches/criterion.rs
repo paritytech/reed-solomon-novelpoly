@@ -8,15 +8,18 @@ macro_rules! instanciate_test {
 	($name:literal, $mp:ident) => {
 		pub mod $mp {
 			const N_VALS: usize = 2000;
+			const PAYLOAD_SIZE_CUTOFF: usize = 10_101;
 
 			use super::super::$mp::{encode, reconstruct};
-			use super::super::{roundtrip, BYTES};
+			use super::super::{roundtrip, BYTES, SMALL_RNG_SEED};
+			use crate::drop_random_max;
 			use criterion::{black_box, Criterion};
+			use rand::{rngs::SmallRng, SeedableRng};
 
 			pub fn bench_roundtrip(crit: &mut Criterion) {
 				crit.bench_function(concat!($name, " roundtrip"), |b| {
 					b.iter(|| {
-						roundtrip(encode, reconstruct, black_box(&BYTES[..]), N_VALS);
+						roundtrip(encode, reconstruct, black_box(&BYTES[..PAYLOAD_SIZE_CUTOFF]), N_VALS);
 					})
 				});
 			}
@@ -24,22 +27,22 @@ macro_rules! instanciate_test {
 			pub fn bench_encode(crit: &mut Criterion) {
 				crit.bench_function(concat!($name, " encode"), |b| {
 					b.iter(|| {
-						let _ = encode(black_box(&BYTES[..]), N_VALS);
+						let _ = encode(black_box(&BYTES[..PAYLOAD_SIZE_CUTOFF]), N_VALS);
 					})
 				});
 			}
 
 			pub fn bench_reconstruct(crit: &mut Criterion) {
 				crit.bench_function(concat!($name, " decode"), |b| {
-					let encoded = encode(black_box(&BYTES[..]), N_VALS);
+					let encoded = encode(&BYTES[..PAYLOAD_SIZE_CUTOFF], N_VALS);
+					let mut shards = encoded.clone().into_iter().map(Some).collect::<Vec<_>>();
 
-					let mut rng = rand::thread_rng();
-					let erasures_iv: IndexVec = rand::seq::index::sample(&mut rng, N, N - K);
-
-					erasures_iv
+					let mut rng = SmallRng::from_seed(SMALL_RNG_SEED);
 
 					b.iter(|| {
-						let _ = reconstruct(black_box(encoded), N_VALS);
+						let mut shards = shards.clone();
+						drop_random_max(&mut shards, N_VALS, N_VALS / 3, &mut rng);
+						let _ = reconstruct(black_box(shards), N_VALS);
 					})
 				});
 			}
