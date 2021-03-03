@@ -490,10 +490,9 @@ impl ReedSolomon {
 	}
 }
 
-pub fn encode(bytes: &[u8]) -> Vec<WrappedShard> {
+pub fn encode(bytes: &[u8], validator_count: usize) -> Vec<WrappedShard> {
 	setup();
-	let validator_count = N_VALIDATORS;
-	dbg!((bytes.len(), N_VALIDATORS));
+	dbg!((bytes.len(), validator_count));
 	let rs = ReedSolomon::new(validator_count);
 
 	// setup the shards, n is likely _larger_, so use the truely required number of shards
@@ -528,9 +527,8 @@ pub fn encode(bytes: &[u8]) -> Vec<WrappedShard> {
 }
 
 /// each shard contains one symbol of one run of erasure coding
-pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>> {
+pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>, validator_count: usize) -> Option<Vec<u8>> {
 	setup();
-	let validator_count = N_VALIDATORS;
 	let rs = ReedSolomon::new(validator_count);
 
 	// obtain a sample of a shard length and assume that is the truth
@@ -821,6 +819,67 @@ mod test {
 
 		let reconstructed = reconstruct_sub(&codewords, N, K).unwrap();
 		itertools::assert_equal(data.iter(), reconstructed.iter().take(K * 2));
+	}
+
+	#[test]
+	fn sub_eq_big_for_small_bytes() {
+		fn modify<T: Sized + Clone>(codewords: &mut [T]) -> Vec<Option<T>> {
+			let mut codewords = codewords.into_iter().map(|x| Some(x.clone())).collect::<Vec<Option<T>>>();
+			assert_eq!(codewords.len(), N);
+			codewords[0] = None;
+			codewords[1] = None;
+			codewords[2] = None;
+			codewords[N - 3] = None;
+			codewords[N - 2] = None;
+			codewords[N - 1] = None;
+			codewords
+		};
+
+		// for shards of length 1
+		fn wrapped_shard_len1_as_gf_sym(w: &WrappedShard) -> GFSymbol {
+			let val = AsRef::<[[u8; 2]]>::as_ref(w)[0];
+			u16::from_be_bytes(val)
+		}
+
+		const N_VALIDATORS: usize = 16;
+		const N: usize = N_VALIDATORS;
+		const K: usize = 4;
+
+		setup();
+
+		// assure the derived sizes match
+		let rs = ReedSolomon::new(N_VALIDATORS);
+		assert_eq!(rs.n, N);
+		assert_eq!(rs.k, K);
+
+		let data = {
+			let mut rng = SmallRng::from_seed(crate::SMALL_RNG_SEED);
+			let mut data = [0u8; K * 2];
+			rng.fill_bytes(&mut data[..]);
+			dbg!(data)
+		};
+
+		let mut codewords = encode(&data, K);
+		let mut codewords_sub = encode_sub(&data, N, K);
+
+		let foo = dbg!(codewords.iter().map(wrapped_shard_len1_as_gf_sym).collect::<Vec<_>>());
+		let foo_sub = dbg!(codewords_sub.iter().copied().collect::<Vec<_>>());
+
+		itertools::assert_equal(codewords.iter().map(wrapped_shard_len1_as_gf_sym), codewords_sub.iter().copied());
+
+		let codewords = modify(&mut codewords);
+		let codewords_sub = modify(&mut codewords_sub);
+
+		itertools::assert_equal(
+			codewords.iter().map(|w| w.as_ref().map(wrapped_shard_len1_as_gf_sym)),
+			codewords_sub.iter().copied(),
+		);
+
+		let reconstructed_sub = reconstruct_sub(&codewords_sub, N, K).unwrap();
+		let reconstructed = reconstruct(codewords, K).unwrap();
+		itertools::assert_equal(reconstructed.iter().take(K * 2), reconstructed_sub.iter().take(K * 2));
+		itertools::assert_equal(reconstructed.iter().take(K * 2), data.iter());
+		itertools::assert_equal(reconstructed_sub.iter().take(K * 2), data.iter());
 	}
 
 	#[test]

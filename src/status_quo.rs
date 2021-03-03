@@ -25,19 +25,20 @@ pub fn to_shards(payload: &[u8]) -> Vec<WrappedShard> {
 	shards
 }
 
-pub fn rs() -> ReedSolomon {
-	ReedSolomon::new(DATA_SHARDS, PARITY_SHARDS).expect("this struct is not created with invalid shard number; qed")
+pub fn rs(validator_count: usize) -> ReedSolomon {
+	ReedSolomon::new(validator_count, validator_count - validator_count / 3)
+		.expect("this struct is not created with invalid shard number; qed")
 }
 
-pub fn encode(data: &[u8]) -> Vec<WrappedShard> {
-	let encoder = rs();
+pub fn encode(data: &[u8], validator_count: usize) -> Vec<WrappedShard> {
+	let encoder = rs(validator_count);
 	let mut shards = to_shards(data);
 	encoder.encode(&mut shards).unwrap();
 	shards
 }
 
-pub fn reconstruct(mut received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>> {
-	let r = rs();
+pub fn reconstruct(mut received_shards: Vec<Option<WrappedShard>>, validator_count: usize) -> Option<Vec<u8>> {
+	let r = rs(validator_count);
 
 	// Try to reconstruct missing shards
 	r.reconstruct_data(&mut received_shards).expect("Sufficient shards must be received. qed");
