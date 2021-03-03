@@ -5,7 +5,7 @@ pub static SMALL_RNG_SEED: [u8; 32] = [
 
 mod wrapped_shard;
 
-use rand::{prelude::*, seq::index::IndexVec};
+use rand::prelude::*;
 pub use wrapped_shard::*;
 
 pub mod status_quo;

@@ -9,10 +9,7 @@
 
 use super::*;
 
-use std::{
-	io::{BufRead, Read},
-	slice::from_raw_parts,
-};
+use std::{io::Read, slice::from_raw_parts};
 
 pub type GFSymbol = u16;
 
@@ -520,7 +517,7 @@ pub fn encode(bytes: &[u8], validator_count: usize) -> Vec<WrappedShard> {
 		let data_piece = &bytes[i..end];
 		assert!(!data_piece.is_empty());
 		assert!(data_piece.len() <= k2);
-		let mut encoding_run = encode_sub(data_piece, rs.n, rs.k);
+		let encoding_run = encode_sub(data_piece, rs.n, rs.k);
 		for val_idx in 0..validator_count {
 			AsMut::<[[u8; 2]]>::as_mut(&mut shards[val_idx])[chunk_idx] = encoding_run[val_idx].to_be_bytes();
 		}
@@ -555,7 +552,7 @@ pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>, validator_count: 
 	let mut acc = Vec::<u8>::with_capacity(shard_len * 2 * rs.k);
 	for i in 0..shard_len {
 		// take the i-th element of all shards and try to recover
-		let mut decoding_run = received_shards
+		let decoding_run = received_shards
 			.iter()
 			.map(|x| {
 				x.as_ref().map(|x| {
@@ -744,7 +741,7 @@ mod test {
 			assert!(!is_power_of_2(7 << i));
 		}
 		let mut f = 3;
-		for i in 0..20 {
+		for _i in 0..20 {
 			f *= 7;
 			assert!(!is_power_of_2(f));
 		}

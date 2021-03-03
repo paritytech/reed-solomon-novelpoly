@@ -35,7 +35,7 @@ macro_rules! instanciate_test {
 			pub fn bench_reconstruct(crit: &mut Criterion) {
 				crit.bench_function(concat!($name, " decode"), |b| {
 					let encoded = encode(&BYTES[..PAYLOAD_SIZE_CUTOFF], N_VALS);
-					let mut shards = encoded.clone().into_iter().map(Some).collect::<Vec<_>>();
+					let shards = encoded.clone().into_iter().map(Some).collect::<Vec<_>>();
 
 					let mut rng = SmallRng::from_seed(SMALL_RNG_SEED);
 
