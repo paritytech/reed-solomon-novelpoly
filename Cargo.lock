@@ -22,9 +22,9 @@ dependencies = [
 
 [[package]]
 name = "arbitrary"
-version = "0.4.7"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db55d72333851e17d572bec876e390cd3b11eb1ef53ae821dd9f3b653d2b4569"
+checksum = "698b65a961a9d730fb45b6b0327e20207810c9f61ee421b082b27ba003f49e2b"
 
 [[package]]
 name = "atty"
@@ -311,8 +311,6 @@ checksum = "bcd1163ae48bda72a20ae26d66a04d3094135cadab911cff418ae5e33f253431"
 name = "fuzzit"
 version = "0.1.0"
 dependencies = [
- "bindgen",
- "fs-err",
  "honggfuzz",
  "itertools 0.10.0",
  "rand",
@@ -365,8 +363,9 @@ dependencies = [
 
 [[package]]
 name = "honggfuzz"
-version = "0.5.52"
-source = "git+https://github.com/drahnr/honggfuzz-rs?rev=0264d25642#0264d256426280de80d232b355367ff530a00955"
+version = "0.5.53"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "020c2f0e11b41a58d4188cf343d0f0364a006c5d629539c5483d3cdebe42fc1e"
 dependencies = [
  "arbitrary",
  "lazy_static",
@@ -520,9 +519,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.7.1"
+version = "1.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ea78b9742c52ac729753c1590e9adc5248ea9bdaf974597efd46c74cfaa5fb54"
+checksum = "af8b08b04175473088b46763e51ee54da5f9a164bc162f615b91bc179dbf15a3"
 
 [[package]]
 name = "oorandom"
