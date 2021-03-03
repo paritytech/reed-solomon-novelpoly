@@ -524,7 +524,7 @@ pub fn encode(bytes: &[u8]) -> Vec<WrappedShard> {
 
 		let mut encoding_run = encode_sub(&bytes[i..end], rs.n, rs.k);
 		for val_idx in 0..validator_count {
-			AsMut::<[[u8;2]]>::as_mut(&mut shards[val_idx])[chunk_idx] = encoding_run[val_idx].to_le_bytes();
+			AsMut::<[[u8;2]]>::as_mut(&mut shards[val_idx])[chunk_idx] = encoding_run[val_idx].to_be_bytes();
 		}
 	}
 
@@ -557,7 +557,7 @@ pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>
 			.map(|x| {
 				x.as_ref().map(|x| {
 					let z = AsRef::<[[u8;2]]>::as_ref(&x)[i];
-					u16::from_le_bytes(z)
+					u16::from_be_bytes(z)
 				})
 			})
 			.chain(
