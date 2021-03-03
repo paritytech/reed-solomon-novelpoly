@@ -9,7 +9,10 @@
 
 use super::*;
 
-use std::{io::{BufRead, Read}, slice::from_raw_parts};
+use std::{
+	io::{BufRead, Read},
+	slice::from_raw_parts,
+};
 
 pub type GFSymbol = u16;
 
@@ -310,18 +313,15 @@ unsafe fn init_dec() {
 	walsh(&mut LOG_WALSH[..], FIELD_SIZE);
 }
 
-
 /// Setup both decoder and encoder.
 pub fn setup() {
 	use std::sync::Once;
 
 	static SETUP: Once = Once::new();
 
-	SETUP.call_once(|| {
-		unsafe {
-			init();
-			init_dec();
-		}
+	SETUP.call_once(|| unsafe {
+		init();
+		init_dec();
 	});
 }
 
@@ -397,7 +397,7 @@ pub fn encode_high(data: &[GFSymbol], k: usize, parity: &mut [GFSymbol], mem: &m
 // `fn decode_init`
 // since this has only to be called once per reconstruction
 pub fn eval_error_polynomial(erasure: &[bool], log_walsh2: &mut [GFSymbol], n: usize) {
-	let z = std::cmp::min(n,erasure.len());
+	let z = std::cmp::min(n, erasure.len());
 	for i in 0..z {
 		log_walsh2[i] = erasure[i] as GFSymbol;
 	}
@@ -455,7 +455,6 @@ fn decode_main(codeword: &mut [GFSymbol], recover_up_to: usize, erasure: &[bool]
 }
 use itertools::Itertools;
 
-
 pub const fn next_higher_power_of_2(k: usize) -> usize {
 	if !is_power_of_2(k) {
 		1 << (log2(k) + 1)
@@ -472,7 +471,6 @@ pub const fn next_lower_power_of_2(k: usize) -> usize {
 	}
 }
 
-
 #[derive(Debug, Clone, Copy)]
 struct ReedSolomon {
 	/// total number of message symbols to send
@@ -488,16 +486,14 @@ impl ReedSolomon {
 		let k = validator_count / 3;
 		let k = next_lower_power_of_2(k);
 		let n = next_higher_power_of_2(validator_count);
-		Self {
-			n,
-			k,
-		}
+		Self { n, k }
 	}
 }
 
 pub fn encode(bytes: &[u8]) -> Vec<WrappedShard> {
 	setup();
 	let validator_count = N_VALIDATORS;
+	dbg!((bytes.len(), N_VALIDATORS));
 	let rs = ReedSolomon::new(validator_count);
 
 	// setup the shards, n is likely _larger_, so use the truely required number of shards
@@ -509,28 +505,27 @@ pub fn encode(bytes: &[u8]) -> Vec<WrappedShard> {
 	let k2 = rs.k * 2;
 	// prepare one wrapped shard per validator
 	let mut shards = vec![
-		WrappedShard::new(
-			{
-				let mut v = Vec::<u8>::with_capacity(shard_len * 2);
-				unsafe {
-					v.set_len(shard_len * 2)
-				}
-				v
-			}
-		); validator_count];
+		WrappedShard::new({
+			let mut v = Vec::<u8>::with_capacity(shard_len * 2);
+			unsafe { v.set_len(shard_len * 2) }
+			v
+		});
+		validator_count
+	];
 
 	for (chunk_idx, i) in (0..bytes.len()).into_iter().step_by(k2).enumerate() {
-		let end = std::cmp::min(i+k2,bytes.len());
-
+		let end = std::cmp::min(i + k2, bytes.len());
+		dbg!((i, end));
+		assert_ne!(i, end);
+		assert_ne!(i + 1, end);
 		let mut encoding_run = encode_sub(&bytes[i..end], rs.n, rs.k);
 		for val_idx in 0..validator_count {
-			AsMut::<[[u8;2]]>::as_mut(&mut shards[val_idx])[chunk_idx] = encoding_run[val_idx].to_be_bytes();
+			AsMut::<[[u8; 2]]>::as_mut(&mut shards[val_idx])[chunk_idx] = encoding_run[val_idx].to_be_bytes();
 		}
 	}
 
 	shards
 }
-
 
 /// each shard contains one symbol of one run of erasure coding
 pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>> {
@@ -543,27 +538,27 @@ pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>
 	let shard_len = received_shards
 		.iter()
 		.find_map(|x| {
-			x.as_ref()
-				.map(|x| {
-					let x = AsRef::<[[u8;2]]>::as_ref(x);
-					x.len()
-				})
-		}).unwrap();
+			x.as_ref().map(|x| {
+				let x = AsRef::<[[u8; 2]]>::as_ref(x);
+				x.len()
+			})
+		})
+		.unwrap();
 
 	let mut acc = Vec::<u8>::with_capacity(shard_len * 2 * rs.k);
 	for i in 0..shard_len {
 		// take the i-th element of all shards and try to recover
-		let mut decoding_run = received_shards.iter()
+		let mut decoding_run = received_shards
+			.iter()
 			.map(|x| {
 				x.as_ref().map(|x| {
-					let z = AsRef::<[[u8;2]]>::as_ref(&x)[i];
+					let z = AsRef::<[[u8; 2]]>::as_ref(&x)[i];
 					u16::from_be_bytes(z)
 				})
 			})
 			.chain(
 				// reconstruct_sub expects a `rs.n` length symbol slice
-				std::iter::repeat(None)
-				.take((rs.n).saturating_sub(received_shards.len()))
+				std::iter::repeat(None).take((rs.n).saturating_sub(received_shards.len())),
 			)
 			.collect::<Vec<Option<GFSymbol>>>();
 
@@ -598,14 +593,14 @@ pub fn encode_sub(bytes: &[u8], n: usize, k: usize) -> Vec<GFSymbol> {
 
 	// pad the incoming bytes with trailing 0s
 	// so we get a buffer of size `N` in `GF` symbols
-	let zero_bytes_to_add = n*2 - dl;
+	let zero_bytes_to_add = n * 2 - dl;
 	let data: Vec<GFSymbol> = bytes
 		.into_iter()
 		.copied()
 		.chain(std::iter::repeat(0u8).take(zero_bytes_to_add))
 		.tuple_windows()
 		.step_by(2)
-		.map(|(a, b)| u16::from_le_bytes([a,b]))
+		.map(|(a, b)| u16::from_le_bytes([a, b]))
 		.collect::<Vec<GFSymbol>>();
 
 	println!("Data:");
@@ -713,7 +708,7 @@ pub fn reconstruct_sub(codewords: &[Option<GFSymbol>], n: usize, k: usize) -> Op
 		std::mem::forget(recovered);
 		x
 	};
-	let k2 = k*2;
+	let k2 = k * 2;
 	Some(recovered[0..k2].to_vec())
 }
 
@@ -746,7 +741,6 @@ mod test {
 		uni.sample(&mut rng)
 	}
 
-
 	#[test]
 	fn base_2_powers_of_2() {
 		assert!(!is_power_of_2(0));
@@ -762,7 +756,6 @@ mod test {
 			assert!(!is_power_of_2(f));
 		}
 		assert_eq!(is_power_of_2(3), false);
-
 	}
 
 	#[test]
@@ -780,10 +773,7 @@ mod test {
 	#[test]
 	fn k_n_construction() {
 		for validator_count in 3_usize..=4096 {
-			let ReedSolomon {
-				n,
-				k,
-			} = ReedSolomon::new(validator_count);
+			let ReedSolomon { n, k } = ReedSolomon::new(validator_count);
 
 			assert!(validator_count <= n);
 			assert!(validator_count / 3 >= k);
@@ -798,12 +788,12 @@ mod test {
 		let mut data = (0..N).into_iter().map(|_x| rand_gf_element()).collect::<Vec<GFSymbol>>();
 		let expected = data.clone();
 
-		fft_in_novel_poly_basis(&mut data, N, N/4);
+		fft_in_novel_poly_basis(&mut data, N, N / 4);
 
 		// make sure something is done
 		assert!(data.iter().zip(expected.iter()).filter(|(a, b)| { a != b }).count() > 0);
 
-		inverse_fft_in_novel_poly_basis(&mut data, N, N/4);
+		inverse_fft_in_novel_poly_basis(&mut data, N, N / 4);
 
 		itertools::assert_equal(data, expected);
 	}
@@ -816,9 +806,8 @@ mod test {
 		const N: usize = 32;
 		const K: usize = 4;
 
-		let mut data = [0u8; K*2];
+		let mut data = [0u8; K * 2];
 		rng.fill_bytes(&mut data[..]);
-
 
 		let codewords = encode_sub(&data, N, K);
 		let mut codewords = codewords.into_iter().map(|x| Some(x)).collect::<Vec<_>>();
@@ -826,15 +815,13 @@ mod test {
 		codewords[0] = None;
 		codewords[1] = None;
 		codewords[2] = None;
-		codewords[N-3] = None;
-		codewords[N-2] = None;
-		codewords[N-1] = None;
+		codewords[N - 3] = None;
+		codewords[N - 2] = None;
+		codewords[N - 1] = None;
 
 		let reconstructed = reconstruct_sub(&codewords, N, K).unwrap();
-		itertools::assert_equal(data.iter(), reconstructed.iter().take(K*2));
-
+		itertools::assert_equal(data.iter(), reconstructed.iter().take(K * 2));
 	}
-
 
 	#[test]
 	fn flt_rountrip_small() {
@@ -948,9 +935,10 @@ mod test {
 				panic!("Decoding ERROR! value at [{}] should={:04x} vs is={:04x}", i, data[i], codeword[i]);
 			}
 		}
-		println!(r#">>>>>>>>> 🎉🎉🎉🎉
+		println!(
+			r#">>>>>>>>> 🎉🎉🎉🎉
 >>>>>>>>> > Decoding is **SUCCESS** ful! 🎈
->>>>>>>>>"#);
-
+>>>>>>>>>"#
+		);
 	}
 }
