@@ -7,14 +7,19 @@ use rs_ec_perf::*;
 macro_rules! instanciate_test {
 	($name:literal, $mp:ident) => {
 		pub mod $mp {
+			/// number of shards we want
+			/// equal to number of validators
+			/// unrelated to payload size
 			const N_VALS: usize = 2000;
-			const PAYLOAD_SIZE_CUTOFF: usize = 10_101;
+			/// max payload size is 10_000_000
+			/// this allows for quicker iterations with smaller
+			/// payload sizes.
+			const PAYLOAD_SIZE_CUTOFF: usize = 53;
 
 			use super::super::$mp::{encode, reconstruct};
 			use super::super::{roundtrip, BYTES, SMALL_RNG_SEED};
 			use crate::drop_random_max;
 			use criterion::{black_box, Criterion};
-			use rand::{rngs::SmallRng, SeedableRng};
 
 			pub fn bench_roundtrip(crit: &mut Criterion) {
 				crit.bench_function(concat!($name, " roundtrip"), |b| {
@@ -33,6 +38,8 @@ macro_rules! instanciate_test {
 			}
 
 			pub fn bench_reconstruct(crit: &mut Criterion) {
+				use rand::{rngs::SmallRng, SeedableRng};
+
 				crit.bench_function(concat!($name, " decode"), |b| {
 					let encoded = encode(&BYTES[..PAYLOAD_SIZE_CUTOFF], N_VALS);
 					let shards = encoded.clone().into_iter().map(Some).collect::<Vec<_>>();

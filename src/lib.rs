@@ -55,14 +55,15 @@ pub fn roundtrip_w_drop_closure<E, R, F, G>(
 	// for feeding into reconstruct_shards
 	let mut shards = encoded.clone().into_iter().map(Some).collect::<Vec<_>>();
 
-	drop_rand(shards.as_mut_slice(), validator_count, validator_count / 3, &mut rng);
+	drop_rand(shards.as_mut_slice(), validator_count, validator_count - validator_count /3 , &mut rng);
 
 	let result = reconstruct(shards, validator_count).expect("reconstruction must work");
 
 	assert!(payload.len() <= result.len());
 
 	// the result might have trailing zeros or non matching trailing data
-	itertools::assert_equal(payload[..].iter(), result[0..payload.len()].iter());
+	// itertools::assert_equal(.iter(), result[0..payload.len()].iter());
+	assert_eq!(&payload[..], &result[..payload.len()]);
 }
 
 #[cfg(test)]

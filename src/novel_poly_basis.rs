@@ -527,7 +527,11 @@ pub fn encode(bytes: &[u8], validator_count: usize) -> Vec<WrappedShard> {
 }
 
 /// each shard contains one symbol of one run of erasure coding
-pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>, validator_count: usize) -> Option<Vec<u8>> {
+pub fn reconstruct(
+	received_shards: Vec<Option<WrappedShard>>,
+	validator_count: usize,
+) -> Option<Vec<u8>>
+{
 	setup();
 	let rs = ReedSolomon::new(validator_count);
 
@@ -543,7 +547,11 @@ pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>, validator_count: 
 		})
 		.unwrap();
 
-	let erasures = received_shards.iter().map(|x| x.is_none()).collect::<Vec<bool>>();
+	let erasures = received_shards.iter()
+		.map(|x| x.is_none())
+		.collect::<Vec<bool>>();
+
+	assert!(erasures.iter().filter(|&&erased| !erased).count() >= rs.k);
 
 	// Evaluate error locator polynomial only once
 	let mut error_poly_in_log = [0_u16 as GFSymbol; FIELD_SIZE];
@@ -889,7 +897,7 @@ mod test {
 	}
 
 	#[test]
-	fn sub_eq_big_for_large_messages() {
+	fn roundtrip_for_large_messages() {
 		const N_VALIDATORS: usize = 128;
 		const N: usize = N_VALIDATORS;
 		const K: usize = 32;
@@ -903,7 +911,7 @@ mod test {
 		assert_eq!(rs.n, N);
 		assert_eq!(rs.k, K);
 
-		const SHARD_LENGTH: usize = 1107; // in GF symbols
+		const SHARD_LENGTH: usize = 1101; // in GF symbols
 
 		let data = { &crate::BYTES[0..K2 * SHARD_LENGTH] };
 
@@ -921,7 +929,7 @@ mod test {
 	}
 
 	#[test]
-	fn flt_rountrip_small() {
+	fn flt_roundtrip_small() {
 		const N: usize = 16;
 		const EXPECTED: [GFSymbol; N] = [1, 2, 3, 5, 8, 13, 21, 44, 65, 0, 0xFFFF, 2, 3, 5, 7, 11];
 
