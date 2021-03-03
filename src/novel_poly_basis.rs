@@ -9,7 +9,7 @@
 
 use super::*;
 
-use std::{io::Read, slice::from_raw_parts};
+use std::slice::from_raw_parts;
 
 pub type GFSymbol = u16;
 
@@ -705,6 +705,7 @@ pub fn reconstruct_sub(
 #[cfg(test)]
 mod test {
 	use rand::seq::index::IndexVec;
+	use rand::distributions::Uniform;
 
 	use super::*;
 
@@ -723,9 +724,6 @@ mod test {
 
 	/// Generate a random index
 	fn rand_gf_element() -> GFSymbol {
-		use rand::distributions::{Distribution, Uniform};
-		use rand::thread_rng;
-
 		let mut rng = thread_rng();
 		let uni = Uniform::<GFSymbol>::new_inclusive(0, MODULO);
 		uni.sample(&mut rng)
