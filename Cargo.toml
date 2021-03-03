@@ -57,5 +57,5 @@ bench = true
 
 [workspace]
 members = [
-    "fuzzit"
+     "fuzzit"
 ]

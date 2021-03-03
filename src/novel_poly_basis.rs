@@ -546,6 +546,14 @@ pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>, validator_count: 
 		})
 		.unwrap();
 
+	let erasures = received_shards.iter().map(|x| {
+		x.is_none()
+	}).collect::<Vec<bool>>();
+
+	// Evaluate error locator polynomial only once
+	let mut error_poly_in_log =  [0_u16 as GFSymbol; FIELD_SIZE];
+	eval_error_polynomial(&erasures[..], &mut error_poly_in_log[..], FIELD_SIZE);
+
 	let mut acc = Vec::<u8>::with_capacity(shard_len * 2 * rs.k);
 	for i in 0..shard_len {
 		// take the i-th element of all shards and try to recover
@@ -566,7 +574,7 @@ pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>, validator_count: 
 		assert_eq!(decoding_run.len(), rs.n);
 
 		// reconstruct from one set of symbols which was spread over all erasure chunks
-		let piece = reconstruct_sub(&decoding_run[..], rs.n, rs.k).unwrap();
+		let piece = reconstruct_sub(&decoding_run[..], rs.n, rs.k, &error_poly_in_log).unwrap();
 		acc.extend_from_slice(&piece[..]);
 	}
 	Some(acc)
@@ -617,7 +625,7 @@ pub fn encode_sub(bytes: &[u8], n: usize, k: usize) -> Vec<GFSymbol> {
 	codeword
 }
 
-pub fn reconstruct_sub(codewords: &[Option<GFSymbol>], n: usize, k: usize) -> Option<Vec<u8>> {
+pub fn reconstruct_sub(codewords: &[Option<GFSymbol>], n: usize, k: usize, error_poly: &[GFSymbol; FIELD_SIZE] ) -> Option<Vec<u8>> {
 	assert!(is_power_of_2(n), "Algorithm only works for 2^i sizes for N");
 	assert!(is_power_of_2(k), "Algorithm only works for 2^i sizes for K");
 	assert_eq!(codewords.len(), n);
@@ -643,7 +651,7 @@ pub fn reconstruct_sub(codewords: &[Option<GFSymbol>], n: usize, k: usize) -> Op
 	}
 
 	// the first k suffice for the original k message codewords
-	let recover_up_to = n; // k;
+	let recover_up_to = k; // k;
 
 	// The recovered _data_ chunks AND parity chunks
 	let mut recovered = vec![0 as GFSymbol; recover_up_to];
@@ -675,13 +683,8 @@ pub fn reconstruct_sub(codewords: &[Option<GFSymbol>], n: usize, k: usize) -> Op
 	let recover_up_to = k;
 
 	//---------Erasure decoding----------------
-	let mut log_walsh2 = vec![0_u16 as GFSymbol; n];
 
-	// Evaluate error locator polynomial
-	eval_error_polynomial(&erasures[..], &mut log_walsh2[..], n);
-
-	//---------main processing----------
-	decode_main(&mut codeword[..], recover_up_to, &erasures[..], &log_walsh2[..], n);
+	decode_main(&mut codeword[..], recover_up_to, &erasures[..], &error_poly[..], n);
 
 	for idx in 0..recover_up_to {
 		if erasures[idx] {
@@ -807,7 +810,15 @@ mod test {
 		codewords[N - 2] = None;
 		codewords[N - 1] = None;
 
-		let reconstructed = reconstruct_sub(&codewords, N, K).unwrap();
+		let erasures = codewords.iter().map(|x| {
+			x.is_none()
+		}).collect::<Vec<bool>>();
+
+		// Evaluate error locator polynomial only once
+		let mut error_poly_in_log =  [0_u16 as GFSymbol; FIELD_SIZE];
+		eval_error_polynomial(&erasures[..], &mut error_poly_in_log[..], FIELD_SIZE);
+
+		let reconstructed = reconstruct_sub(&codewords, N, K, &error_poly_in_log).unwrap();
 		itertools::assert_equal(data.iter(), reconstructed.iter().take(K2));
 	}
 
@@ -870,7 +881,15 @@ mod test {
 			codewords_sub.iter().copied(),
 		);
 
-		let reconstructed_sub = reconstruct_sub(&codewords_sub, N, K).unwrap();
+		let erasures = codewords.iter().map(|x| {
+			x.is_none()
+		}).collect::<Vec<bool>>();
+
+		// Evaluate error locator polynomial only once
+		let mut error_poly_in_log =  [0_u16 as GFSymbol; FIELD_SIZE];
+		eval_error_polynomial(&erasures[..], &mut error_poly_in_log[..], FIELD_SIZE);
+
+		let reconstructed_sub = reconstruct_sub(&codewords_sub, N, K, &error_poly_in_log).unwrap();
 		let reconstructed = reconstruct(codewords, rs.n).unwrap();
 		itertools::assert_equal(reconstructed.iter().take(K2), reconstructed_sub.iter().take(K2));
 		itertools::assert_equal(reconstructed.iter().take(K2), data.iter());
