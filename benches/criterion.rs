@@ -14,7 +14,7 @@ macro_rules! instanciate_test {
 			use criterion::{black_box, Criterion};
 
 			pub fn bench_roundtrip(crit: &mut Criterion) {
-				crit.bench_function(concat!($name, " roudtrip"), |b| {
+				crit.bench_function(concat!($name, " roundtrip"), |b| {
 					b.iter(|| {
 						roundtrip(encode, reconstruct, black_box(&BYTES[..]), N_VALS);
 					})

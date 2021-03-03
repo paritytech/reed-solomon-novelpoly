@@ -651,7 +651,7 @@ pub fn reconstruct_sub(codewords: &[Option<GFSymbol>], n: usize, k: usize, error
 	}
 
 	// the first k suffice for the original k message codewords
-	let recover_up_to = k; // k;
+	let recover_up_to = n; // k;
 
 	// The recovered _data_ chunks AND parity chunks
 	let mut recovered = vec![0 as GFSymbol; recover_up_to];
@@ -823,7 +823,7 @@ mod test {
 	}
 
 
-	fn modify<T: Sized + Clone>(codewords: &mut [T]) -> Vec<Option<T>> {
+	fn drop_shards<T: Sized + Clone>(codewords: &mut [T]) -> Vec<Option<T>> {
 		let mut codewords = codewords.into_iter().map(|x| Some(x.clone())).collect::<Vec<Option<T>>>();		codewords[0] = None;
 		let l = codewords.len();
 		assert!(l > 5);
@@ -873,8 +873,8 @@ mod test {
 
 		itertools::assert_equal(codewords.iter().map(wrapped_shard_len1_as_gf_sym), codewords_sub.iter().copied());
 
-		let codewords = modify(&mut codewords);
-		let codewords_sub = modify(&mut codewords_sub);
+		let codewords = drop_shards(&mut codewords);
+		let codewords_sub = drop_shards(&mut codewords_sub);
 
 		itertools::assert_equal(
 			codewords.iter().map(|w| w.as_ref().map(wrapped_shard_len1_as_gf_sym)),
@@ -914,18 +914,20 @@ mod test {
 		const SHARD_LENGTH: usize = 1107; // in GF symbols
 
 		let data = {
-			&crate::BYTES[0..K2 * SHARD_LENGTH - 149]
+			&crate::BYTES[0..K2 * SHARD_LENGTH]
 		};
 
 		let mut shards = encode(data, rs.n);
 
-		for shard in shards.iter() {
-			assert_eq!(SHARD_LENGTH, AsRef::<[[u8;2]]>::as_ref(shard).len());
+		for (idx, shard) in shards.iter().enumerate() {
+			let sl = AsRef::<[[u8;2]]>::as_ref(&shard).len();
+			assert_eq!(SHARD_LENGTH, sl, "Shard #{} has an unxpected length {} (expected: {})", idx, sl, SHARD_LENGTH);
 		}
-		let received_shards = modify(&mut shards);
+		let received_shards = drop_shards(&mut shards);
 
 		let reconstructed_data = reconstruct(received_shards, rs.n).unwrap();
-		itertools::assert_equal(reconstructed_data.iter().take(data.len()), data.iter());
+		assert!(reconstructed_data.len() >= data.len());
+		assert_eq!(&reconstructed_data[..data.len()], &data[..]);
 	}
 
 	#[test]

@@ -14,11 +14,7 @@ pub mod novel_poly_basis;
 #[cfg(feature = "cmp-with-cxx")]
 pub mod novel_poly_basis_cxx;
 
-// we want one message per validator, so this is the total number of shards that we should own
-// after
-pub const N_VALIDATORS: usize = 32; //256;
-pub const DATA_SHARDS: usize = 4; // N_VALIDATORS / 3;
-pub const PARITY_SHARDS: usize = N_VALIDATORS - DATA_SHARDS;
+pub const N_VALIDATORS: usize = 32;
 
 pub const BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/rand_data.bin"));
 
@@ -51,7 +47,6 @@ pub fn roundtrip_w_drop_closure<E, R, F, G>(
 	F: for<'z> FnMut(&'z mut [Option<WrappedShard>], usize, usize, &mut G),
 	G: rand::Rng + rand::SeedableRng<Seed=[u8;32]>,
 {
-
 	let mut rng = <G as rand::SeedableRng>::from_seed(SMALL_RNG_SEED);
 
 	// Construct the shards
@@ -65,6 +60,7 @@ pub fn roundtrip_w_drop_closure<E, R, F, G>(
 
 	let result = reconstruct(shards, validator_count).expect("reconstruction must work");
 
+	assert_eq!(&payload[..], &result[0..payload.len()]);
 	// the result might have trailing zeros or non matching trailing data
 	assert_eq!(&payload[..], &result[0..payload.len()]);
 }
@@ -75,11 +71,11 @@ mod test {
 
 	#[test]
 	fn status_quo_roundtrip() {
-		roundtrip(status_quo::encode, status_quo::reconstruct, &BYTES[0..(DATA_SHARDS << 1)], N_VALIDATORS)
+		roundtrip(status_quo::encode, status_quo::reconstruct, &BYTES[..1337], N_VALIDATORS)
 	}
 
 	#[test]
 	fn novel_poly_basis_roundtrip() {
-		roundtrip(novel_poly_basis::encode, novel_poly_basis::reconstruct, &BYTES[0..(DATA_SHARDS << 1)], N_VALIDATORS)
+		roundtrip(novel_poly_basis::encode, novel_poly_basis::reconstruct, &BYTES[..1337], N_VALIDATORS)
 	}
 }

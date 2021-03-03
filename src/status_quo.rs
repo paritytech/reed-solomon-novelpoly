@@ -56,7 +56,7 @@ pub fn reconstruct(mut received_shards: Vec<Option<WrappedShard>>, validator_cou
 	// 	.filter_map(|x| x)
 	// 	.collect::<Vec<WrappedShard>>();
 
-	let result = received_shards.into_iter().filter_map(|x| x).take(DATA_SHARDS).fold(
+	let result = received_shards.into_iter().filter_map(|x| x).take(r.data_shard_count()).fold(
 		Vec::with_capacity(12 << 20),
 		|mut acc, x| {
 			acc.extend_from_slice(x.into_inner().as_slice());
