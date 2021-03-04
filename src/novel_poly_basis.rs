@@ -580,10 +580,6 @@ pub fn reconstruct(
 					u16::from_be_bytes(z)
 				})
 			})
-			.chain(
-				// reconstruct_sub expects a `rs.n` length symbol slice
-				std::iter::repeat(None).take((rs.n).saturating_sub(received_shards.len())),
-			)
 			.collect::<Vec<Option<GFSymbol>>>();
 
 		assert_eq!(decoding_run.len(), rs.n);
@@ -592,6 +588,7 @@ pub fn reconstruct(
 		let piece = reconstruct_sub(&decoding_run[..], rs.n, rs.k, &error_poly_in_log).unwrap();
 		acc.extend_from_slice(&piece[..]);
 	}
+
 	Some(acc)
 }
 
@@ -671,7 +668,7 @@ pub fn reconstruct_sub(
 	}
 
 	// the first k suffice for the original k message codewords
-	let recover_up_to = n; // k;
+	let recover_up_to = k; // k;
 
 	// The recovered _payload_ chunks AND parity chunks
 	let mut recovered = vec![0 as GFSymbol; recover_up_to];
