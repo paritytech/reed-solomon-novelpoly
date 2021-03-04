@@ -1,5 +1,5 @@
 // A shard with a even number of elements, which can sliced into 2 byte haps
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct WrappedShard {
 	inner: Vec<u8>,
 }

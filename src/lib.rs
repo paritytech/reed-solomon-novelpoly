@@ -14,15 +14,18 @@ pub mod novel_poly_basis;
 #[cfg(feature = "cmp-with-cxx")]
 pub mod novel_poly_basis_cxx;
 
-pub const N_VALIDATORS: usize = 32;
+pub const N_VALIDATORS: usize = 128;
 
 pub const BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/rand_data.bin"));
 
 pub fn drop_random_max(shards: &mut [Option<WrappedShard>], n: usize, k: usize, rng: &mut impl rand::Rng) {
 	let iv = rand::seq::index::sample(rng, n, n - k);
+	assert_eq!(iv.len(), n-k);
 	iv.into_iter().for_each(|idx| {
 		shards[idx] = None;
 	});
+	let kept_count = shards.iter().map(Option::is_some).count();
+	assert!(kept_count >= k);
 }
 
 #[inline(always)]
@@ -49,15 +52,18 @@ pub fn roundtrip_w_drop_closure<E, R, F, G>(
 	let mut rng = <G as rand::SeedableRng>::from_seed(SMALL_RNG_SEED);
 
 	// Construct the shards
-	let encoded = encode(payload, validator_count);
+	let shards = encode(payload, validator_count);
 
 	// Make a copy and transform it into option shards arrangement
 	// for feeding into reconstruct_shards
-	let mut shards = encoded.clone().into_iter().map(Some).collect::<Vec<_>>();
+	let mut received_shards = shards
+		.into_iter()
+		.map(Some)
+		.collect::<Vec<Option<WrappedShard>>>();
 
-	drop_rand(shards.as_mut_slice(), validator_count, validator_count - validator_count /3 , &mut rng);
+	drop_rand(received_shards.as_mut_slice(), validator_count, validator_count / 3 , &mut rng);
 
-	let result = reconstruct(shards, validator_count).expect("reconstruction must work");
+	let result = reconstruct(received_shards, validator_count).expect("reconstruction must work");
 
 	assert!(payload.len() <= result.len());
 

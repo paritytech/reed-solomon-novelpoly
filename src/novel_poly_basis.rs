@@ -661,7 +661,7 @@ pub fn reconstruct_sub(
 	// the first k suffice for the original k message codewords
 	let recover_up_to = n; // k;
 
-	// The recovered _data_ chunks AND parity chunks
+	// The recovered _payload_ chunks AND parity chunks
 	let mut recovered = vec![0 as GFSymbol; recover_up_to];
 
 	// get rid of all `None`s
@@ -826,16 +826,21 @@ mod test {
 		itertools::assert_equal(data.iter(), reconstructed.iter().take(K2));
 	}
 
-	fn drop_shards<T: Sized + Clone>(codewords: &mut [T]) -> Vec<Option<T>> {
-		let mut codewords = codewords.into_iter().map(|x| Some(x.clone())).collect::<Vec<Option<T>>>();
-		codewords[0] = None;
+	fn deterministic_drop_shards<T: Sized, G: rand::SeedableRng + rand::Rng>(codewords: &mut [Option<T>], n: usize, k: usize, _rng: &mut G) {
 		let l = codewords.len();
-		assert!(l > 5);
+		assert!(n - k >= 6); // the amount we are allowed to zero out
+		codewords[0] = None;
 		codewords[1] = None;
 		codewords[2] = None;
 		codewords[l - 3] = None;
 		codewords[l - 2] = None;
 		codewords[l - 1] = None;
+	}
+
+	fn deterministic_drop_shards_clone<T: Sized + Clone>(codewords: &[T], n: usize, k: usize) -> Vec<Option<T>> {
+		let mut rng = SmallRng::from_seed(crate::SMALL_RNG_SEED);
+		let mut codewords = codewords.into_iter().map(|x| Some(x.clone())).collect::<Vec<Option<T>>>();
+		deterministic_drop_shards::<T, SmallRng>(&mut codewords, n, k, &mut rng);
 		codewords
 	}
 
@@ -875,8 +880,8 @@ mod test {
 
 		itertools::assert_equal(codewords.iter().map(wrapped_shard_len1_as_gf_sym), codewords_sub.iter().copied());
 
-		let codewords = drop_shards(&mut codewords);
-		let codewords_sub = drop_shards(&mut codewords_sub);
+		let codewords = deterministic_drop_shards_clone(&mut codewords, N, K);
+		let codewords_sub = deterministic_drop_shards_clone(&mut codewords_sub, N, K);
 
 		itertools::assert_equal(
 			codewords.iter().map(|w| w.as_ref().map(wrapped_shard_len1_as_gf_sym)),
@@ -911,21 +916,28 @@ mod test {
 		assert_eq!(rs.n, N);
 		assert_eq!(rs.k, K);
 
-		const SHARD_LENGTH: usize = 1101; // in GF symbols
+		// make sure each shard is more than one byte to
+		// test the shard size
+		// in GF symbols
+		let shard_length: usize = N_VALIDATORS * 23;
 
-		let data = { &crate::BYTES[0..K2 * SHARD_LENGTH] };
+		let payload = &crate::BYTES[0..K2 * shard_length];
 
-		let mut shards = encode(data, rs.n);
+		let mut shards = encode(payload, rs.n);
 
 		for (idx, shard) in shards.iter().enumerate() {
 			let sl = AsRef::<[[u8; 2]]>::as_ref(&shard).len();
-			assert_eq!(SHARD_LENGTH, sl, "Shard #{} has an unxpected length {} (expected: {})", idx, sl, SHARD_LENGTH);
+			assert_eq!(shard_length, sl, "Shard #{} has an unxpected length {} (expected: {})", idx, sl, shard_length);
 		}
-		let received_shards = drop_shards(&mut shards);
+		let received_shards = deterministic_drop_shards_clone(&mut shards, rs.n, rs.k);
 
-		let reconstructed_data = reconstruct(received_shards, rs.n).unwrap();
-		assert!(reconstructed_data.len() >= data.len());
-		assert_eq!(&reconstructed_data[..data.len()], &data[..]);
+		let reconstructed_payload = reconstruct(received_shards, rs.n).unwrap();
+		assert!(reconstructed_payload.len() >= payload.len());
+		assert_eq!(&reconstructed_payload[..payload.len()], &payload[..]);
+
+		// verify integrity with criterion tests
+		roundtrip_w_drop_closure::<_,_,_,SmallRng>(encode, reconstruct, payload, N_VALIDATORS, deterministic_drop_shards::<WrappedShard, SmallRng>);
+		roundtrip_w_drop_closure::<_,_,_,SmallRng>(encode, reconstruct, payload, N_VALIDATORS, crate::drop_random_max);
 	}
 
 	#[test]

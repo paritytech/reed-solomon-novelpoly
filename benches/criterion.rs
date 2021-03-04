@@ -10,7 +10,7 @@ macro_rules! instanciate_test {
 			/// number of shards we want
 			/// equal to number of validators
 			/// unrelated to payload size
-			const N_VALS: usize = 2000;
+			const VALIDATOR_COUNT: usize = 2000;
 			/// max payload size is 10_000_000
 			/// this allows for quicker iterations with smaller
 			/// payload sizes.
@@ -21,35 +21,48 @@ macro_rules! instanciate_test {
 			use crate::drop_random_max;
 			use criterion::{black_box, Criterion};
 
-			pub fn bench_roundtrip(crit: &mut Criterion) {
-				crit.bench_function(concat!($name, " roundtrip"), |b| {
-					b.iter(|| {
-						roundtrip(encode, reconstruct, black_box(&BYTES[..PAYLOAD_SIZE_CUTOFF]), N_VALS);
-					})
-				});
+
+
+			#[test]
+			fn criterion_encode_integrity() {
+				roundtrip(encode, reconstruct, black_box(&BYTES[..PAYLOAD_SIZE_CUTOFF]), VALIDATOR_COUNT);
 			}
 
 			pub fn bench_encode(crit: &mut Criterion) {
 				crit.bench_function(concat!($name, " encode"), |b| {
 					b.iter(|| {
-						let _ = encode(black_box(&BYTES[..PAYLOAD_SIZE_CUTOFF]), N_VALS);
+						let _ = encode(black_box(&BYTES[..PAYLOAD_SIZE_CUTOFF]), VALIDATOR_COUNT);
 					})
 				});
 			}
+
+			#[test]
+			fn criterion_roundtrip_integrity() {
+				roundtrip(encode, reconstruct, black_box(&BYTES[..PAYLOAD_SIZE_CUTOFF]), VALIDATOR_COUNT);
+			}
+
+			pub fn bench_roundtrip(crit: &mut Criterion) {
+				crit.bench_function(concat!($name, " roundtrip"), |b| {
+					b.iter(|| {
+						roundtrip(encode, reconstruct, black_box(&BYTES[..PAYLOAD_SIZE_CUTOFF]), VALIDATOR_COUNT);
+					})
+				});
+			}
+
 
 			pub fn bench_reconstruct(crit: &mut Criterion) {
 				use rand::{rngs::SmallRng, SeedableRng};
 
 				crit.bench_function(concat!($name, " decode"), |b| {
-					let encoded = encode(&BYTES[..PAYLOAD_SIZE_CUTOFF], N_VALS);
+					let encoded = encode(&BYTES[..PAYLOAD_SIZE_CUTOFF], VALIDATOR_COUNT);
 					let shards = encoded.clone().into_iter().map(Some).collect::<Vec<_>>();
 
 					let mut rng = SmallRng::from_seed(SMALL_RNG_SEED);
 
 					b.iter(|| {
-						let mut shards = shards.clone();
-						drop_random_max(&mut shards, N_VALS, N_VALS / 3, &mut rng);
-						let _ = reconstruct(black_box(shards), N_VALS);
+						let mut shards2 = shards.clone();
+						drop_random_max(&mut shards2, VALIDATOR_COUNT, VALIDATOR_COUNT / 3, &mut rng);
+						let _ = reconstruct(black_box(dbg!(shards2)), VALIDATOR_COUNT);
 					})
 				});
 			}
