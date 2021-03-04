@@ -535,6 +535,14 @@ pub fn reconstruct(
 	setup();
 	let rs = ReedSolomon::new(validator_count);
 
+	let gap = rs.n.saturating_sub(received_shards.len());
+	let received_shards = received_shards
+		.into_iter().take(rs.n)
+		.chain(std::iter::repeat(None).take(gap))
+		.collect::<Vec<_>>();
+
+	assert_eq!(received_shards.len(), rs.n);
+
 	// obtain a sample of a shard length and assume that is the truth
 	// XXX make sure all shards have equal length
 	let shard_len = received_shards
@@ -547,11 +555,15 @@ pub fn reconstruct(
 		})
 		.unwrap();
 
+	let mut existential_count = 0_usize;
 	let erasures = received_shards.iter()
 		.map(|x| x.is_none())
+		.inspect(|erased| existential_count += !*erased as usize)
 		.collect::<Vec<bool>>();
 
-	assert!(erasures.iter().filter(|&&erased| !erased).count() >= rs.k);
+	if existential_count < rs.k {
+		return None;
+	}
 
 	// Evaluate error locator polynomial only once
 	let mut error_poly_in_log = [0_u16 as GFSymbol; FIELD_SIZE];
