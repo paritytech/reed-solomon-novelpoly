@@ -14,7 +14,7 @@ macro_rules! instanciate_test {
 			/// max payload size is 10_000_000
 			/// this allows for quicker iterations with smaller
 			/// payload sizes.
-			const PAYLOAD_SIZE_CUTOFF: usize = 53;
+			const PAYLOAD_SIZE_CUTOFF: usize = 10_000_000;
 
 			use super::super::$mp::{encode, reconstruct};
 			use super::super::{roundtrip, BYTES, SMALL_RNG_SEED};
@@ -55,7 +55,7 @@ macro_rules! instanciate_test {
 					b.iter(|| {
 						let mut shards2 = shards.clone();
 						drop_random_max(&mut shards2, VALIDATOR_COUNT, VALIDATOR_COUNT / 3, &mut rng);
-						let _ = reconstruct(black_box(dbg!(shards2)), VALIDATOR_COUNT);
+						let _ = reconstruct(black_box(shards2), VALIDATOR_COUNT);
 					})
 				});
 			}
@@ -72,11 +72,11 @@ fn adjusted_criterion() -> Criterion {
 	let crit = Criterion::default()
 		.sample_size(10)
 		.warm_up_time(Duration::from_secs(1))
-		.measurement_time(Duration::from_secs(60));
+		.measurement_time(Duration::from_secs(70));
 	crit
 }
 
-criterion_group!(name = acc_novel_poly_basis; config = adjusted_criterion(); targets =  tests::novel_poly_basis::bench_roundtrip, tests::novel_poly_basis::bench_encode);
-criterion_group!(name = acc_status_quo; config = adjusted_criterion(); targets =  tests::status_quo::bench_roundtrip, tests::status_quo::bench_encode);
+criterion_group!(name = acc_novel_poly_basis; config = adjusted_criterion(); targets =  tests::novel_poly_basis::bench_encode, tests::novel_poly_basis::bench_reconstruct, tests::novel_poly_basis::bench_roundtrip);
+criterion_group!(name = acc_status_quo; config = adjusted_criterion(); targets =  tests::status_quo::bench_encode, tests::status_quo::bench_reconstruct, tests::status_quo::bench_roundtrip);
 
 criterion_main!(acc_novel_poly_basis, acc_status_quo);
