@@ -497,6 +497,7 @@ pub fn encode(bytes: &[u8], validator_count: usize) -> Vec<WrappedShard> {
 
 	// shard length in GF(2^16) symbols
 	let shard_len = ((bytes.len() + 1) / 2 + rs.k - 1) / rs.k;
+	assert!(shard_len > 0);
 	// collect all sub encoding runs
 
 	let k2 = rs.k * 2;
@@ -513,7 +514,6 @@ pub fn encode(bytes: &[u8], validator_count: usize) -> Vec<WrappedShard> {
 	for (chunk_idx, i) in (0..bytes.len()).into_iter().step_by(k2).enumerate() {
 		let end = std::cmp::min(i + k2, bytes.len());
 		assert_ne!(i, end);
-		assert_ne!(i + 1, end);
 		let data_piece = &bytes[i..end];
 		assert!(!data_piece.is_empty());
 		assert!(data_piece.len() <= k2);
@@ -837,14 +837,23 @@ mod test {
 
 	fn deterministic_drop_shards<T: Sized, G: rand::SeedableRng + rand::Rng>(codewords: &mut [Option<T>], n: usize, k: usize, _rng: &mut G) -> IndexVec {
 		let l = codewords.len();
-		assert!(n - k >= 6); // the amount we are allowed to zero out
-		codewords[0] = None;
-		codewords[1] = None;
-		codewords[2] = None;
-		codewords[l - 3] = None;
-		codewords[l - 2] = None;
-		codewords[l - 1] = None;
-		IndexVec::from(vec![0,1,2,l-3,l-2,l-1])
+		let mut v = Vec::with_capacity(n-k);
+		// k is a power of 2
+		let half = (n-k) >> 1;
+		for i in 0..half {
+			codewords[i] = None;
+			v.push(i);
+		}
+		// if the codewords is shorter than n
+		// the remaining ones were
+		// already dropped implicitly
+		for i in n-half..n {
+			if i < l {
+				codewords[i] = None;
+				v.push(i);
+			}
+		}
+		IndexVec::from(v)
 	}
 
 	fn deterministic_drop_shards_clone<T: Sized + Clone>(codewords: &[T], n: usize, k: usize) -> (Vec<Option<T>>, IndexVec) {
@@ -952,6 +961,32 @@ mod test {
 
 		roundtrip_w_drop_closure::<_,_,_,SmallRng>(encode, reconstruct, payload, N_VALIDATORS, crate::drop_random_max);
 	}
+
+	macro_rules! simplicissimus {
+		($name:ident: validators: $validator_count:literal, payload: $payload_size:literal) => {
+			#[test]
+			fn $name () {
+				roundtrip_w_drop_closure::<_,_,_,SmallRng>(
+					encode,
+					reconstruct,
+					&BYTES[0..$payload_size], $validator_count,
+					 deterministic_drop_shards::<WrappedShard, SmallRng>);
+			}
+		};
+	}
+
+
+	// Roughly one GFSymbol per validator payload
+	simplicissimus!(case_1: validators: 10, payload: 16);
+
+	// Unit payload, but mayn validators
+	simplicissimus!(case_2: validators: 100, payload: 1);
+
+	// Common case of way ore payload than validators
+	simplicissimus!(case_3: validators: 4, payload: 100);
+
+	// Way more validators than payload bytes
+	simplicissimus!(case_4: validators: 2003, payload: 17);
 
 	#[test]
 	fn flt_roundtrip_small() {

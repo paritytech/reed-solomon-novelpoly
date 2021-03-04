@@ -25,15 +25,20 @@ pub fn assert_recovery(payload: &[u8], reconstructed_payload: &[u8], dropped_ind
 	assert!(reconstructed_payload.len() >= payload.len());
 
 	dropped_indices.into_iter().for_each(|dropped_idx| {
-		let byteoffset = dropped_idx*2;
+		let byteoffset = dropped_idx * 2;
 		let range = byteoffset..(byteoffset+2);
-		assert_eq!(&payload[range.clone()], &reconstructed_payload[range.clone()],
-			"Data at bytes {:?} must match:", range);
+		// dropped indices are over `n`, but our data indices are just of length `k * 2`
+		if payload.len() >= range.end {
+			assert_eq!(&payload[range.clone()], &reconstructed_payload[range.clone()],
+				"Data at bytes {:?} must match:", range);
+		}
 	});
 }
 
 pub fn drop_random_max(shards: &mut [Option<WrappedShard>], n: usize, k: usize, rng: &mut impl rand::Rng) -> IndexVec {
-	let iv = rand::seq::index::sample(rng, n, n - k);
+	let l = shards.len();
+	let already_dropped = n.saturating_sub(l);
+	let iv = rand::seq::index::sample(rng, l, n - k - already_dropped);
 	assert_eq!(iv.len(), n-k);
 	iv.clone().into_iter().for_each(|idx| {
 		shards[idx] = None;
@@ -79,7 +84,7 @@ pub fn roundtrip_w_drop_closure<E, R, F, G>(
 
 	let recovered_payload = reconstruct(received_shards, validator_count).expect("reconstruction must work");
 
-	assert_recovery(payload, &recovered_payload, dropped_indices);
+	assert_recovery(&payload[..], &recovered_payload[..], dropped_indices);
 }
 
 #[cfg(test)]

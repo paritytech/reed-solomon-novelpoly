@@ -21,10 +21,8 @@ macro_rules! instanciate_test {
 			use crate::drop_random_max;
 			use criterion::{black_box, Criterion};
 
-
-
 			#[test]
-			fn criterion_encode_integrity() {
+			fn criterion_roundtrip_integrity() {
 				roundtrip(encode, reconstruct, black_box(&BYTES[..PAYLOAD_SIZE_CUTOFF]), VALIDATOR_COUNT);
 			}
 
@@ -34,11 +32,6 @@ macro_rules! instanciate_test {
 						let _ = encode(black_box(&BYTES[..PAYLOAD_SIZE_CUTOFF]), VALIDATOR_COUNT);
 					})
 				});
-			}
-
-			#[test]
-			fn criterion_roundtrip_integrity() {
-				roundtrip(encode, reconstruct, black_box(&BYTES[..PAYLOAD_SIZE_CUTOFF]), VALIDATOR_COUNT);
 			}
 
 			pub fn bench_roundtrip(crit: &mut Criterion) {
