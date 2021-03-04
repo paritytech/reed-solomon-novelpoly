@@ -976,6 +976,8 @@ mod test {
 	}
 
 
+	simplicissimus!(case_0: validators: 2003, payload: 0);
+
 	// Roughly one GFSymbol per validator payload
 	simplicissimus!(case_1: validators: 10, payload: 16);
 

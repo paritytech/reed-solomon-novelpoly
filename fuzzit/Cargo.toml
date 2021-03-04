@@ -12,4 +12,5 @@ rand = { version = "0.8", features = ["alloc", "small_rng"] }
 itertools = "0.10"
 sha2 = "0.9"
 honggfuzz = "=0.5.54"
+arbitrary = { version = "1", features = ["derive"] }
 rs = { package = "rs-ec-perf", path = ".." }

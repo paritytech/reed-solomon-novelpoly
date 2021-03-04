@@ -2,23 +2,35 @@ use honggfuzz::fuzz;
 
 use rs::*;
 
-use honggfuzz::arbitrary::*;
+use arbitrary::*;
 
 #[derive(Debug, Clone, Copy)]
 struct ValidatorCount(usize);
 
+impl std::ops::Deref for ValidatorCount {
+	type Target = usize;
+	fn deref(&self) -> &Self::Target {
+		&self.0
+	}
+}
 
 impl<'a> Arbitrary<'a> for ValidatorCount
 {
 	fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-		let iter = u.arbitrary_iter::<u16>()?;
-		let data: u16 = iter.next().ok_or_else(|| Error::NotEnoughData)?;
+		let data = u16::arbitrary(u)?;
 		if data > 2200 {
 			Err(Error::IncorrectFormat)
 		} else {
-			Ok(data)
+			Ok(Self(data as usize))
 		}
 	}
+}
+
+
+#[derive(Debug, Clone, Copy, Arbitrary)]
+struct Feed<'a> {
+	validator_count: ValidatorCount,
+	data: &'a [u8],
 }
 
 fn main() {
@@ -35,8 +47,8 @@ fn main() {
 		// For performance reasons, it is recommended that you use the native type
 		// `&[u8]` when possible.
 		// Here, this slice will contain a "random" quantity of "random" data.
-		fuzz!(|data: &[u8], validators: ValidatorCount| {
-			roundtrip(novel_poly_basis::encode, novel_poly_basis::reconstruct, &data, validator_count);
+		fuzz!(|feed: Feed| {
+			roundtrip(novel_poly_basis::encode, novel_poly_basis::reconstruct, feed.data, *feed.validator_count);
 		});
 	}
 }
