@@ -6,6 +6,8 @@ pub static SMALL_RNG_SEED: [u8; 32] = [
 mod wrapped_shard;
 
 use rand::prelude::*;
+use rand::seq::index::IndexVec;
+
 pub use wrapped_shard::*;
 
 pub mod status_quo;
@@ -18,17 +20,29 @@ pub const N_VALIDATORS: usize = 128;
 
 pub const BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/rand_data.bin"));
 
-pub fn drop_random_max(shards: &mut [Option<WrappedShard>], n: usize, k: usize, rng: &mut impl rand::Rng) {
+/// Assert the byte ranges derived from the index vec are recovered properly
+pub fn assert_recovery(payload: &[u8], reconstructed_payload: &[u8], dropped_indices: IndexVec) {
+	assert!(reconstructed_payload.len() >= payload.len());
+
+	dropped_indices.into_iter().for_each(|dropped_idx| {
+		let byteoffset = dropped_idx*2;
+		let range = byteoffset..(byteoffset+2);
+		assert_eq!(&payload[range.clone()], &reconstructed_payload[range.clone()],
+			"Data at bytes {:?} must match:", range);
+	});
+}
+
+pub fn drop_random_max(shards: &mut [Option<WrappedShard>], n: usize, k: usize, rng: &mut impl rand::Rng) -> IndexVec {
 	let iv = rand::seq::index::sample(rng, n, n - k);
 	assert_eq!(iv.len(), n-k);
-	iv.into_iter().for_each(|idx| {
+	iv.clone().into_iter().for_each(|idx| {
 		shards[idx] = None;
 	});
 	let kept_count = shards.iter().map(Option::is_some).count();
 	assert!(kept_count >= k);
+	iv
 }
 
-#[inline(always)]
 pub fn roundtrip<E, R>(encode: E, reconstruct: R, payload: &[u8], validator_count: usize)
 where
 	E: for<'r> Fn(&'r [u8], usize) -> Vec<WrappedShard>,
@@ -46,7 +60,7 @@ pub fn roundtrip_w_drop_closure<E, R, F, G>(
 ) where
 	E: for<'r> Fn(&'r [u8], usize) -> Vec<WrappedShard>,
 	R: Fn(Vec<Option<WrappedShard>>, usize) -> Option<Vec<u8>>,
-	F: for<'z> FnMut(&'z mut [Option<WrappedShard>], usize, usize, &mut G),
+	F: for<'z> FnMut(&'z mut [Option<WrappedShard>], usize, usize, &mut G) -> IndexVec,
 	G: rand::Rng + rand::SeedableRng<Seed = [u8; 32]>,
 {
 	let mut rng = <G as rand::SeedableRng>::from_seed(SMALL_RNG_SEED);
@@ -61,15 +75,11 @@ pub fn roundtrip_w_drop_closure<E, R, F, G>(
 		.map(Some)
 		.collect::<Vec<Option<WrappedShard>>>();
 
-	drop_rand(received_shards.as_mut_slice(), validator_count, validator_count / 3 , &mut rng);
+	let dropped_indices = drop_rand(received_shards.as_mut_slice(), validator_count, validator_count / 3 , &mut rng);
 
-	let result = reconstruct(received_shards, validator_count).expect("reconstruction must work");
+	let recovered_payload = reconstruct(received_shards, validator_count).expect("reconstruction must work");
 
-	assert!(payload.len() <= result.len());
-
-	// the result might have trailing zeros or non matching trailing data
-	// itertools::assert_equal(.iter(), result[0..payload.len()].iter());
-	assert_eq!(&payload[..], &result[..payload.len()]);
+	assert_recovery(payload, &recovered_payload, dropped_indices);
 }
 
 #[cfg(test)]
