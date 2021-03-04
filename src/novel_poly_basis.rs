@@ -489,7 +489,15 @@ impl ReedSolomon {
 	}
 }
 
-pub fn encode(bytes: &[u8], validator_count: usize) -> Vec<WrappedShard> {
+pub fn encode(bytes: &[u8], validator_count: usize) -> Result<Vec<WrappedShard>> {
+	if validator_count < 3 {
+		return Err(Error::ValidatorCountTooLow(validator_count))
+	} else if validator_count > FIELD_SIZE as usize {
+		return Err(Error::ValidatorCountTooHigh{ want: validator_count, max: FIELD_SIZE})
+	} else if bytes.is_empty() {
+		return Err(Error::PayloadSizeIsZero)
+	}
+
 	setup();
 	let rs = ReedSolomon::new(validator_count);
 
@@ -517,20 +525,20 @@ pub fn encode(bytes: &[u8], validator_count: usize) -> Vec<WrappedShard> {
 		let data_piece = &bytes[i..end];
 		assert!(!data_piece.is_empty());
 		assert!(data_piece.len() <= k2);
-		let encoding_run = encode_sub(data_piece, rs.n, rs.k);
+		let encoding_run = encode_sub(data_piece, rs.n, rs.k)?;
 		for val_idx in 0..validator_count {
 			AsMut::<[[u8; 2]]>::as_mut(&mut shards[val_idx])[chunk_idx] = encoding_run[val_idx].to_be_bytes();
 		}
 	}
 
-	shards
+	Ok(shards)
 }
 
 /// each shard contains one symbol of one run of erasure coding
 pub fn reconstruct(
 	received_shards: Vec<Option<WrappedShard>>,
 	validator_count: usize,
-) -> Option<Vec<u8>>
+) -> Result<Vec<u8>>
 {
 	setup();
 	let rs = ReedSolomon::new(validator_count);
@@ -562,7 +570,7 @@ pub fn reconstruct(
 		.collect::<Vec<bool>>();
 
 	if existential_count < rs.k {
-		return None;
+		return Err(Error::NeedMoreShards { have: existential_count, min: rs.k, all: rs.n});
 	}
 
 	// Evaluate error locator polynomial only once
@@ -585,15 +593,15 @@ pub fn reconstruct(
 		assert_eq!(decoding_run.len(), rs.n);
 
 		// reconstruct from one set of symbols which was spread over all erasure chunks
-		let piece = reconstruct_sub(&decoding_run[..], rs.n, rs.k, &error_poly_in_log).unwrap();
+		let piece = reconstruct_sub(&decoding_run[..], &erasures, rs.n, rs.k, &error_poly_in_log).unwrap();
 		acc.extend_from_slice(&piece[..]);
 	}
 
-	Some(acc)
+	Ok(acc)
 }
 
 /// Bytes shall only contain payload data
-pub fn encode_sub(bytes: &[u8], n: usize, k: usize) -> Vec<GFSymbol> {
+pub fn encode_sub(bytes: &[u8], n: usize, k: usize) -> Result<Vec<GFSymbol>> {
 	assert!(is_power_of_2(n), "Algorithm only works for 2^i sizes for N");
 	assert!(is_power_of_2(k), "Algorithm only works for 2^i sizes for K");
 	assert!(bytes.len() <= k << 1);
@@ -634,41 +642,23 @@ pub fn encode_sub(bytes: &[u8], n: usize, k: usize) -> Vec<GFSymbol> {
 
 	encode_low(&data[..], k, &mut codeword[..], n);
 
-	codeword
+	Ok(codeword)
 }
 
 pub fn reconstruct_sub(
 	codewords: &[Option<GFSymbol>],
+	erasures: &[bool],
 	n: usize,
 	k: usize,
 	error_poly: &[GFSymbol; FIELD_SIZE],
-) -> Option<Vec<u8>> {
+) -> Result<Vec<u8>> {
 	assert!(is_power_of_2(n), "Algorithm only works for 2^i sizes for N");
 	assert!(is_power_of_2(k), "Algorithm only works for 2^i sizes for K");
 	assert_eq!(codewords.len(), n);
 	assert!(k <= n / 2);
 
-	// collect all `None` values
-	let mut existential_count = 0;
-	let erasures = codewords
-		.iter()
-		.map(|x| x.is_some())
-		.inspect(|v| {
-			if *v {
-				existential_count += 1;
-			}
-		})
-		.map(|x| !x)
-		.collect::<Vec<bool>>();
-
-	assert!(existential_count <= n);
-
-	if existential_count < k {
-		return None;
-	}
-
 	// the first k suffice for the original k message codewords
-	let recover_up_to = k; // k;
+	let recover_up_to = k; // n;
 
 	// The recovered _payload_ chunks AND parity chunks
 	let mut recovered = vec![0 as GFSymbol; recover_up_to];
@@ -716,7 +706,7 @@ pub fn reconstruct_sub(
 		x
 	};
 	let k2 = k * 2;
-	Some(recovered[0..k2].to_vec())
+	Ok(recovered[0..k2].to_vec())
 }
 
 #[cfg(test)]
@@ -804,7 +794,7 @@ mod test {
 	}
 
 	#[test]
-	fn sub_encode_decode() {
+	fn sub_encode_decode() -> Result<()> {
 		setup();
 		let mut rng = rand::thread_rng();
 
@@ -815,7 +805,7 @@ mod test {
 		let mut data = [0u8; K2];
 		rng.fill_bytes(&mut data[..]);
 
-		let codewords = encode_sub(&data, N, K);
+		let codewords = encode_sub(&data, N, K)?;
 		let mut codewords = codewords.into_iter().map(|x| Some(x)).collect::<Vec<_>>();
 		assert_eq!(codewords.len(), N);
 		codewords[0] = None;
@@ -831,8 +821,9 @@ mod test {
 		let mut error_poly_in_log = [0_u16 as GFSymbol; FIELD_SIZE];
 		eval_error_polynomial(&erasures[..], &mut error_poly_in_log[..], FIELD_SIZE);
 
-		let reconstructed = reconstruct_sub(&codewords, N, K, &error_poly_in_log).unwrap();
+		let reconstructed = reconstruct_sub(&codewords[..], &erasures[..], N, K, &error_poly_in_log)?;
 		itertools::assert_equal(data.iter(), reconstructed.iter().take(K2));
+		Ok(())
 	}
 
 	fn deterministic_drop_shards<T: Sized, G: rand::SeedableRng + rand::Rng>(codewords: &mut [Option<T>], n: usize, k: usize, _rng: &mut G) -> IndexVec {
@@ -895,8 +886,8 @@ mod test {
 			data
 		};
 
-		let mut codewords = encode(&data, rs.n);
-		let mut codewords_sub = encode_sub(&data, N, K);
+		let mut codewords = encode(&data, rs.n).unwrap();
+		let mut codewords_sub = encode_sub(&data, N, K).unwrap();
 
 		itertools::assert_equal(codewords.iter().map(wrapped_shard_len1_as_gf_sym), codewords_sub.iter().copied());
 
@@ -914,7 +905,7 @@ mod test {
 		let mut error_poly_in_log = [0_u16 as GFSymbol; FIELD_SIZE];
 		eval_error_polynomial(&erasures[..], &mut error_poly_in_log[..], FIELD_SIZE);
 
-		let reconstructed_sub = reconstruct_sub(&codewords_sub, N, K, &error_poly_in_log).unwrap();
+		let reconstructed_sub = reconstruct_sub(&codewords_sub[..], &erasures[..], N, K, &error_poly_in_log).unwrap();
 		let reconstructed = reconstruct(codewords, rs.n).unwrap();
 		itertools::assert_equal(reconstructed.iter().take(K2), reconstructed_sub.iter().take(K2));
 		itertools::assert_equal(reconstructed.iter().take(K2), data.iter());
@@ -922,7 +913,7 @@ mod test {
 	}
 
 	#[test]
-	fn roundtrip_for_large_messages() {
+	fn roundtrip_for_large_messages() -> Result<()> {
 		const N_VALIDATORS: usize = 2000;
 		const N: usize = 2048;
 		const K: usize = 512;
@@ -944,7 +935,7 @@ mod test {
 		let payload = &crate::BYTES[0..K2 * shard_length];
 		// let payload = &crate::BYTES[..];
 
-		let mut shards = encode(payload, N_VALIDATORS);
+		let mut shards = encode(payload, N_VALIDATORS).unwrap();
 
 		// for (idx, shard) in shards.iter().enumerate() {
 		// 	let sl = AsRef::<[[u8; 2]]>::as_ref(&shard).len();
@@ -957,26 +948,37 @@ mod test {
 		assert_recovery(payload, &reconstructed_payload, dropped_indices);
 
 		// verify integrity with criterion tests
-		roundtrip_w_drop_closure::<_,_,_,SmallRng>(encode, reconstruct, payload, N_VALIDATORS, deterministic_drop_shards::<WrappedShard, SmallRng>);
+		roundtrip_w_drop_closure::<_,_,_,SmallRng>(encode, reconstruct, payload, N_VALIDATORS, deterministic_drop_shards::<WrappedShard, SmallRng>)?;
 
-		roundtrip_w_drop_closure::<_,_,_,SmallRng>(encode, reconstruct, payload, N_VALIDATORS, crate::drop_random_max);
+		roundtrip_w_drop_closure::<_,_,_,SmallRng>(encode, reconstruct, payload, N_VALIDATORS, crate::drop_random_max)?;
+
+		Ok(())
 	}
 
 	macro_rules! simplicissimus {
+		($name:ident: validators: $validator_count:literal, payload: $payload_size:literal; $matchmaker:pat) => {
+			simplicissimus!($name: validators: $validator_count, payload: $payload_size; $matchmaker => {});
+		};
 		($name:ident: validators: $validator_count:literal, payload: $payload_size:literal) => {
+			simplicissimus!($name: validators: $validator_count, payload: $payload_size; Ok(x) => { let _ = x; });
+		};
+		($name:ident: validators: $validator_count:literal, payload: $payload_size:literal; $matchmaker:pat => $assertive:expr) => {
 			#[test]
 			fn $name () {
-				roundtrip_w_drop_closure::<_,_,_,SmallRng>(
+				let res = roundtrip_w_drop_closure::<_,_,_,SmallRng>(
 					encode,
 					reconstruct,
 					&BYTES[0..$payload_size], $validator_count,
 					 deterministic_drop_shards::<WrappedShard, SmallRng>);
+				assert_matches::assert_matches!(res, $matchmaker => {
+					$assertive
+				});
 			}
 		};
 	}
 
 
-	simplicissimus!(case_0: validators: 2003, payload: 0);
+	simplicissimus!(case_0: validators: 2003, payload: 0; Err(Error::PayloadSizeIsZero));
 
 	// Roughly one GFSymbol per validator payload
 	simplicissimus!(case_1: validators: 10, payload: 16);
