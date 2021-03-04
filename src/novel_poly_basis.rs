@@ -42,8 +42,8 @@ static mut LOG_WALSH: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
 pub fn mul_table(a: GFSymbol, b: GFSymbol) -> GFSymbol {
 	if a != 0_u16 {
 		unsafe {
-			let offset = (LOG_TABLE[a as usize] as u32 + b as u32 & MODULO as u32)
-				+ (LOG_TABLE[a as usize] as u32 + b as u32 >> FIELD_BITS);
+            let ab_log = LOG_TABLE[a as usize] as u32 + b as u32;
+			let offset = (ab_log & MODULO as u32) + (ab_log >> FIELD_BITS);
 			EXP_TABLE[offset as usize]
 		}
 	} else {
