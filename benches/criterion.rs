@@ -65,6 +65,8 @@ macro_rules! instanciate_test {
 
 pub mod tests {
 	instanciate_test!("novel poly basis", novel_poly_basis);
+
+	#[cfg(features = "status-quo")]
 	instanciate_test!("status quo", status_quo);
 }
 
@@ -76,7 +78,24 @@ fn adjusted_criterion() -> Criterion {
 	crit
 }
 
-criterion_group!(name = acc_novel_poly_basis; config = adjusted_criterion(); targets =  tests::novel_poly_basis::bench_encode, tests::novel_poly_basis::bench_reconstruct, tests::novel_poly_basis::bench_roundtrip);
-criterion_group!(name = acc_status_quo; config = adjusted_criterion(); targets =  tests::status_quo::bench_encode, tests::status_quo::bench_reconstruct, tests::status_quo::bench_roundtrip);
+criterion_group!(
+	name = acc_novel_poly_basis;
+	config = adjusted_criterion();
+	targets =
+		tests::novel_poly_basis::bench_encode,
+		tests::novel_poly_basis::bench_reconstruct,
+		tests::novel_poly_basis::bench_roundtrip
+	);
 
-criterion_main!(acc_novel_poly_basis, acc_status_quo);
+// it's too slow anyways
+#[cfg(features = "status-quo")]
+criterion_group!(
+	name = acc_status_quo;
+	config = adjusted_criterion();
+	targets =
+		tests::status_quo::bench_encode,
+		tests::status_quo::bench_reconstruct,
+		tests::status_quo::bench_roundtrip
+	);
+
+criterion_main!(acc_novel_poly_basis);

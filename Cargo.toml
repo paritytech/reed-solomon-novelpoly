@@ -33,6 +33,7 @@ criterion = "0.3"
 [features]
 default = []
 cmp-with-cxx = []
+status-quo = []
 
 
 [profile.bench]

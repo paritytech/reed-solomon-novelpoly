@@ -13,13 +13,14 @@ use rand::seq::index::IndexVec;
 
 pub use wrapped_shard::*;
 
+#[cfg(features = "status-quo")]
 pub mod status_quo;
 
 pub mod novel_poly_basis;
 #[cfg(feature = "cmp-with-cxx")]
 pub mod novel_poly_basis_cxx;
 
-pub const N_VALIDATORS: usize = 128;
+pub const N_VALIDATORS: usize = 2000;
 
 pub const BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/rand_data.bin"));
 
@@ -96,6 +97,7 @@ pub fn roundtrip_w_drop_closure<E, R, F, G>(
 mod test {
 	use super::*;
 
+	#[cfg(features = "status-quo")]
 	#[test]
 	fn status_quo_roundtrip() -> Result<()> {
 		roundtrip(status_quo::encode, status_quo::reconstruct, &BYTES[..1337], N_VALIDATORS)
