@@ -507,7 +507,7 @@ pub fn encode(bytes: &[u8], validator_count: usize) -> Vec<WrappedShard> {
 			unsafe { v.set_len(shard_len * 2) }
 			v
 		});
-		rs.n
+		validator_count
 	];
 
 	for (chunk_idx, i) in (0..bytes.len()).into_iter().step_by(k2).enumerate() {
@@ -518,7 +518,7 @@ pub fn encode(bytes: &[u8], validator_count: usize) -> Vec<WrappedShard> {
 		assert!(!data_piece.is_empty());
 		assert!(data_piece.len() <= k2);
 		let encoding_run = encode_sub(data_piece, rs.n, rs.k);
-		for val_idx in 0..rs.n {
+		for val_idx in 0..validator_count {
 			AsMut::<[[u8; 2]]>::as_mut(&mut shards[val_idx])[chunk_idx] = encoding_run[val_idx].to_be_bytes();
 		}
 	}
