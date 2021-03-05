@@ -86,36 +86,19 @@ pub mod parameterized {
 				crit.benchmark_group(format!("parameterized encode validator_count={}", validator_count));
 
 			for payload_size in steped(1_000..10_000_000, STEPS_PAYLOAD) {
-				group.throughput(Throughput::Bytes(payload_size as u64));
-				{
-					use crate::novel_poly_basis::encode;
+				encode_add_to_group(&mut group, payload_size, validator_count, payload_size);
+			}
+			group.finish();
+		}
 
-					group.bench_with_input(
-						BenchmarkId::new("novel-poly-encode", payload_size),
-						&payload_size,
-						|b, &payload_size| {
-							{
-								b.iter(|| {
-									let _ = encode(black_box(&BYTES[..payload_size]), black_box(validator_count));
-								})
-							}
-						},
-					);
-				}
-				#[cfg(feature = "status-quo")]
-				{
-					use crate::status_quo::encode;
+		{
+			let payload_size: usize = 1_000_000;
 
-					group.bench_with_input(
-						BenchmarkId::new("status-quo-encode", payload_size),
-						&payload_size,
-						|b, &payload_size| {
-							b.iter(|| {
-								let _ = encode(black_box(&BYTES[..payload_size]), black_box(validator_count));
-							})
-						},
-					);
-				}
+			let mut group =
+			crit.benchmark_group("parameterized encode fixed payload");
+			for validator_count in steped(4..1000, STEPS_VALIDATORS * 2) {
+
+				encode_add_to_group(&mut group, validator_count, validator_count, payload_size);
 			}
 			group.finish();
 		}
@@ -126,52 +109,101 @@ pub mod parameterized {
 
 		for validator_count in steped(4..100, STEPS_VALIDATORS) {
 
-			let mut group = crit.benchmark_group(format!("novel-poly reconstruct validator_count={}", validator_count));
+			let mut group = crit.benchmark_group(format!("parameterized reconstruct validator_count={}", validator_count));
 			for payload_size in steped(1_000..10_000_000, STEPS_PAYLOAD) {
-				group.throughput(Throughput::Bytes(payload_size as u64));
-				{
-					use crate::novel_poly_basis::{encode, reconstruct};
+				reconstruct_add_to_group(&mut group, payload_size, validator_count, payload_size, &mut rng);
+			}
+			group.finish();
+		}
 
-					group.bench_with_input(
-						BenchmarkId::new("novel-poly-reconstruct", payload_size),
-						&payload_size,
-						|b, &payload_size| {
-							let encoded = encode(&BYTES[..payload_size], validator_count).unwrap();
-							let shards = encoded.clone().into_iter().map(Some).collect::<Vec<_>>();
+		{
+			let payload_size: usize = 1_000_000;
+			let mut group = crit.benchmark_group("parameterized reconstruct fixed payload");
 
-							b.iter(|| {
-								let mut shards2: Vec<Option<WrappedShard>> = shards.clone();
-								drop_random_max(&mut shards2[..], validator_count, validator_count / 3, &mut rng);
-								let _ = reconstruct(black_box(shards2), black_box(validator_count));
-							})
-						},
-					);
-				}
-
-				#[cfg(feature = "status-quo")]
-				{
-					use crate::status_quo::{encode, reconstruct};
-
-					group.bench_with_input(
-						BenchmarkId::new("status-quo-reconstruct", payload_size),
-						&payload_size,
-						|b, &payload_size| {
-							let encoded = encode(&BYTES[..payload_size], validator_count).unwrap();
-							let shards = encoded.clone().into_iter().map(Some).collect::<Vec<_>>();
-
-							b.iter(|| {
-								let mut shards2: Vec<Option<WrappedShard>> = shards.clone();
-								drop_random_max(&mut shards2[..], validator_count, validator_count / 3, &mut rng);
-								let _ = reconstruct(black_box(shards2), black_box(validator_count));
-							})
-						},
-					);
-				}
+			for validator_count in steped(4..1000, STEPS_VALIDATORS*10) {
+				reconstruct_add_to_group(&mut group, validator_count, validator_count, payload_size, &mut rng);
 			}
 			group.finish();
 		}
 	}
+
+
+	fn encode_add_to_group<M: criterion::measurement::Measurement>(group: &mut criterion::BenchmarkGroup<M>, param: impl ToString, validator_count: usize, payload_size: usize) {
+		// group.throughput(Throughput::Bytes(payload_size as u64));
+		{
+			use crate::novel_poly_basis::encode;
+
+			group.bench_with_input(
+				BenchmarkId::new("novel-poly-encode", param.to_string()),
+				&payload_size,
+				|b, &payload_size| {
+					{
+						b.iter(|| {
+							let _ = encode(black_box(&BYTES[..payload_size]), black_box(validator_count));
+						})
+					}
+				},
+			);
+		}
+		#[cfg(feature = "status-quo")]
+		{
+			use crate::status_quo::encode;
+
+			group.bench_with_input(
+				BenchmarkId::new("status-quo-encode", param.to_string()),
+				&payload_size,
+				|b, &payload_size| {
+					b.iter(|| {
+						let _ = encode(black_box(&BYTES[..payload_size]), black_box(validator_count));
+					})
+				},
+			);
+		}
+	}
+
+	fn reconstruct_add_to_group<M: criterion::measurement::Measurement>(group: &mut criterion::BenchmarkGroup<M>, param: impl ToString, validator_count: usize, payload_size: usize, rng: &mut SmallRng) {
+		// group.throughput(Throughput::Bytes(payload_size as u64));
+		{
+			use crate::novel_poly_basis::{encode, reconstruct};
+
+			group.bench_with_input(
+				BenchmarkId::new("novel-poly-reconstruct", param.to_string()),
+				&payload_size,
+				|b, &payload_size| {
+					let encoded = encode(&BYTES[..payload_size], validator_count).unwrap();
+					let shards = encoded.clone().into_iter().map(Some).collect::<Vec<_>>();
+
+					b.iter(|| {
+						let mut shards2: Vec<Option<WrappedShard>> = shards.clone();
+						drop_random_max(&mut shards2[..], validator_count, validator_count / 3, rng);
+						let _ = reconstruct(black_box(shards2), black_box(validator_count));
+					})
+				},
+			);
+		}
+
+		#[cfg(feature = "status-quo")]
+		{
+			use crate::status_quo::{encode, reconstruct};
+
+			group.bench_with_input(
+				BenchmarkId::new("status-quo-reconstruct", param.to_string()),
+				&payload_size,
+				|b, &payload_size| {
+					let encoded = encode(&BYTES[..payload_size], validator_count).unwrap();
+					let shards = encoded.clone().into_iter().map(Some).collect::<Vec<_>>();
+
+					b.iter(|| {
+						let mut shards2: Vec<Option<WrappedShard>> = shards.clone();
+						drop_random_max(&mut shards2[..], validator_count, validator_count / 3, rng);
+						let _ = reconstruct(black_box(shards2), black_box(validator_count));
+					})
+				},
+			);
+		}
+	}
 }
+
 
 fn parameterized_criterion() -> Criterion {
 	let crit = Criterion::default()
