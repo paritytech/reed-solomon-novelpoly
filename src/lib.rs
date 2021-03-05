@@ -13,7 +13,7 @@ use rand::seq::index::IndexVec;
 
 pub use wrapped_shard::*;
 
-#[cfg(features = "status-quo")]
+#[cfg(feature = "status-quo")]
 pub mod status_quo;
 
 pub mod novel_poly_basis;
@@ -100,7 +100,7 @@ where
 mod test {
 	use super::*;
 
-	#[cfg(features = "status-quo")]
+	#[cfg(feature = "status-quo")]
 	#[test]
 	fn status_quo_roundtrip() -> Result<()> {
 		roundtrip(status_quo::encode, status_quo::reconstruct, &BYTES[..1337], N_VALIDATORS)
