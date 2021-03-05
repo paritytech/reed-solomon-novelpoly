@@ -30,11 +30,15 @@ pub fn assert_recovery(payload: &[u8], reconstructed_payload: &[u8], dropped_ind
 
 	dropped_indices.into_iter().for_each(|dropped_idx| {
 		let byteoffset = dropped_idx * 2;
-		let range = byteoffset..(byteoffset+2);
+		let range = byteoffset..(byteoffset + 2);
 		// dropped indices are over `n`, but our data indices are just of length `k * 2`
 		if payload.len() >= range.end {
-			assert_eq!(&payload[range.clone()], &reconstructed_payload[range.clone()],
-				"Data at bytes {:?} must match:", range);
+			assert_eq!(
+				&payload[range.clone()],
+				&reconstructed_payload[range.clone()],
+				"Data at bytes {:?} must match:",
+				range
+			);
 		}
 	});
 }
@@ -43,7 +47,7 @@ pub fn drop_random_max(shards: &mut [Option<WrappedShard>], n: usize, k: usize, 
 	let l = shards.len();
 	let already_dropped = n.saturating_sub(l);
 	let iv = rand::seq::index::sample(rng, l, n - k - already_dropped);
-	assert_eq!(iv.len(), n-k);
+	assert_eq!(iv.len(), n - k);
 	iv.clone().into_iter().for_each(|idx| {
 		shards[idx] = None;
 	});
@@ -57,7 +61,8 @@ where
 	E: for<'r> Fn(&'r [u8], usize) -> Result<Vec<WrappedShard>>,
 	R: Fn(Vec<Option<WrappedShard>>, usize) -> Result<Vec<u8>>,
 {
-	let v = roundtrip_w_drop_closure::<E, R, _, SmallRng>(encode, reconstruct, payload, validator_count, drop_random_max)?;
+	let v =
+		roundtrip_w_drop_closure::<E, R, _, SmallRng>(encode, reconstruct, payload, validator_count, drop_random_max)?;
 	Ok(v)
 }
 
@@ -67,7 +72,8 @@ pub fn roundtrip_w_drop_closure<E, R, F, G>(
 	payload: &[u8],
 	validator_count: usize,
 	mut drop_rand: F,
-) -> Result<()> where
+) -> Result<()>
+where
 	E: for<'r> Fn(&'r [u8], usize) -> Result<Vec<WrappedShard>>,
 	R: Fn(Vec<Option<WrappedShard>>, usize) -> Result<Vec<u8>>,
 	F: for<'z> FnMut(&'z mut [Option<WrappedShard>], usize, usize, &mut G) -> IndexVec,
@@ -80,12 +86,9 @@ pub fn roundtrip_w_drop_closure<E, R, F, G>(
 
 	// Make a copy and transform it into option shards arrangement
 	// for feeding into reconstruct_shards
-	let mut received_shards = shards
-		.into_iter()
-		.map(Some)
-		.collect::<Vec<Option<WrappedShard>>>();
+	let mut received_shards = shards.into_iter().map(Some).collect::<Vec<Option<WrappedShard>>>();
 
-	let dropped_indices = drop_rand(received_shards.as_mut_slice(), validator_count, validator_count / 3 , &mut rng);
+	let dropped_indices = drop_rand(received_shards.as_mut_slice(), validator_count, validator_count / 3, &mut rng);
 
 	let recovered_payload = reconstruct(received_shards, validator_count)?;
 
