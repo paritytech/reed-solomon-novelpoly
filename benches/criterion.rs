@@ -16,8 +16,8 @@ macro_rules! instanciate_upper_bound_test {
 			/// payload sizes.
 			const PAYLOAD_SIZE_CUTOFF: usize = 10_000_000;
 
-			use super::super::$mp::{encode, reconstruct};
-			use super::super::{BYTES, SMALL_RNG_SEED};
+			use crate::$mp::{encode, reconstruct};
+			use crate::{BYTES, SMALL_RNG_SEED};
 			use crate::drop_random_max;
 			use crate::WrappedShard;
 			use criterion::{black_box, Criterion};
@@ -55,14 +55,14 @@ macro_rules! instanciate_upper_bound_test {
 }
 
 pub mod tests {
-	instanciate_upper_bound_test!("novel poly basis", novel_poly_basis);
+	instanciate_upper_bound_test!("novel poly", novel_poly_basis);
 
 	#[cfg(features = "status-quo")]
 	instanciate_upper_bound_test!("status quo", status_quo);
 }
 
 mod parameterized {
-	use super::super::{BYTES, SMALL_RNG_SEED};
+	use crate::{BYTES, SMALL_RNG_SEED};
 	use crate::drop_random_max;
 	use crate::WrappedShard;
 	use criterion::{black_box, BenchmarkId, Criterion, Throughput};
@@ -78,15 +78,16 @@ mod parameterized {
 	}
 
 	pub fn bench_encode(crit: &mut Criterion) {
-		for validator_count in (log2(4)..log2(500)).into_iter().map(|i| 1 << i) {
+		for validator_count in (log2(4)..log2(700)).into_iter().map(|i| 1 << i) {
 			let mut group =
-				crit.benchmark_group(format!(concat!($name, " encode validator_count={}"), validator_count));
+				crit.benchmark_group(format!("encode validator_count={}", validator_count));
 			for payload_size in (1_000_usize..log2(10_000_000_usize)).into_iter().map(|i| 1 << i) {
 				{
-					use super::super::novel_poly_basis::encode;
+					use crate::novel_poly_basis::encode;
+
 					group.throughput(Throughput::Bytes(payload_size as u64));
 					group.bench_with_input(
-						BenchmarkId::from_parameter(format!("payload_size={}", payload_size)),
+						BenchmarkId::from_parameter(format!("novel poly payload_size={}", payload_size)),
 						&payload_size,
 						|b, &payload_size| {
 							{
@@ -99,11 +100,11 @@ mod parameterized {
 				}
 				#[cfg(features = "status-quo")]
 				{
-					use super::super::status_quo::encode;
+					use crate::status_quo::encode;
 
 					group.throughput(Throughput::Bytes(payload_size as u64));
 					group.bench_with_input(
-						BenchmarkId::from_parameter(format!("payload_size={}", payload_size)),
+						BenchmarkId::from_parameter(format!("status quo payload_size={}", payload_size)),
 						&payload_size,
 						|b, &payload_size| {
 							b.iter(|| {
@@ -120,15 +121,16 @@ mod parameterized {
 	pub fn bench_reconstruct(crit: &mut Criterion) {
 		let mut rng = SmallRng::from_seed(SMALL_RNG_SEED);
 
-		for validator_count in (log2(4)..log2(500)).into_iter().map(|i| 1 << i) {
+		for validator_count in (log2(4)..log2(700)).into_iter().map(|i| 1 << i) {
 			let mut group = crit.benchmark_group(format!("reconstruct validator_count={}", validator_count));
 
 			for payload_size in (1_000_usize..log2(10_000_000)).into_iter().map(|i| 1 << i) {
 				{
-					use super::super::novel_poly_basis::{encode, reconstruct};
+					use crate::novel_poly_basis::{encode, reconstruct};
+
 					group.throughput(Throughput::Bytes(payload_size as u64));
 					group.bench_with_input(
-						BenchmarkId::from_parameter(format!("novel_poly payload_size={}", payload_size)),
+						BenchmarkId::from_parameter(format!("novel poly payload_size={}", payload_size)),
 						&payload_size,
 						|b, &payload_size| {
 							let encoded = encode(&BYTES[..payload_size], validator_count).unwrap();
@@ -144,7 +146,7 @@ mod parameterized {
 				}
 				#[cfg(features = "status-quo")]
 				{
-					use super::super::status_quo::{encode, reconstruct};
+					use crate::status_quo::{encode, reconstruct};
 
 					group.throughput(Throughput::Bytes(payload_size as u64));
 					group.bench_with_input(
@@ -180,10 +182,8 @@ criterion_group!(
 	name = plot_paramterized;
 	config = parameterized_criterion();
 	targets =
-	parameterized::novel_poly_basis::bench_encode,
-	parameterized::novel_poly_basis::bench_reconstruct,
-	// parameterized::status_quo::bench_encode,
-	// parameterized::status_quo::bench_reconstruct,
+	parameterized::bench_encode,
+	parameterized::bench_reconstruct,
 );
 
 fn adjusted_criterion() -> Criterion {
