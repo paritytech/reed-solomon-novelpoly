@@ -42,7 +42,7 @@ static mut LOG_WALSH: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
 pub fn mul_table(a: GFSymbol, b: GFSymbol) -> GFSymbol {
 	if a != 0_u16 {
 		unsafe {
-            let ab_log = LOG_TABLE[a as usize] as u32 + b as u32;
+			let ab_log = LOG_TABLE[a as usize] as u32 + b as u32;
 			let offset = (ab_log & MODULO as u32) + (ab_log >> FIELD_BITS);
 			EXP_TABLE[offset as usize]
 		}
@@ -50,6 +50,7 @@ pub fn mul_table(a: GFSymbol, b: GFSymbol) -> GFSymbol {
 		0_u16
 	}
 }
+
 
 pub const fn log2(mut x: usize) -> usize {
 	let mut o: usize = 0;
@@ -72,12 +73,12 @@ pub fn walsh(data: &mut [GFSymbol], size: usize) {
 		let depart_no_next = depart_no << 1;
 		while j < size {
 			for i in j..(depart_no + j) {
-                // We deal with data in log form here, but field form looks like:
-                //           data[i] := data[i] / data[i+depart_no]
-                // data[i+depart_no] := data[i] * data[i+depart_no]
-                let mask = MODULO as u32;
+				// We deal with data in log form here, but field form looks like:
+				//			 data[i] := data[i] / data[i+depart_no]
+				// data[i+depart_no] := data[i] * data[i+depart_no]
+				let mask = MODULO as u32;
 				let tmp2: u32 = data[i] as u32 + mask - data[i + depart_no] as u32;
-                let tmp1: u32 = (data[i] as u32 + data[i + depart_no] as u32
+				let tmp1: u32 = (data[i] as u32 + data[i + depart_no] as u32
 				data[i] = ((tmp1 & mask) + (tmp1 >> FIELD_BITS)) as GFSymbol;
 				data[i + depart_no] = ((tmp2 & mask) + (tmp2 >> FIELD_BITS)) as GFSymbol;
 			}
