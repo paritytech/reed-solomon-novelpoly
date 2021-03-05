@@ -70,33 +70,28 @@ pub mod parameterized {
 	use criterion::{black_box, BenchmarkId, Criterion, Throughput};
 	use rand::{rngs::SmallRng, SeedableRng};
 
-	pub const fn log2(mut x: usize) -> usize {
-		let mut o: usize = 0;
-		while x > 1 {
-			x >>= 1;
-			o += 1;
-		}
-		o
-	}
-
-	const STEPS: usize = 5;
+	const STEPS_VALIDATORS: usize = 3;
+	const STEPS_PAYLOAD: usize = 7;
 
 	pub fn steped(range: Range<usize>, steps: usize) -> impl Iterator<Item=usize>{
-		let step = range.len() / steps;
+		assert!(steps > 1);
+		let step = range.len() / (steps - 1);
 		range.into_iter().step_by(step)
 	}
 
 	pub fn bench_encode(crit: &mut Criterion) {
-		for validator_count in steped(4..100, STEPS) {
+		for validator_count in steped(4..100, STEPS_VALIDATORS) {
+
 			let mut group =
 				crit.benchmark_group(format!("parameterized encode validator_count={}", validator_count));
-			for payload_size in steped(1_000..10_000_000, STEPS) {
+
+			for payload_size in steped(1_000..10_000_000, STEPS_PAYLOAD) {
 				group.throughput(Throughput::Bytes(payload_size as u64));
 				{
 					use crate::novel_poly_basis::encode;
 
 					group.bench_with_input(
-						BenchmarkId::from_parameter(format!("novel-poly payload_size={}", payload_size)),
+						BenchmarkId::new("novel-poly-encode", payload_size),
 						&payload_size,
 						|b, &payload_size| {
 							{
@@ -112,7 +107,7 @@ pub mod parameterized {
 					use crate::status_quo::encode;
 
 					group.bench_with_input(
-						BenchmarkId::from_parameter(format!("status-quo payload_size={}", payload_size)),
+						BenchmarkId::new("status-quo-encode", payload_size),
 						&payload_size,
 						|b, &payload_size| {
 							b.iter(|| {
@@ -129,16 +124,16 @@ pub mod parameterized {
 	pub fn bench_reconstruct(crit: &mut Criterion) {
 		let mut rng = SmallRng::from_seed(SMALL_RNG_SEED);
 
-		for validator_count in steped(4..100, STEPS) {
-			let mut group = crit.benchmark_group(format!("reconstruct validator_count={}", validator_count));
+		for validator_count in steped(4..100, STEPS_VALIDATORS) {
 
-			for payload_size in steped(1_000..10_000_000, STEPS) {
+			let mut group = crit.benchmark_group(format!("novel-poly reconstruct validator_count={}", validator_count));
+			for payload_size in steped(1_000..10_000_000, STEPS_PAYLOAD) {
 				group.throughput(Throughput::Bytes(payload_size as u64));
 				{
 					use crate::novel_poly_basis::{encode, reconstruct};
 
 					group.bench_with_input(
-						BenchmarkId::from_parameter(format!("novel-poly payload_size={}", payload_size)),
+						BenchmarkId::new("novel-poly-reconstruct", payload_size),
 						&payload_size,
 						|b, &payload_size| {
 							let encoded = encode(&BYTES[..payload_size], validator_count).unwrap();
@@ -152,12 +147,13 @@ pub mod parameterized {
 						},
 					);
 				}
+
 				#[cfg(feature = "status-quo")]
 				{
 					use crate::status_quo::{encode, reconstruct};
 
 					group.bench_with_input(
-						BenchmarkId::from_parameter(format!("status-quo payload_size={}", payload_size)),
+						BenchmarkId::new("status-quo-reconstruct", payload_size),
 						&payload_size,
 						|b, &payload_size| {
 							let encoded = encode(&BYTES[..payload_size], validator_count).unwrap();
@@ -180,8 +176,7 @@ pub mod parameterized {
 fn parameterized_criterion() -> Criterion {
 	let crit = Criterion::default()
 		.sample_size(10)
-		.warm_up_time(Duration::from_millis(200))
-		.measurement_time(Duration::from_secs(10));
+		.warm_up_time(Duration::from_millis(100));
 	crit
 }
 
@@ -212,4 +207,6 @@ targets =
 	// tests::status_quo::bench_reconstruct,
 );
 
-criterion_main!(plot_paramterized, upper_bounds);
+criterion_main!(
+	plot_paramterized, upper_bounds
+);
