@@ -72,10 +72,14 @@ pub fn walsh(data: &mut [GFSymbol], size: usize) {
 		let depart_no_next = depart_no << 1;
 		while j < size {
 			for i in j..(depart_no + j) {
-				let tmp2: u32 = data[i] as u32 + MODULO as u32 - data[i + depart_no] as u32;
-				data[i] = ((data[i] as u32 + data[i + depart_no] as u32 & MODULO as u32)
-					+ (data[i] as u32 + data[i + depart_no] as u32 >> FIELD_BITS)) as GFSymbol;
-				data[i + depart_no] = ((tmp2 & MODULO as u32) + (tmp2 >> FIELD_BITS)) as GFSymbol;
+                // We deal with data in log form here, but field form looks like:
+                //           data[i] := data[i] / data[i+depart_no]
+                // data[i+depart_no] := data[i] * data[i+depart_no]
+                let mask = MODULO as u32;
+				let tmp2: u32 = data[i] as u32 + mask - data[i + depart_no] as u32;
+                let tmp1: u32 = (data[i] as u32 + data[i + depart_no] as u32
+				data[i] = ((tmp1 & mask) + (tmp1 >> FIELD_BITS)) as GFSymbol;
+				data[i + depart_no] = ((tmp2 & mask) + (tmp2 >> FIELD_BITS)) as GFSymbol;
 			}
 			j += depart_no_next;
 		}
