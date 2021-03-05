@@ -67,7 +67,7 @@ pub mod parameterized {
     use crate::{BYTES, SMALL_RNG_SEED};
 	use crate::drop_random_max;
 	use crate::WrappedShard;
-	use criterion::{black_box, BenchmarkId, Criterion, Throughput};
+	use criterion::{black_box, BenchmarkId, Criterion};
 	use rand::{rngs::SmallRng, SeedableRng};
 
 	const STEPS_VALIDATORS: usize = 3;
@@ -79,7 +79,7 @@ pub mod parameterized {
 		range.into_iter().step_by(step)
 	}
 
-	pub fn bench_encode(crit: &mut Criterion) {
+	pub fn bench_encode_2d(crit: &mut Criterion) {
 		for validator_count in steped(4..100, STEPS_VALIDATORS) {
 
 			let mut group =
@@ -91,20 +91,20 @@ pub mod parameterized {
 			group.finish();
 		}
 
-		{
-			let payload_size: usize = 1_000_000;
+	}
+	pub fn bench_encode_fixed_1mb_payload(crit: &mut Criterion) {
+		let payload_size: usize = 1_000_000;
 
-			let mut group =
-			crit.benchmark_group("parameterized encode fixed payload");
-			for validator_count in steped(4..1000, STEPS_VALIDATORS * 2) {
+		let mut group =
+		crit.benchmark_group("parameterized encode fixed payload");
+		for validator_count in steped(4..1000, STEPS_VALIDATORS * 4) {
 
-				encode_add_to_group(&mut group, validator_count, validator_count, payload_size);
-			}
-			group.finish();
+			encode_add_to_group(&mut group, validator_count, validator_count, payload_size);
 		}
+		group.finish();
 	}
 
-	pub fn bench_reconstruct(crit: &mut Criterion) {
+	pub fn bench_reconstruct_2d(crit: &mut Criterion) {
 		let mut rng = SmallRng::from_seed(SMALL_RNG_SEED);
 
 		for validator_count in steped(4..100, STEPS_VALIDATORS) {
@@ -115,21 +115,21 @@ pub mod parameterized {
 			}
 			group.finish();
 		}
+	}
 
-		{
-			let payload_size: usize = 1_000_000;
-			let mut group = crit.benchmark_group("parameterized reconstruct fixed payload");
+	pub fn bench_reconstruct_fixed_1mb_payload(crit: &mut Criterion) {
+		let mut rng = SmallRng::from_seed(SMALL_RNG_SEED);
+		let payload_size: usize = 1_000_000;
+		let mut group = crit.benchmark_group("parameterized reconstruct fixed payload");
 
-			for validator_count in steped(4..1000, STEPS_VALIDATORS*10) {
-				reconstruct_add_to_group(&mut group, validator_count, validator_count, payload_size, &mut rng);
-			}
-			group.finish();
+		for validator_count in steped(4..1000, STEPS_VALIDATORS * 4) {
+			reconstruct_add_to_group(&mut group, validator_count, validator_count, payload_size, &mut rng);
 		}
+		group.finish();
 	}
 
 
 	fn encode_add_to_group<M: criterion::measurement::Measurement>(group: &mut criterion::BenchmarkGroup<M>, param: impl ToString, validator_count: usize, payload_size: usize) {
-		// group.throughput(Throughput::Bytes(payload_size as u64));
 		{
 			use crate::novel_poly_basis::encode;
 
@@ -162,7 +162,6 @@ pub mod parameterized {
 	}
 
 	fn reconstruct_add_to_group<M: criterion::measurement::Measurement>(group: &mut criterion::BenchmarkGroup<M>, param: impl ToString, validator_count: usize, payload_size: usize, rng: &mut SmallRng) {
-		// group.throughput(Throughput::Bytes(payload_size as u64));
 		{
 			use crate::novel_poly_basis::{encode, reconstruct};
 
@@ -216,8 +215,10 @@ criterion_group!(
 name = plot_paramterized;
 config = parameterized_criterion();
 targets =
-	parameterized::bench_encode,
-	parameterized::bench_reconstruct,
+	parameterized::bench_encode_2d,
+	parameterized::bench_reconstruct_2d,
+	parameterized::bench_encode_fixed_1mb_payload,
+	parameterized::bench_reconstruct_fixed_1mb_payload,
 );
 
 fn adjusted_criterion() -> Criterion {
