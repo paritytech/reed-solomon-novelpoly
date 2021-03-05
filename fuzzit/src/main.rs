@@ -14,8 +14,7 @@ impl std::ops::Deref for ValidatorCount {
 	}
 }
 
-impl<'a> Arbitrary<'a> for ValidatorCount
-{
+impl<'a> Arbitrary<'a> for ValidatorCount {
 	fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
 		let data = u16::arbitrary(u)?;
 		if data > 2200 {
@@ -25,7 +24,6 @@ impl<'a> Arbitrary<'a> for ValidatorCount
 		}
 	}
 }
-
 
 #[derive(Debug, Clone, Copy, Arbitrary)]
 struct Feed<'a> {
@@ -45,7 +43,8 @@ fn main() {
 		// `&[u8]` when possible.
 		// Here, this slice will contain a "random" quantity of "random" data.
 		fuzz!(|feed: Feed| {
-			let _ = roundtrip(novel_poly_basis::encode, novel_poly_basis::reconstruct, feed.data, *feed.validator_count);
+			let _ =
+				roundtrip(novel_poly_basis::encode, novel_poly_basis::reconstruct, feed.data, *feed.validator_count);
 		});
 	}
 }
