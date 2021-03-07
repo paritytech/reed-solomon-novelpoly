@@ -12,7 +12,7 @@ bindgen = { version = "0.57", optional = true }
 cc = { version = "1.0", features = ["parallel"], optional = true }
 
 [dependencies]
-reed-solomon-erasure = { version = "4.0", features = ["simd-accel"] }
+reed-solomon-erasure = { version = "4.0", features = ["simd-accel"], optional = true }
 # fffft = "*"
 # ff = "*"
 # subtle = "2.4"
@@ -29,10 +29,10 @@ iai = "0.1"
 criterion = "0.3"
 
 [features]
-default = []
+default = ["b_not_one"]
+b_not_one = []
 cmp-with-cxx = ["cc", "bindgen"]
-status-quo = []
-
+status-quo = ["reed-solomon-erasure"]
 
 [profile.bench]
 debug = true

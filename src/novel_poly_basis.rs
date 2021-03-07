@@ -435,14 +435,18 @@ fn decode_main(codeword: &mut [GFSymbol], recover_up_to: usize, erasure: &[bool]
 	inverse_fft_in_novel_poly_basis(codeword, n, 0);
 
 	// formal derivative
+
+	#[cfg(feature = "b_not_one")]
 	for i in (0..n).into_iter().step_by(2) {
 		let b = MODULO - unsafe { B[i >> 1] };
+		// assert_eq!(b, MODULO);
 		codeword[i] = mul_table(codeword[i], b);
 		codeword[i + 1] = mul_table(codeword[i + 1], b);
 	}
 
 	formal_derivative(codeword, n);
 
+	#[cfg(feature = "b_not_one")]
 	for i in (0..n).into_iter().step_by(2) {
 		let b = unsafe { B[i >> 1] };
 		codeword[i] = mul_table(codeword[i], b);
@@ -766,6 +770,18 @@ mod test {
 
 	use super::*;
 
+	// If this passes then you do not require the b_not_one feature
+	fn b_is_one() {
+		let n = FIELD_SIZE >> 1;
+		// Everything
+		for i in (0..n) {
+		// Just like in decode_main
+		for i in (0..n).into_iter().step_by(2) {
+			let b = MODULO - unsafe { B[i >> 1] };
+			assert_eq!(b, MODULO);
+		}
+	}
+
 	fn print_sha256(txt: &'static str, data: &[GFSymbol]) {
 		use sha2::Digest;
 		let data = unsafe { ::std::slice::from_raw_parts(data.as_ptr() as *const u8, data.len() * 2) };
@@ -997,8 +1013,8 @@ mod test {
 		let mut shards = encode(payload, N_VALIDATORS).unwrap();
 
 		// for (idx, shard) in shards.iter().enumerate() {
-		// 	let sl = AsRef::<[[u8; 2]]>::as_ref(&shard).len();
-		// 	assert_eq!(shard_length, sl, "Shard #{} has an unxpected length {} (expected: {})", idx, sl, shard_length);
+		//	let sl = AsRef::<[[u8; 2]]>::as_ref(&shard).len();
+		//	assert_eq!(shard_length, sl, "Shard #{} has an unxpected length {} (expected: {})", idx, sl, shard_length);
 		// }
 		let (received_shards, dropped_indices) = deterministic_drop_shards_clone(&mut shards, rs.n, rs.k);
 
