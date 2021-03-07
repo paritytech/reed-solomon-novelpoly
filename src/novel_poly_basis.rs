@@ -78,7 +78,7 @@ pub fn walsh(data: &mut [GFSymbol], size: usize) {
 				// data[i+depart_no] := data[i] * data[i+depart_no]
 				let mask = MODULO as u32;
 				let tmp2: u32 = data[i] as u32 + mask - data[i + depart_no] as u32;
-				let tmp1: u32 = (data[i] as u32 + data[i + depart_no] as u32
+				let tmp1: u32 = data[i] as u32 + data[i + depart_no] as u32;
 				data[i] = ((tmp1 & mask) + (tmp1 >> FIELD_BITS)) as GFSymbol;
 				data[i + depart_no] = ((tmp2 & mask) + (tmp2 >> FIELD_BITS)) as GFSymbol;
 			}
