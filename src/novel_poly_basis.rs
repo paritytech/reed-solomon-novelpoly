@@ -42,7 +42,7 @@ static mut LOG_WALSH: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
 pub fn mul_table(a: GFSymbol, b: GFSymbol) -> GFSymbol {
 	if a != 0_u16 {
 		unsafe {
-			let ab_log = LOG_TABLE[a as usize] as u32 + b as u32;
+			let ab_log = (LOG_TABLE[a as usize] as u32) + b as u32;
 			let offset = (ab_log & ONEMASK as u32) + (ab_log >> FIELD_BITS);
 			EXP_TABLE[offset as usize]
 		}
@@ -774,7 +774,7 @@ mod test {
 	fn b_is_one() {
 		let n = FIELD_SIZE >> 1;
 		// Everything
-		for i in (0..n) {
+		// for i in (0..n) {
 		// Just like in decode_main
 		for i in (0..n).into_iter().step_by(2) {
 			let b = ONEMASK - unsafe { B[i >> 1] };
