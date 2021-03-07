@@ -23,14 +23,14 @@ pub const BASE: [GFSymbol; FIELD_BITS] =
 
 pub const FIELD_SIZE: usize = 1_usize << FIELD_BITS;
 
-pub const MODULO: GFSymbol = (FIELD_SIZE - 1) as GFSymbol;
+pub const ONEMASK: GFSymbol = (FIELD_SIZE - 1) as GFSymbol;
 
 static mut LOG_TABLE: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
 static mut EXP_TABLE: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
 
 //-----Used in decoding procedure-------
 //twisted factors used in FFT
-static mut SKEW_FACTOR: [GFSymbol; MODULO as usize] = [0_u16; MODULO as usize];
+static mut SKEW_FACTOR: [GFSymbol; ONEMASK as usize] = [0_u16; ONEMASK as usize];
 
 //factors used in formal derivative
 static mut B: [GFSymbol; FIELD_SIZE >> 1] = [0_u16; FIELD_SIZE >> 1];
@@ -43,7 +43,7 @@ pub fn mul_table(a: GFSymbol, b: GFSymbol) -> GFSymbol {
 	if a != 0_u16 {
 		unsafe {
 			let ab_log = LOG_TABLE[a as usize] as u32 + b as u32;
-			let offset = (ab_log & MODULO as u32) + (ab_log >> FIELD_BITS);
+			let offset = (ab_log & ONEMASK as u32) + (ab_log >> FIELD_BITS);
 			EXP_TABLE[offset as usize]
 		}
 	} else {
@@ -65,7 +65,7 @@ pub const fn is_power_of_2(x: usize) -> bool {
 	x > 0_usize && x & (x - 1) == 0
 }
 
-//fast Walsh–Hadamard transform over modulo MODULO
+//fast Walsh–Hadamard transform over modulo ONEMASK
 pub fn walsh(data: &mut [GFSymbol], size: usize) {
 	let mut depart_no = 1_usize;
 	while depart_no < size {
@@ -76,7 +76,7 @@ pub fn walsh(data: &mut [GFSymbol], size: usize) {
 				// We deal with data in log form here, but field form looks like:
 				//			 data[i] := data[i] / data[i+depart_no]
 				// data[i+depart_no] := data[i] * data[i+depart_no]
-				let mask = MODULO as u32;
+				let mask = ONEMASK as u32;
 				let tmp2: u32 = data[i] as u32 + mask - data[i + depart_no] as u32;
 				let tmp1: u32 = data[i] as u32 + data[i + depart_no] as u32;
 				data[i] = ((tmp1 & mask) + (tmp1 >> FIELD_BITS)) as GFSymbol;
@@ -151,7 +151,7 @@ pub fn inverse_fft_in_novel_poly_basis(data: &mut [GFSymbol], size: usize, index
 			let skew = unsafe { SKEW_FACTOR[j + index - 1] };
 			// It's reasonale to skip the loop if skew is zero, but doing so with
 			// all bits set requires justification.	 (TODO)
-			if skew != MODULO {
+			if skew != ONEMASK {
 				// Again loop on line 3, except skew should depend upon i aka j in Algorithm 2 (TODO)
 				for i in (j - depart_no)..j {
 					// Line 5, justified by (35) page 6288, but
@@ -204,7 +204,7 @@ pub fn fft_in_novel_poly_basis(data: &mut [GFSymbol], size: usize, index: usize)
 			let skew = unsafe { SKEW_FACTOR[j + index - 1] };
 			// It's reasonale to skip the loop if skew is zero, but doing so with
 			// all bits set requires justification.	 (TODO)
-			if skew != MODULO {
+			if skew != ONEMASK {
 				// Loop on line 5, except skew should depend upon i aka j in Algorithm 1 (TODO)
 				for i in (j - depart_no)..j {
 					// Line 6, explained by (28) page 6287, but
@@ -232,7 +232,7 @@ pub fn fft_in_novel_poly_basis(data: &mut [GFSymbol], size: usize, index: usize)
 unsafe fn init() {
 	let mas: GFSymbol = (1 << FIELD_BITS - 1) - 1;
 	let mut state: usize = 1;
-	for i in 0_usize..(MODULO as usize) {
+	for i in 0_usize..(ONEMASK as usize) {
 		EXP_TABLE[state] = i as GFSymbol;
 		if (state >> FIELD_BITS - 1) != 0 {
 			state &= mas as usize;
@@ -241,7 +241,7 @@ unsafe fn init() {
 			state <<= 1;
 		}
 	}
-	EXP_TABLE[0] = MODULO;
+	EXP_TABLE[0] = ONEMASK;
 
 	LOG_TABLE[0] = 0;
 	for i in 0..FIELD_BITS {
@@ -256,7 +256,7 @@ unsafe fn init() {
 	for i in 0..FIELD_SIZE {
 		EXP_TABLE[LOG_TABLE[i] as usize] = i as GFSymbol;
 	}
-	EXP_TABLE[MODULO as usize] = EXP_TABLE[0];
+	EXP_TABLE[ONEMASK as usize] = EXP_TABLE[0];
 }
 
 //initialize SKEW_FACTOR[], B[], LOG_WALSH[]
@@ -285,28 +285,28 @@ unsafe fn init_dec() {
 		}
 
 		let idx = mul_table(base[m], LOG_TABLE[(base[m] ^ 1_u16) as usize]);
-		base[m] = MODULO - LOG_TABLE[idx as usize];
+		base[m] = ONEMASK - LOG_TABLE[idx as usize];
 
 		for i in (m + 1)..(FIELD_BITS - 1) {
 			let b = LOG_TABLE[(base[i] as u16 ^ 1_u16) as usize] as u32 + base[m] as u32;
-			let b = b % MODULO as u32;
+			let b = b % ONEMASK as u32;
 			base[i] = mul_table(base[i], b as u16);
 		}
 	}
-	for i in 0..(MODULO as usize) {
+	for i in 0..(ONEMASK as usize) {
 		SKEW_FACTOR[i] = LOG_TABLE[SKEW_FACTOR[i] as usize];
 	}
 
-	base[0] = MODULO - base[0];
+	base[0] = ONEMASK - base[0];
 	for i in 1..(FIELD_BITS - 1) {
-		base[i] = ((MODULO as u32 - base[i] as u32 + base[i - 1] as u32) % MODULO as u32) as GFSymbol;
+		base[i] = ((ONEMASK as u32 - base[i] as u32 + base[i - 1] as u32) % ONEMASK as u32) as GFSymbol;
 	}
 
 	B[0] = 0;
 	for i in 0..(FIELD_BITS - 1) {
 		let depart = 1 << i;
 		for j in 0..depart {
-			B[j + depart] = ((B[j] as u32 + base[i] as u32) % MODULO as u32) as GFSymbol;
+			B[j + depart] = ((B[j] as u32 + base[i] as u32) % ONEMASK as u32) as GFSymbol;
 		}
 	}
 
@@ -409,12 +409,12 @@ pub fn eval_error_polynomial(erasure: &[bool], log_walsh2: &mut [GFSymbol], n: u
 	walsh(log_walsh2, FIELD_SIZE);
 	for i in 0..n {
 		let tmp = log_walsh2[i] as u32 * unsafe { LOG_WALSH[i] } as u32;
-		log_walsh2[i] = (tmp % MODULO as u32) as GFSymbol;
+		log_walsh2[i] = (tmp % ONEMASK as u32) as GFSymbol;
 	}
 	walsh(log_walsh2, FIELD_SIZE);
 	for i in 0..z {
 		if erasure[i] {
-			log_walsh2[i] = MODULO - log_walsh2[i];
+			log_walsh2[i] = ONEMASK - log_walsh2[i];
 		}
 	}
 }
@@ -438,8 +438,8 @@ fn decode_main(codeword: &mut [GFSymbol], recover_up_to: usize, erasure: &[bool]
 
 	#[cfg(feature = "b_not_one")]
 	for i in (0..n).into_iter().step_by(2) {
-		let b = MODULO - unsafe { B[i >> 1] };
-		// assert_eq!(b, MODULO);
+		let b = ONEMASK - unsafe { B[i >> 1] };
+		// assert_eq!(b, ONEMASK);
 		codeword[i] = mul_table(codeword[i], b);
 		codeword[i + 1] = mul_table(codeword[i + 1], b);
 	}
@@ -777,8 +777,8 @@ mod test {
 		for i in (0..n) {
 		// Just like in decode_main
 		for i in (0..n).into_iter().step_by(2) {
-			let b = MODULO - unsafe { B[i >> 1] };
-			assert_eq!(b, MODULO);
+			let b = ONEMASK - unsafe { B[i >> 1] };
+			assert_eq!(b, ONEMASK);
 		}
 	}
 
@@ -798,7 +798,7 @@ mod test {
 	/// Generate a random index
 	fn rand_gf_element() -> GFSymbol {
 		let mut rng = thread_rng();
-		let uni = Uniform::<GFSymbol>::new_inclusive(0, MODULO);
+		let uni = Uniform::<GFSymbol>::new_inclusive(0, ONEMASK);
 		uni.sample(&mut rng)
 	}
 
@@ -1110,7 +1110,7 @@ mod test {
 
 		for i in 0..K {
 			//filled with random numbers
-			data[i] = (i * i % MODULO as usize) as u16;
+			data[i] = (i * i % ONEMASK as usize) as u16;
 			// data[i] = rand_gf_element();
 		}
 
