@@ -46,6 +46,30 @@ impl Multiplier {
 }
 
 
+/// Fast Walsh–Hadamard transform over modulo ONEMASK
+pub fn walsh(data: &mut [GFSymbol], size: usize) {
+	let mut depart_no = 1_usize;
+	while depart_no < size {
+		let mut j = 0;
+		let depart_no_next = depart_no << 1;
+		while j < size {
+			for i in j..(depart_no + j) {
+				// We deal with data in log form here, but field form looks like:
+				//			 data[i] := data[i] / data[i+depart_no]
+				// data[i+depart_no] := data[i] * data[i+depart_no]
+				let mask = ONEMASK as u32;
+				let tmp2: u32 = data[i] as u32 + mask - data[i + depart_no] as u32;
+				let tmp1: u32 = data[i] as u32 + data[i + depart_no] as u32;
+				data[i] = ((tmp1 & mask) + (tmp1 >> FIELD_BITS)) as GFSymbol;
+				data[i + depart_no] = ((tmp2 & mask) + (tmp2 >> FIELD_BITS)) as GFSymbol;
+			}
+			j += depart_no_next;
+		}
+		depart_no = depart_no_next;
+	}
+}
+
+
 /* Needs Cleanup  */
 
 pub type GFSymbol = Elt;
@@ -61,10 +85,16 @@ pub const BASE: [GFSymbol; FIELD_BITS] =
 
 include!("f2e16.tables.rs");
 
-// Compute LOG_TABLE and EXP_TABLE
-#[cfg(not(table_build_done))]
 
-fn write_tables<W: std::io::Write>(mut w: W) -> Result<(),std::io::Error> {
+/// Compute tables determined solely by the field, which never depend
+/// upon the FFT domain or erasure coding paramaters.
+///
+/// We compute `LOG_TABLE` and `EXP_TABLE` here of course.  We compute
+/// the Walsh transform table `LOG_WALSH` here too because we never figured
+/// out how to shrink `LOG_WALSH` below the size of the full field (TODO).
+/// We thus assume it depends only upon the field for now.
+#[cfg(not(table_build_done))]
+fn write_field_tables<W: std::io::Write>(mut w: W) -> std::io::Result<()> {
     let mut log_table: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
     let mut exp_table: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
 
@@ -97,6 +127,14 @@ fn write_tables<W: std::io::Write>(mut w: W) -> Result<(),std::io::Error> {
 	exp_table[ONEMASK as usize] = exp_table[0];
 
     write_const(&mut w,"LOG_TABLE",&log_table,None) ?;
-    write_const(&mut w,"EXP_TABLE",&exp_table,None)
+    write_const(&mut w,"EXP_TABLE",&exp_table,None) ?;
+
+	// mem_cpy(&mut log_walsh[..], &log_table[..]);
+    let mut log_walsh = log_table.clone();
+	log_walsh[0] = 0;
+	walsh(&mut log_walsh[..], FIELD_SIZE);
+
+    write_const(w,"LOG_WALSH",&log_walsh,None)
 }
+
 

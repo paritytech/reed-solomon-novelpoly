@@ -1,7 +1,9 @@
 // Regenerated tables from scratch by running
 // `cp f2e16.tables.rs-fresh f2e16.tables.rs`
 
-static LOG_TABLE: [GFSymbol; 0] = [];
+static LOG_TABLE: [GFSymbol; FIELD_SIZE] = [0; FIELD_SIZE];
 
-static EXP_TABLE: [GFSymbol; 0] = [];
+static EXP_TABLE: [GFSymbol; FIELD_SIZE] = [0; FIELD_SIZE];
+
+static LOG_WALSH: [GFSymbol; FIELD_SIZE] = [0; FIELD_SIZE];
 

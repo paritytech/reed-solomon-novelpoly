@@ -41,7 +41,7 @@ mod f2e16 {
 
     pub fn gen_tables() -> std::io::Result<()> {
         let f = super::create_tables("f2e16") ?;
-        write_tables(f)
+        write_field_tables(f)
     }    
 }
 

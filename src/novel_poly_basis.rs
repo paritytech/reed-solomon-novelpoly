@@ -23,9 +23,6 @@ static mut SKEW_FACTOR: [GFSymbol; ONEMASK as usize] = [0_u16; ONEMASK as usize]
 //factors used in formal derivative
 static mut B: [GFSymbol; FIELD_SIZE >> 1] = [0_u16; FIELD_SIZE >> 1];
 
-//factors used in the evaluation of the error locator polynomial
-static mut LOG_WALSH: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
-
 
 
 
@@ -56,28 +53,6 @@ pub const fn is_power_of_2(x: usize) -> bool {
 	x > 0_usize && x & (x - 1) == 0
 }
 
-//fast Walsh–Hadamard transform over modulo ONEMASK
-pub fn walsh(data: &mut [GFSymbol], size: usize) {
-	let mut depart_no = 1_usize;
-	while depart_no < size {
-		let mut j = 0;
-		let depart_no_next = depart_no << 1;
-		while j < size {
-			for i in j..(depart_no + j) {
-				// We deal with data in log form here, but field form looks like:
-				//			 data[i] := data[i] / data[i+depart_no]
-				// data[i+depart_no] := data[i] * data[i+depart_no]
-				let mask = ONEMASK as u32;
-				let tmp2: u32 = data[i] as u32 + mask - data[i + depart_no] as u32;
-				let tmp1: u32 = data[i] as u32 + data[i + depart_no] as u32;
-				data[i] = ((tmp1 & mask) + (tmp1 >> FIELD_BITS)) as GFSymbol;
-				data[i + depart_no] = ((tmp2 & mask) + (tmp2 >> FIELD_BITS)) as GFSymbol;
-			}
-			j += depart_no_next;
-		}
-		depart_no = depart_no_next;
-	}
-}
 
 //formal derivative of polynomial in the new basis
 pub fn formal_derivative(cos: &mut [GFSymbol], size: usize) {
@@ -220,7 +195,7 @@ pub fn fft_in_novel_poly_basis(data: &mut [GFSymbol], size: usize, index: usize)
 }
 
 
-//initialize SKEW_FACTOR[], B[], LOG_WALSH[]
+//initialize SKEW_FACTOR and B
 unsafe fn init_dec() {
 	let mut base: [GFSymbol; FIELD_BITS - 1] = Default::default();
 
@@ -272,10 +247,6 @@ unsafe fn init_dec() {
 			B[j + depart] = ((B[j] as u32 + base[i] as u32) % ONEMASK as u32) as GFSymbol;
 		}
 	}
-
-	mem_cpy(&mut LOG_WALSH[..], &super::f2e16::LOG_TABLE[..]);
-	LOG_WALSH[0] = 0;
-	walsh(&mut LOG_WALSH[..], FIELD_SIZE);
 }
 
 /// Setup both decoder and encoder.
