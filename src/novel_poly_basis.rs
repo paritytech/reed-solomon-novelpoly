@@ -9,7 +9,7 @@
 
 use super::*;
 
-use super::gf2e16::*;
+use super::f2e16::*;
 
 
 use std::slice::from_raw_parts;
@@ -273,7 +273,7 @@ unsafe fn init_dec() {
 		}
 	}
 
-	mem_cpy(&mut LOG_WALSH[..], &LOG_TABLE[..]);
+	mem_cpy(&mut LOG_WALSH[..], &super::f2e16::LOG_TABLE[..]);
 	LOG_WALSH[0] = 0;
 	walsh(&mut LOG_WALSH[..], FIELD_SIZE);
 }
@@ -285,7 +285,6 @@ pub fn setup() {
 	static SETUP: Once = Once::new();
 
 	SETUP.call_once(|| unsafe {
-		init_log_n_exp();
 		init_dec();
 	});
 }

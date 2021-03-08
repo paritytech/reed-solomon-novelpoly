@@ -1,0 +1,7 @@
+// Regenerated tables from scratch by running
+// `cp f2e16.tables.rs-fresh f2e16.tables.rs`
+
+static LOG_TABLE: [GFSymbol; 0] = [];
+
+static EXP_TABLE: [GFSymbol; 0] = [];
+
