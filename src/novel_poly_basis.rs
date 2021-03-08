@@ -9,24 +9,12 @@
 
 use super::*;
 
+use super::gf2e16::*;
+
+
 use std::slice::from_raw_parts;
 
-pub type GFSymbol = u16;
 
-pub const FIELD_BITS: usize = 16;
-
-pub const GENERATOR: GFSymbol = 0x2D; //x^16 + x^5 + x^3 + x^2 + 1
-
-// Cantor basis
-pub const BASE: [GFSymbol; FIELD_BITS] =
-	[1_u16, 44234, 15374, 5694, 50562, 60718, 37196, 16402, 27800, 4312, 27250, 47360, 64952, 64308, 65336, 39198];
-
-pub const FIELD_SIZE: usize = 1_usize << FIELD_BITS;
-
-pub const ONEMASK: GFSymbol = (FIELD_SIZE - 1) as GFSymbol;
-
-static mut LOG_TABLE: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
-static mut EXP_TABLE: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
 
 //-----Used in decoding procedure-------
 //twisted factors used in FFT
@@ -38,17 +26,20 @@ static mut B: [GFSymbol; FIELD_SIZE >> 1] = [0_u16; FIELD_SIZE >> 1];
 //factors used in the evaluation of the error locator polynomial
 static mut LOG_WALSH: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
 
+
+
+
 //return a*EXP_TABLE[b] over GF(2^r)
 pub fn mul_table(a: GFSymbol, b: GFSymbol) -> GFSymbol {
-	if a != 0_u16 {
-		unsafe {
-			let ab_log = (LOG_TABLE[a as usize] as u32) + b as u32;
-			let offset = (ab_log & ONEMASK as u32) + (ab_log >> FIELD_BITS);
-			EXP_TABLE[offset as usize]
-		}
-	} else {
-		0_u16
-	}
+    if a != 0_u16 {
+        unsafe {
+            let ab_log = (LOG_TABLE[a as usize] as u32) + b as u32;
+            let offset = (ab_log & ONEMASK as u32) + (ab_log >> FIELD_BITS);
+            EXP_TABLE[offset as usize]
+        }
+    } else {
+        0_u16
+    }
 }
 
 
@@ -148,15 +139,15 @@ pub fn inverse_fft_in_novel_poly_basis(data: &mut [GFSymbol], size: usize, index
 			// Algorithm 2 indexs the skew factor in line 5 page 6288
 			// by i and \omega_{j 2^{i+1}}, but not by r explicitly.
 			// We further explore this confusion below. (TODO)
-			let skew = unsafe { SKEW_FACTOR[j + index - 1] };
+			let skew = Multiplier(unsafe { SKEW_FACTOR[j + index - 1] });
 			// It's reasonale to skip the loop if skew is zero, but doing so with
 			// all bits set requires justification.	 (TODO)
-			if skew != ONEMASK {
+			if skew.0 != ONEMASK {
 				// Again loop on line 3, except skew should depend upon i aka j in Algorithm 2 (TODO)
 				for i in (j - depart_no)..j {
 					// Line 5, justified by (35) page 6288, but
 					// adding depart_no acts like the r+2^i superscript.
-					data[i] ^= mul_table(data[i + depart_no], skew);
+					data[i] ^= Additive(data[i + depart_no]).mul(skew).0;
 				}
 			}
 
@@ -201,15 +192,15 @@ pub fn fft_in_novel_poly_basis(data: &mut [GFSymbol], size: usize, index: usize)
 			// we think r actually appears but the skew factor repeats itself
 			// like in (19) in the proof of Lemma 4.  (TODO)
 			// We should understand the rest of this basis story, like (8) too.	 (TODO)
-			let skew = unsafe { SKEW_FACTOR[j + index - 1] };
+			let skew = Multiplier(unsafe { SKEW_FACTOR[j + index - 1] });
 			// It's reasonale to skip the loop if skew is zero, but doing so with
 			// all bits set requires justification.	 (TODO)
-			if skew != ONEMASK {
+			if skew.0 != ONEMASK {
 				// Loop on line 5, except skew should depend upon i aka j in Algorithm 1 (TODO)
 				for i in (j - depart_no)..j {
 					// Line 6, explained by (28) page 6287, but
 					// adding depart_no acts like the r+2^i superscript.
-					data[i] ^= mul_table(data[i + depart_no], skew);
+					data[i] ^= Additive(data[i + depart_no]).mul(skew).0;
 				}
 			}
 
@@ -228,36 +219,6 @@ pub fn fft_in_novel_poly_basis(data: &mut [GFSymbol], size: usize, index: usize)
 	}
 }
 
-//initialize LOG_TABLE[], EXP_TABLE[]
-unsafe fn init() {
-	let mas: GFSymbol = (1 << FIELD_BITS - 1) - 1;
-	let mut state: usize = 1;
-	for i in 0_usize..(ONEMASK as usize) {
-		EXP_TABLE[state] = i as GFSymbol;
-		if (state >> FIELD_BITS - 1) != 0 {
-			state &= mas as usize;
-			state = state << 1_usize ^ GENERATOR as usize;
-		} else {
-			state <<= 1;
-		}
-	}
-	EXP_TABLE[0] = ONEMASK;
-
-	LOG_TABLE[0] = 0;
-	for i in 0..FIELD_BITS {
-		for j in 0..(1 << i) {
-			LOG_TABLE[j + (1 << i)] = LOG_TABLE[j] ^ BASE[i];
-		}
-	}
-	for i in 0..FIELD_SIZE {
-		LOG_TABLE[i] = EXP_TABLE[LOG_TABLE[i] as usize];
-	}
-
-	for i in 0..FIELD_SIZE {
-		EXP_TABLE[LOG_TABLE[i] as usize] = i as GFSymbol;
-	}
-	EXP_TABLE[ONEMASK as usize] = EXP_TABLE[0];
-}
 
 //initialize SKEW_FACTOR[], B[], LOG_WALSH[]
 unsafe fn init_dec() {
@@ -285,10 +246,12 @@ unsafe fn init_dec() {
 		}
 
 		let idx = mul_table(base[m], LOG_TABLE[(base[m] ^ 1_u16) as usize]);
+		// let idx = base[m].mul( (base[m] ^ 1_u16).to_multiplier() );
 		base[m] = ONEMASK - LOG_TABLE[idx as usize];
 
 		for i in (m + 1)..(FIELD_BITS - 1) {
 			let b = LOG_TABLE[(base[i] as u16 ^ 1_u16) as usize] as u32 + base[m] as u32;
+			// let b = (base[i] as u16 ^ 1_u16).to_multiplier().to_wide() as u32 + base[m] as u32;
 			let b = b % ONEMASK as u32;
 			base[i] = mul_table(base[i], b as u16);
 		}
@@ -322,7 +285,7 @@ pub fn setup() {
 	static SETUP: Once = Once::new();
 
 	SETUP.call_once(|| unsafe {
-		init();
+		init_log_n_exp();
 		init_dec();
 	});
 }

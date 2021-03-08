@@ -174,6 +174,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "constuneval"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16d7418ef3ac5adeb1685bba05528320ee5f4feb9315c680d1fe8cecaf0e8a16"
+
+[[package]]
 name = "cpuid-bool"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -287,6 +293,17 @@ name = "derive_arbitrary"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df89dd0d075dea5cc5fdd6d5df6b8a61172a710b3efac1d6bdb9dd8b78f82c1a"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "derive_more"
+version = "0.99.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41cb0e6161ad61ed084a36ba71fbba9e3ac5aee3606fb607fe08da6acbcf3d8c"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -724,7 +741,9 @@ dependencies = [
  "assert_matches",
  "bindgen",
  "cc",
+ "constuneval",
  "criterion",
+ "derive_more",
  "fs-err",
  "iai",
  "itertools 0.10.0",
