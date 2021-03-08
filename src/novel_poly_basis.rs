@@ -1106,24 +1106,24 @@ mod test {
 
 		//--------erasure simulation---------
 
-		//Array indicating erasures
+		// Array indicating erasures
 		let mut erasure = [false; N];
-		for i in 0..(N-K) {
+
+		let erasures_iv = if false {
+			// erase random `(N-K)` codewords
+			let mut rng = rand::thread_rng();
+			let erasures_iv: IndexVec = rand::seq::index::sample(&mut rng, N, N - K);
+
+			erasures_iv
+		} else {
+			IndexVec::from((0..(N - K)).into_iter().collect::<Vec<usize>>())
+		};
+		assert_eq!(erasures_iv.len(), N - K);
+
+		for i in erasures_iv {
+			//erasure codeword symbols
 			erasure[i] = true;
-		}
-
-		//permuting the erasure array
-		if true {
-			use rand::seq::SliceRandom;
-			erasure.shuffle(&mut rand::thread_rng());
-		}
-		assert_eq!(erasure.iter().map(|b| *b as usize).sum::<usize>(), N-K);
-
-		//erasure codeword symbols
-		for i in 0..N {
-			if erasure[i] {
-				 codeword[i] = 0;
-			}
+			codeword[i] = 0 as GFSymbol;
 		}
 
 		print_sha256("erased", &codeword);
