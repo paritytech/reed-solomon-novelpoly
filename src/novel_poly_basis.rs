@@ -80,7 +80,7 @@ pub fn formal_derivative(cos: &mut [GFSymbol], size: usize) {
 // We're hunting for the differences and trying to undersrtand the algorithm.
 
 //IFFT in the proposed basis
-pub fn inverse_fft_in_novel_poly_basis(data: &mut [GFSymbol], size: usize, index: usize) {
+pub fn inverse_afft_in_novel_poly_basis(data: &mut [GFSymbol], size: usize, index: usize) {
 	// All line references to Algorithm 2 page 6288 of
 	// https://www.citi.sinica.edu.tw/papers/whc/5524-F.pdf
 
@@ -135,7 +135,7 @@ pub fn inverse_fft_in_novel_poly_basis(data: &mut [GFSymbol], size: usize, index
 }
 
 //FFT in the proposed basis
-pub fn fft_in_novel_poly_basis(data: &mut [GFSymbol], size: usize, index: usize) {
+pub fn afft_in_novel_poly_basis(data: &mut [GFSymbol], size: usize, index: usize) {
 	// All line references to Algorithm 1 page 6287 of
 	// https://www.citi.sinica.edu.tw/papers/whc/5524-F.pdf
 
@@ -278,7 +278,7 @@ pub fn encode_low(data: &[GFSymbol], k: usize, codeword: &mut [GFSymbol], n: usi
 	// split after the first k
 	let (codeword_first_k, codeword_skip_first_k) = codeword.split_at_mut(k);
 
-	inverse_fft_in_novel_poly_basis(codeword_first_k, k, 0);
+	inverse_afft_in_novel_poly_basis(codeword_first_k, k, 0);
 
 	// the first codeword is now the basis for the remaining transforms
 	// denoted `M_topdash`
@@ -287,7 +287,7 @@ pub fn encode_low(data: &[GFSymbol], k: usize, codeword: &mut [GFSymbol], n: usi
 		let codeword_at_shift = &mut codeword_skip_first_k[(shift - k)..shift];
 		// copy `M_topdash` to the position we are currently at, the n transform
 		mem_cpy(codeword_at_shift, codeword_first_k);
-		fft_in_novel_poly_basis(codeword_at_shift, k, shift);
+		afft_in_novel_poly_basis(codeword_at_shift, k, shift);
 	}
 
 	// restore `M` from the derived ones
@@ -319,13 +319,13 @@ pub fn encode_high(data: &[GFSymbol], k: usize, parity: &mut [GFSymbol], mem: &m
 	while i < n {
 		mem_cpy(&mut mem[..t], &data[(i - t)..t]);
 
-		inverse_fft_in_novel_poly_basis(mem, t, i);
+		inverse_afft_in_novel_poly_basis(mem, t, i);
 		for j in 0..t {
 			parity[j] ^= mem[j];
 		}
 		i += t;
 	}
-	fft_in_novel_poly_basis(parity, t, 0);
+	afft_in_novel_poly_basis(parity, t, 0);
 }
 
 // Compute the evaluations of the error locator polynomial
@@ -365,7 +365,7 @@ fn decode_main(codeword: &mut [GFSymbol], recover_up_to: usize, erasure: &[bool]
 		codeword[i] = if erasure[i] { 0_u16 } else { mul_table(codeword[i], log_walsh2[i]) };
 	}
 
-	inverse_fft_in_novel_poly_basis(codeword, n, 0);
+	inverse_afft_in_novel_poly_basis(codeword, n, 0);
 
 	// formal derivative
 
@@ -386,7 +386,7 @@ fn decode_main(codeword: &mut [GFSymbol], recover_up_to: usize, erasure: &[bool]
 		codeword[i + 1] = mul_table(codeword[i + 1], b);
 	}
 
-	fft_in_novel_poly_basis(codeword, n, 0);
+	afft_in_novel_poly_basis(codeword, n, 0);
 
 	for i in 0..recover_up_to {
 		codeword[i] = if erasure[i] { mul_table(codeword[i], log_walsh2[i]) } else { 0_u16 };
@@ -782,12 +782,12 @@ mod test {
 		let mut data = (0..N).into_iter().map(|_x| rand_gf_element()).collect::<Vec<GFSymbol>>();
 		let expected = data.clone();
 
-		fft_in_novel_poly_basis(&mut data, N, N / 4);
+		afft_in_novel_poly_basis(&mut data, N, N / 4);
 
 		// make sure something is done
 		assert!(data.iter().zip(expected.iter()).filter(|(a, b)| { a != b }).count() > 0);
 
-		inverse_fft_in_novel_poly_basis(&mut data, N, N / 4);
+		inverse_afft_in_novel_poly_basis(&mut data, N, N / 4);
 
 		itertools::assert_equal(data, expected);
 	}
@@ -1018,7 +1018,7 @@ mod test {
 
 		let mut data = EXPECTED.clone();
 
-		fft_in_novel_poly_basis(&mut data, N, N / 4);
+		afft_in_novel_poly_basis(&mut data, N, N / 4);
 
 		println!("novel basis(rust):");
 		data.iter().for_each(|sym| {
@@ -1026,7 +1026,7 @@ mod test {
 		});
 		println!("");
 
-		inverse_fft_in_novel_poly_basis(&mut data, N, N / 4);
+		inverse_afft_in_novel_poly_basis(&mut data, N, N / 4);
 		itertools::assert_equal(data.iter(), EXPECTED.iter());
 	}
 
