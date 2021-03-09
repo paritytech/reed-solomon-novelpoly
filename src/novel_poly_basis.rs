@@ -372,6 +372,7 @@ fn decode_main(codeword: &mut [GFSymbol], recover_up_to: usize, erasure: &[bool]
 	#[cfg(feature = "b_not_one")]
 	for i in (0..n).into_iter().step_by(2) {
 		let b = ONEMASK - unsafe { B[i >> 1] };
+    	// #[cfg(not(feature = "b_not_one"))]
 		// assert_eq!(b, ONEMASK);
 		codeword[i] = mul_table(codeword[i], b);
 		codeword[i + 1] = mul_table(codeword[i + 1], b);
