@@ -21,6 +21,7 @@ use std::slice::from_raw_parts;
 static mut SKEW_FACTOR: [GFSymbol; ONEMASK as usize] = [0_u16; ONEMASK as usize];
 
 //factors used in formal derivative
+#[cfg(test)]
 static mut B: [Multiplier; FIELD_SIZE >> 1] = [Multiplier(0_u16); FIELD_SIZE >> 1];
 
 
@@ -246,6 +247,8 @@ unsafe fn init_dec() {
 		SKEW_FACTOR[i] = skew_factor[i].to_multiplier().0;
 	}
 
+    #[cfg(test)]
+    {
 	// TODO: How does this alter base? 
 	base[0] = ONEMASK - base[0];
 	for i in 1..(FIELD_BITS - 1) {
@@ -264,6 +267,7 @@ unsafe fn init_dec() {
             ) % (ONEMASK as Wide)) as Elt);
 		}
 	}
+    } // cfg(test)
 }
 
 /// Setup both decoder and encoder.
