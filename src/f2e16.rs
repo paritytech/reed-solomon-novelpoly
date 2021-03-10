@@ -1,4 +1,4 @@
-use derive_more::{BitXor,BitXorAssign};
+use derive_more::{BitXor,BitXorAssign,Add,AddAssign,Sub,SubAssign};
 
 
 pub type Elt = u16;
@@ -36,7 +36,7 @@ impl Additive {
     }
 }
 
-#[derive(Clone,Copy,Debug,BitXor,BitXorAssign,PartialEq,Eq)] // Default, PartialOrd,Ord
+#[derive(Clone,Copy,Debug,Add,AddAssign,Sub,SubAssign,PartialEq,Eq)] // Default, PartialOrd,Ord
 pub struct Multiplier(pub u16);
 impl Multiplier {
     pub fn to_wide(self) -> u32 { self.0 as u32 }

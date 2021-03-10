@@ -21,14 +21,14 @@ use std::slice::from_raw_parts;
 static mut SKEW_FACTOR: [GFSymbol; ONEMASK as usize] = [0_u16; ONEMASK as usize];
 
 //factors used in formal derivative
-static mut B: [GFSymbol; FIELD_SIZE >> 1] = [0_u16; FIELD_SIZE >> 1];
+static mut B: [Multiplier; FIELD_SIZE >> 1] = [Multiplier(0_u16); FIELD_SIZE >> 1];
 
 
 
 
 //return a*EXP_TABLE[b] over GF(2^r)
-pub fn mul_table(a: GFSymbol, b: GFSymbol) -> GFSymbol {
-    Additive(a).mul(Multiplier(b)).0
+pub fn mul_table(a: GFSymbol, b: Multiplier) -> GFSymbol {
+    Additive(a).mul(b).0
 }
 
 
@@ -255,13 +255,13 @@ unsafe fn init_dec() {
 	}
 
 	// TODO: What is B anyways?
-	B[0] = 0;
+	B[0] = Multiplier(0);
 	for i in 0..(FIELD_BITS - 1) {
 		let depart = 1 << i;
 		for j in 0..depart {
-			B[j + depart] = ((
-                (B[j] as Wide) + (base[i] as Wide)
-            ) % (ONEMASK as Wide)) as Elt;
+			B[j + depart] = Multiplier( ((
+                B[j].to_wide() + (base[i] as Wide)
+            ) % (ONEMASK as Wide)) as Elt);
 		}
 	}
 }
@@ -379,7 +379,7 @@ fn decode_main(codeword: &mut [GFSymbol], recover_up_to: usize, erasure: &[bool]
 	assert_eq!(erasure.len(), n);
 
 	for i in 0..n {
-		codeword[i] = if erasure[i] { 0_u16 } else { mul_table(codeword[i], log_walsh2[i]) };
+		codeword[i] = if erasure[i] { 0_u16 } else { mul_table(codeword[i], Multiplier(log_walsh2[i])) };
 	}
 
 	inverse_afft_in_novel_poly_basis(codeword, n, 0);
@@ -389,7 +389,7 @@ fn decode_main(codeword: &mut [GFSymbol], recover_up_to: usize, erasure: &[bool]
     // We should change nothing when multiplying by b from B.
     #[cfg(test)]
 	for i in (0..n).into_iter().step_by(2) {
-		let b = ONEMASK - unsafe { B[i >> 1] };
+		let b = Multiplier(ONEMASK) - unsafe { B[i >> 1] };
         #[cfg(test)]
         let x: [_; 2] = [ codeword[i], codeword[i+1] ];
 		codeword[i] = mul_table(codeword[i], b);
@@ -415,7 +415,7 @@ fn decode_main(codeword: &mut [GFSymbol], recover_up_to: usize, erasure: &[bool]
 	afft_in_novel_poly_basis(codeword, n, 0);
 
 	for i in 0..recover_up_to {
-		codeword[i] = if erasure[i] { mul_table(codeword[i], log_walsh2[i]) } else { 0_u16 };
+		codeword[i] = if erasure[i] { mul_table(codeword[i], Multiplier(log_walsh2[i])) } else { 0_u16 };
 	}
 }
 use itertools::Itertools;
@@ -729,6 +729,7 @@ mod test {
 
 	use super::*;
 
+    /*
 	// If this passes then you do not require the b_not_one feature
 	fn b_is_one() {
 		let n = FIELD_SIZE >> 1;
@@ -736,10 +737,11 @@ mod test {
 		// for i in (0..n) {
 		// Just like in decode_main
 		for i in (0..n).into_iter().step_by(2) {
-			let b = ONEMASK - unsafe { B[i >> 1] };
+			let b = Multiplier(ONEMASK) - unsafe { B[i >> 1] };
 			assert_eq!(b, ONEMASK);
 		}
 	}
+    */
 
 	fn print_sha256(txt: &'static str, data: &[GFSymbol]) {
 		use sha2::Digest;
