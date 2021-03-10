@@ -246,6 +246,7 @@ unsafe fn init_dec() {
 		SKEW_FACTOR[i] = skew_factor[i].to_multiplier().0;
 	}
 
+	// TODO: How does this alter base? 
 	base[0] = ONEMASK - base[0];
 	for i in 1..(FIELD_BITS - 1) {
 		base[i] = ( (
@@ -253,6 +254,7 @@ unsafe fn init_dec() {
         ) % (ONEMASK as Wide) ) as Elt;
 	}
 
+	// TODO: What is B anyways?
 	B[0] = 0;
 	for i in 0..(FIELD_BITS - 1) {
 		let depart = 1 << i;
