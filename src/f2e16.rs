@@ -7,7 +7,7 @@ pub type Wide = u32;
 pub const FIELD_BITS: usize = 16;
 pub const FIELD_SIZE: usize = 1_usize << FIELD_BITS;
 
-#[derive(Clone,Copy,Debug,BitXor,BitXorAssign,PartialEq,Eq)] // PartialOrd,Ord
+#[derive(Clone,Copy,Debug,Default,BitXor,BitXorAssign,PartialEq,Eq)] // PartialOrd,Ord
 pub struct Additive(pub Elt);
 impl Additive {
     pub fn to_wide(self) -> Wide { self.0 as Wide }
@@ -38,7 +38,7 @@ impl Additive {
     }
 }
 
-#[derive(Clone,Copy,Debug,BitXor,BitXorAssign,PartialEq,Eq)] // PartialOrd,Ord
+#[derive(Clone,Copy,Debug,BitXor,BitXorAssign,PartialEq,Eq)] // Default, PartialOrd,Ord
 pub struct Multiplier(pub u16);
 impl Multiplier {
     pub fn to_wide(self) -> u32 { self.0 as u32 }

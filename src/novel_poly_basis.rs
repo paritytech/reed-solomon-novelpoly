@@ -28,15 +28,7 @@ static mut B: [GFSymbol; FIELD_SIZE >> 1] = [0_u16; FIELD_SIZE >> 1];
 
 //return a*EXP_TABLE[b] over GF(2^r)
 pub fn mul_table(a: GFSymbol, b: GFSymbol) -> GFSymbol {
-    if a != 0_u16 {
-        unsafe {
-            let ab_log = (LOG_TABLE[a as usize] as u32) + b as u32;
-            let offset = (ab_log & ONEMASK as u32) + (ab_log >> FIELD_BITS);
-            EXP_TABLE[offset as usize]
-        }
-    } else {
-        0_u16
-    }
+    Additive(a).mul(Multiplier(b)).0
 }
 
 
@@ -197,6 +189,8 @@ pub fn afft_in_novel_poly_basis(data: &mut [GFSymbol], size: usize, index: usize
 
 //initialize SKEW_FACTOR and B
 unsafe fn init_dec() {
+    // We cannot yet identify if base has an additive or multiplicative
+    // representation, or mybe something else entirely.  (TODO)
 	let mut base: [GFSymbol; FIELD_BITS - 1] = Default::default();
 
 	for i in 1..FIELD_BITS {
@@ -220,31 +214,41 @@ unsafe fn init_dec() {
 			}
 		}
 
-		let idx = mul_table(base[m], LOG_TABLE[(base[m] ^ 1_u16) as usize]);
-		// let idx = base[m].mul( (base[m] ^ 1_u16).to_multiplier() );
-		base[m] = ONEMASK - LOG_TABLE[idx as usize];
+		// let idx = mul_table(base[m], LOG_TABLE[(base[m] ^ 1_u16) as usize]);
+		let idx = Additive(base[m]).mul( Additive(base[m] ^ 1_u16).to_multiplier() );
+        // WTF?!? 
+		// base[m] = ONEMASK - LOG_TABLE[idx as usize];
+        base[m] = ONEMASK - idx.to_multiplier().0;
 
 		for i in (m + 1)..(FIELD_BITS - 1) {
-			let b = LOG_TABLE[(base[i] as u16 ^ 1_u16) as usize] as u32 + base[m] as u32;
-			// let b = (base[i] as u16 ^ 1_u16).to_multiplier().to_wide() as u32 + base[m] as u32;
-			let b = b % ONEMASK as u32;
-			base[i] = mul_table(base[i], b as u16);
+            // WTF?!?
+			// let b = LOG_TABLE[(base[i] as u16 ^ 1_u16) as usize] as u32 + base[m] as u32;
+			let b = Additive(base[i] ^ 1_u16).to_multiplier().to_wide() + (base[m] as Wide);
+			let b = b % (ONEMASK as Wide);
+			// base[i] = mul_table(base[i], b as u16);
+			base[i] = Additive(base[i]).mul(Multiplier(b as Elt)).0;
 		}
 	}
 	for i in 0..(ONEMASK as usize) {
-		SKEW_FACTOR[i] = LOG_TABLE[SKEW_FACTOR[i] as usize];
+        // WTF?!?
+		// SKEW_FACTOR[i] = LOG_TABLE[SKEW_FACTOR[i] as usize];
+		SKEW_FACTOR[i] = Additive(SKEW_FACTOR[i]).to_multiplier().0;
 	}
 
 	base[0] = ONEMASK - base[0];
 	for i in 1..(FIELD_BITS - 1) {
-		base[i] = ((ONEMASK as u32 - base[i] as u32 + base[i - 1] as u32) % ONEMASK as u32) as GFSymbol;
+		base[i] = ( (
+            (ONEMASK as Wide) - (base[i] as Wide) + (base[i - 1] as Wide)
+        ) % (ONEMASK as Wide) ) as Elt;
 	}
 
 	B[0] = 0;
 	for i in 0..(FIELD_BITS - 1) {
 		let depart = 1 << i;
 		for j in 0..depart {
-			B[j + depart] = ((B[j] as u32 + base[i] as u32) % ONEMASK as u32) as GFSymbol;
+			B[j + depart] = ((
+                (B[j] as Wide) + (base[i] as Wide)
+            ) % (ONEMASK as Wide)) as Elt;
 		}
 	}
 }
