@@ -193,15 +193,17 @@ unsafe fn init_dec() {
     // representation, or mybe something else entirely.  (TODO)
 	let mut base: [GFSymbol; FIELD_BITS - 1] = Default::default();
 
+    let mut skew_factor: [Additive; ONEMASK as usize] = [Additive(0_u16); ONEMASK as usize];
+
 	for i in 1..FIELD_BITS {
 		base[i - 1] = 1 << i;
 	}
 
-	// We construct SKW_FACTOR to be \bar{s}_j(omega) from page 6285
-	// for all omega in the field.
+	// We construct SKEW_FACTOR in additive form to be \bar{s}_j(omega)
+	// from page 6285 for all omega in the field.
 	for m in 0..(FIELD_BITS - 1) {
 		let step = 1 << (m + 1);
-		SKEW_FACTOR[(1 << m) - 1] = 0;
+		skew_factor[(1 << m) - 1] = Additive(0);
 		for i in m..(FIELD_BITS - 1) {
 			let s = 1 << (i + 1);
 
@@ -209,19 +211,28 @@ unsafe fn init_dec() {
 			while j < s {
 				// Justified by (5) page 6285, except..
 				// we expect SKEW_FACTOR[j ^ field_base[i]] or similar
-				SKEW_FACTOR[j + s] = SKEW_FACTOR[j] ^ base[i];
+				skew_factor[j + s] = skew_factor[j] ^ Additive(base[i]);
 				j += step;
 			}
 		}
 
+		// Compute base[m] = ONEMASK - base[m] * EXP[LOG[base[m] ^ 1]]
+		// = ONEMASK - base[m] * (base[m] ^ 1)   
+		// TODO: But why?  
+		//
 		// let idx = mul_table(base[m], LOG_TABLE[(base[m] ^ 1_u16) as usize]);
 		let idx = Additive(base[m]).mul( Additive(base[m] ^ 1_u16).to_multiplier() );
         // WTF?!? 
 		// base[m] = ONEMASK - LOG_TABLE[idx as usize];
         base[m] = ONEMASK - idx.to_multiplier().0;
 
+		// Compute base[i] = base[i] * EXP[b % ONEMASK]
+		// where b = base[m] + LOG[base[i] ^ 1_u16].
+		// As ONEMASK is the order of the multiplicative grou,
+		// base[i] = base[i] * EXP[base[m]] * (base[m] ^ 1)
+		// TODO: But why?
 		for i in (m + 1)..(FIELD_BITS - 1) {
-            // WTF?!?
+			// WTF?!?
 			// let b = LOG_TABLE[(base[i] as u16 ^ 1_u16) as usize] as u32 + base[m] as u32;
 			let b = Additive(base[i] ^ 1_u16).to_multiplier().to_wide() + (base[m] as Wide);
 			let b = b % (ONEMASK as Wide);
@@ -229,10 +240,10 @@ unsafe fn init_dec() {
 			base[i] = Additive(base[i]).mul(Multiplier(b as Elt)).0;
 		}
 	}
+	// Convert SKEW_FACTOR from Additive to Multiplier form
 	for i in 0..(ONEMASK as usize) {
-        // WTF?!?
 		// SKEW_FACTOR[i] = LOG_TABLE[SKEW_FACTOR[i] as usize];
-		SKEW_FACTOR[i] = Additive(SKEW_FACTOR[i]).to_multiplier().0;
+		SKEW_FACTOR[i] = skew_factor[i].to_multiplier().0;
 	}
 
 	base[0] = ONEMASK - base[0];

@@ -24,11 +24,9 @@ impl Additive {
     /// Return a*EXP_TABLE[b] over GF(2^r)
     pub fn mul(self, other: Multiplier) -> Additive {
     	if self == Self::ZERO { return Self::ZERO; }
-    	unsafe {
-    		let log = (LOG_TABLE[self.0 as usize] as u32) + other.0 as u32;
-    		let offset = (log & ONEMASK as u32) + (log >> FIELD_BITS);
-			Additive(EXP_TABLE[offset as usize])
-    	}
+    	let log = (LOG_TABLE[self.0 as usize] as u32) + other.0 as u32;
+    	let offset = (log & ONEMASK as u32) + (log >> FIELD_BITS);
+    	Additive(EXP_TABLE[offset as usize])
     }
 
     /// Multiply field elements by a single multiplier, using SIMD if available
