@@ -34,8 +34,7 @@ iai = "0.1"
 criterion = "0.3"
 
 [features]
-default = ["b_not_one"]
-b_not_one = []
+default = []
 cmp-with-cxx = ["cc", "bindgen"]
 status-quo = ["reed-solomon-erasure"]
 

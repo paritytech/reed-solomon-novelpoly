@@ -386,22 +386,30 @@ fn decode_main(codeword: &mut [GFSymbol], recover_up_to: usize, erasure: &[bool]
 
 	// formal derivative
 
-	#[cfg(feature = "b_not_one")]
+    // We should change nothing when multiplying by b from B.
+    #[cfg(test)]
 	for i in (0..n).into_iter().step_by(2) {
 		let b = ONEMASK - unsafe { B[i >> 1] };
-    	// #[cfg(not(feature = "b_not_one"))]
-		// assert_eq!(b, ONEMASK);
+        #[cfg(test)]
+        let x: [_; 2] = [ codeword[i], codeword[i+1] ];
 		codeword[i] = mul_table(codeword[i], b);
 		codeword[i + 1] = mul_table(codeword[i + 1], b);
+        #[cfg(test)]
+        assert_eq!(x, [ codeword[i], codeword[i+1] ]);
 	}
 
 	formal_derivative(codeword, n);
 
-	#[cfg(feature = "b_not_one")]
+    // Again changes nothing by multiplying by b although b differs here.
+    #[cfg(test)]
 	for i in (0..n).into_iter().step_by(2) {
+        #[cfg(test)]
+        let x: [_; 2] = [ codeword[i], codeword[i+1] ];
 		let b = unsafe { B[i >> 1] };
 		codeword[i] = mul_table(codeword[i], b);
 		codeword[i + 1] = mul_table(codeword[i + 1], b);
+        #[cfg(test)]
+        assert_eq!(x, [ codeword[i], codeword[i+1] ]);
 	}
 
 	afft_in_novel_poly_basis(codeword, n, 0);
