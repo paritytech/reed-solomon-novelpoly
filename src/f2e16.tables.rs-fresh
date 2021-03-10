@@ -5,5 +5,5 @@ static LOG_TABLE: [GFSymbol; FIELD_SIZE] = [0; FIELD_SIZE];
 
 static EXP_TABLE: [GFSymbol; FIELD_SIZE] = [0; FIELD_SIZE];
 
-static LOG_WALSH: [GFSymbol; FIELD_SIZE] = [0; FIELD_SIZE];
+static LOG_WALSH: [Multiplier; FIELD_SIZE] = [0; FIELD_SIZE];
 

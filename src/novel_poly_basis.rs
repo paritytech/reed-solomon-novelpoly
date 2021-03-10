@@ -218,12 +218,12 @@ unsafe fn init_dec() {
 		}
 
 		// Compute base[m] = ONEMASK - base[m] * EXP[LOG[base[m] ^ 1]]
-		// = ONEMASK - base[m] * (base[m] ^ 1)   
-		// TODO: But why?  
+		// = ONEMASK - base[m] * (base[m] ^ 1)
+		// TODO: But why?
 		//
 		// let idx = mul_table(base[m], LOG_TABLE[(base[m] ^ 1_u16) as usize]);
 		let idx = Additive(base[m]).mul( Additive(base[m] ^ 1_u16).to_multiplier() );
-        // WTF?!? 
+        // WTF?!?
 		// base[m] = ONEMASK - LOG_TABLE[idx as usize];
         base[m] = ONEMASK - idx.to_multiplier().0;
 
@@ -249,7 +249,7 @@ unsafe fn init_dec() {
 
     #[cfg(test)]
     {
-	// TODO: How does this alter base? 
+	// TODO: How does this alter base?
 	base[0] = ONEMASK - base[0];
 	for i in 1..(FIELD_BITS - 1) {
 		base[i] = ( (
@@ -352,23 +352,23 @@ pub fn encode_high(data: &[GFSymbol], k: usize, parity: &mut [GFSymbol], mem: &m
 // Compute the evaluations of the error locator polynomial
 // `fn decode_init`
 // since this has only to be called once per reconstruction
-pub fn eval_error_polynomial(erasure: &[bool], log_walsh2: &mut [GFSymbol], n: usize) {
+pub fn eval_error_polynomial(erasure: &[bool], log_walsh2: &mut [Multiplier], n: usize) {
 	let z = std::cmp::min(n, erasure.len());
 	for i in 0..z {
-		log_walsh2[i] = erasure[i] as GFSymbol;
+		log_walsh2[i] = Multiplier(erasure[i] as Elt);
 	}
 	for i in z..n {
-		log_walsh2[i] = 0 as GFSymbol;
+		log_walsh2[i] = Multiplier(0);
 	}
 	walsh(log_walsh2, FIELD_SIZE);
 	for i in 0..n {
-		let tmp = log_walsh2[i] as u32 * unsafe { LOG_WALSH[i] } as u32;
-		log_walsh2[i] = (tmp % ONEMASK as u32) as GFSymbol;
+		let tmp = log_walsh2[i].to_wide() * LOG_WALSH[i].to_wide();
+		log_walsh2[i] = Multiplier((tmp % ONEMASK as Wide) as Elt);
 	}
 	walsh(log_walsh2, FIELD_SIZE);
 	for i in 0..z {
 		if erasure[i] {
-			log_walsh2[i] = ONEMASK - log_walsh2[i];
+			log_walsh2[i] = Multiplier(ONEMASK) - log_walsh2[i];
 		}
 	}
 }
@@ -377,13 +377,19 @@ pub fn eval_error_polynomial(erasure: &[bool], log_walsh2: &mut [GFSymbol], n: u
 // technically we only need to recover
 // the first `k` instead of all `n` which
 // would include parity chunks.
-fn decode_main(codeword: &mut [GFSymbol], recover_up_to: usize, erasure: &[bool], log_walsh2: &[GFSymbol], n: usize) {
+fn decode_main(
+    codeword: &mut [GFSymbol],
+    recover_up_to: usize,
+    erasure: &[bool],
+    log_walsh2: &[Multiplier],
+    n: usize
+) {
 	assert_eq!(codeword.len(), n);
 	assert!(n >= recover_up_to);
 	assert_eq!(erasure.len(), n);
 
 	for i in 0..n {
-		codeword[i] = if erasure[i] { 0_u16 } else { mul_table(codeword[i], Multiplier(log_walsh2[i])) };
+		codeword[i] = if erasure[i] { 0_u16 } else { mul_table(codeword[i], log_walsh2[i]) };
 	}
 
 	inverse_afft_in_novel_poly_basis(codeword, n, 0);
@@ -419,7 +425,7 @@ fn decode_main(codeword: &mut [GFSymbol], recover_up_to: usize, erasure: &[bool]
 	afft_in_novel_poly_basis(codeword, n, 0);
 
 	for i in 0..recover_up_to {
-		codeword[i] = if erasure[i] { mul_table(codeword[i], Multiplier(log_walsh2[i])) } else { 0_u16 };
+		codeword[i] = if erasure[i] { mul_table(codeword[i], log_walsh2[i]) } else { 0_u16 };
 	}
 }
 use itertools::Itertools;
@@ -589,7 +595,7 @@ impl ReedSolomon {
 		}
 
 		// Evaluate error locator polynomial only once
-		let mut error_poly_in_log = [0_u16 as GFSymbol; FIELD_SIZE];
+		let mut error_poly_in_log = [Multiplier(0); FIELD_SIZE];
 		eval_error_polynomial(&erasures[..], &mut error_poly_in_log[..], FIELD_SIZE);
 
 		let mut acc = Vec::<u8>::with_capacity(shard_len_in_syms * 2 * self.k);
@@ -666,7 +672,7 @@ pub fn reconstruct_sub(
 	erasures: &[bool],
 	n: usize,
 	k: usize,
-	error_poly: &[GFSymbol; FIELD_SIZE],
+	error_poly: &[Multiplier; FIELD_SIZE],
 ) -> Result<Vec<u8>> {
 	assert!(is_power_of_2(n), "Algorithm only works for 2^i sizes for N");
 	assert!(is_power_of_2(k), "Algorithm only works for 2^i sizes for K");
@@ -849,7 +855,7 @@ mod test {
 		let erasures = codewords.iter().map(|x| x.is_none()).collect::<Vec<bool>>();
 
 		// Evaluate error locator polynomial only once
-		let mut error_poly_in_log = [0_u16 as GFSymbol; FIELD_SIZE];
+		let mut error_poly_in_log = [Multiplier(0); FIELD_SIZE];
 		eval_error_polynomial(&erasures[..], &mut error_poly_in_log[..], FIELD_SIZE);
 
 		let reconstructed = reconstruct_sub(&codewords[..], &erasures[..], N, K, &error_poly_in_log)?;
@@ -942,7 +948,7 @@ mod test {
 		let erasures = codewords.iter().map(|x| x.is_none()).collect::<Vec<bool>>();
 
 		// Evaluate error locator polynomial only once
-		let mut error_poly_in_log = [0_u16 as GFSymbol; FIELD_SIZE];
+		let mut error_poly_in_log = [Multiplier(0); FIELD_SIZE];
 		eval_error_polynomial(&erasures[..], &mut error_poly_in_log[..], FIELD_SIZE);
 
 		let reconstructed_sub = reconstruct_sub(&codewords_sub[..], &erasures[..], N, K, &error_poly_in_log).unwrap();
@@ -1131,11 +1137,12 @@ mod test {
 		print_sha256("erased", &codeword);
 
 		//---------Erasure decoding----------------
-		let mut log_walsh2: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
+		let mut log_walsh2: [Multiplier; FIELD_SIZE] = [Multiplier(0); FIELD_SIZE];
 
 		eval_error_polynomial(&erasure[..], &mut log_walsh2[..], FIELD_SIZE);
 
-		print_sha256("log_walsh2", &log_walsh2);
+        // TODO: Make print_sha256 polymorphic
+		// print_sha256("log_walsh2", &log_walsh2);
 
 		decode_main(&mut codeword[..], K, &erasure[..], &log_walsh2[..], N);
 

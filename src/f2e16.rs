@@ -45,7 +45,7 @@ impl Multiplier {
 
 
 /// Fast Walsh–Hadamard transform over modulo ONEMASK
-pub fn walsh(data: &mut [GFSymbol], size: usize) {
+pub fn walsh(data: &mut [Multiplier], size: usize) {
 	let mut depart_no = 1_usize;
 	while depart_no < size {
 		let mut j = 0;
@@ -55,11 +55,15 @@ pub fn walsh(data: &mut [GFSymbol], size: usize) {
 				// We deal with data in log form here, but field form looks like:
 				//			 data[i] := data[i] / data[i+depart_no]
 				// data[i+depart_no] := data[i] * data[i+depart_no]
-				let mask = ONEMASK as u32;
-				let tmp2: u32 = data[i] as u32 + mask - data[i + depart_no] as u32;
-				let tmp1: u32 = data[i] as u32 + data[i + depart_no] as u32;
-				data[i] = ((tmp1 & mask) + (tmp1 >> FIELD_BITS)) as GFSymbol;
-				data[i + depart_no] = ((tmp2 & mask) + (tmp2 >> FIELD_BITS)) as GFSymbol;
+				let mask = ONEMASK as Wide;
+				let tmp2: Wide = data[i].to_wide() + mask - data[i + depart_no].to_wide();
+				let tmp1: Wide = data[i].to_wide() + data[i + depart_no].to_wide();
+				data[i] = Multiplier((
+                    (tmp1 & mask) + (tmp1 >> FIELD_BITS)
+                ) as Elt);
+				data[i + depart_no] = Multiplier((
+                    (tmp2 & mask) + (tmp2 >> FIELD_BITS)
+                ) as Elt);
 			}
 			j += depart_no_next;
 		}
@@ -124,15 +128,16 @@ fn write_field_tables<W: std::io::Write>(mut w: W) -> std::io::Result<()> {
 	}
 	exp_table[ONEMASK as usize] = exp_table[0];
 
-    write_const(&mut w,"LOG_TABLE",&log_table,None) ?;
-    write_const(&mut w,"EXP_TABLE",&exp_table,None) ?;
+    write_const(&mut w,"LOG_TABLE",&log_table,Some("[u16; FIELD_SIZE]")) ?;
+    write_const(&mut w,"EXP_TABLE",&exp_table,Some("[u16; FIELD_SIZE]")) ?;
 
 	// mem_cpy(&mut log_walsh[..], &log_table[..]);
-    let mut log_walsh = log_table.clone();
-	log_walsh[0] = 0;
+    let log_walsh = log_table.clone();
+    let mut log_walsh = unsafe { core::mem::transmute::<_,[Multiplier; FIELD_SIZE]>(log_walsh) };
+	log_walsh[0] = Multiplier(0);
 	walsh(&mut log_walsh[..], FIELD_SIZE);
 
-    write_const(w,"LOG_WALSH",&log_walsh,None)
+    write_const(w,"LOG_WALSH",&log_walsh,Some("[Multiplier; FIELD_SIZE]"))
 }
 
 
