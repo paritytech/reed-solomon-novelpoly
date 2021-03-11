@@ -712,14 +712,10 @@ pub fn reconstruct_sub(
 		};
 	}
 
-	let recovered = unsafe {
-		// TODO assure this does not leak memory
-		let x = from_raw_parts(recovered.as_ptr() as *const u8, recover_up_to * 2);
-		std::mem::forget(recovered);
-		x
-	};
-	let k2 = k * 2;
-	Ok(recovered[0..k2].to_vec())
+
+	let mut recovered_bytes = Vec::with_capacity(recover_up_to * 2);
+	recovered.into_iter().take(k).for_each(|x| { recovered_bytes.extend_from_slice( &x.0.to_be_bytes()[..] ) });
+	Ok(recovered_bytes)
 }
 
 #[cfg(test)]
