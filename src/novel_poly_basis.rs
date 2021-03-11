@@ -468,7 +468,6 @@ pub const fn next_lower_power_of_2(k: usize) -> usize {
 	}
 }
 
-
 /// Params for the encoder / decoder
 /// derived from a target validator count.
 #[derive(Debug, Clone, Copy)]
@@ -501,7 +500,6 @@ impl CodeParams {
 	}
 }
 
-
 pub fn encode(bytes: &[u8], validator_count: usize) -> Result<Vec<WrappedShard>> {
 	let params = CodeParams::derive_from_validator_count(validator_count);
 
@@ -510,11 +508,8 @@ pub fn encode(bytes: &[u8], validator_count: usize) -> Result<Vec<WrappedShard>>
 }
 
 /// each shard contains one symbol of one run of erasure coding
-pub fn reconstruct(
-	received_shards: Vec<Option<WrappedShard>>,
-	validator_count: usize,
-) -> Result<Vec<u8>>
-{	let params = CodeParams::derive_from_validator_count(validator_count);
+pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>, validator_count: usize) -> Result<Vec<u8>> {
+	let params = CodeParams::derive_from_validator_count(validator_count);
 
 	let rs = params.make_encoder();
 	rs.reconstruct(received_shards)
@@ -535,21 +530,15 @@ impl ReedSolomon {
 	pub fn new(n: usize, k: usize, validator_count: usize) -> Result<Self> {
 		setup();
 		if !is_power_of_2(n) && !is_power_of_2(k) {
-			Err(Error::ParamterMustBePowerOf2 {
-				n, k,
-			})
+			Err(Error::ParamterMustBePowerOf2 { n, k })
 		} else {
-			Ok(Self {
-				validator_count,
-				n,
-				k,
-			})
+			Ok(Self { validator_count, n, k })
 		}
 	}
 
 	pub fn encode(&self, bytes: &[u8]) -> Result<Vec<WrappedShard>> {
 		if bytes.is_empty() {
-			return Err(Error::PayloadSizeIsZero)
+			return Err(Error::PayloadSizeIsZero);
 		}
 
 		// setup the shards, n is likely _larger_, so use the truely required number of shards
@@ -587,17 +576,10 @@ impl ReedSolomon {
 	}
 
 	/// each shard contains one symbol of one run of erasure coding
-	pub fn reconstruct(
-		&self,
-		received_shards: Vec<Option<WrappedShard>>,
-	) -> Result<Vec<u8>>
-	{
-
+	pub fn reconstruct(&self, received_shards: Vec<Option<WrappedShard>>) -> Result<Vec<u8>> {
 		let gap = self.n.saturating_sub(received_shards.len());
-		let received_shards = received_shards
-			.into_iter().take(self.n)
-			.chain(std::iter::repeat(None).take(gap))
-			.collect::<Vec<_>>();
+		let received_shards =
+			received_shards.into_iter().take(self.n).chain(std::iter::repeat(None).take(gap)).collect::<Vec<_>>();
 
 		assert_eq!(received_shards.len(), self.n);
 
@@ -616,13 +598,14 @@ impl ReedSolomon {
 		// TODO check shard length is what we'd expect
 
 		let mut existential_count = 0_usize;
-		let erasures = received_shards.iter()
+		let erasures = received_shards
+			.iter()
 			.map(|x| x.is_none())
 			.inspect(|erased| existential_count += !*erased as usize)
 			.collect::<Vec<bool>>();
 
 		if existential_count < self.k {
-			return Err(Error::NeedMoreShards { have: existential_count, min: self.k, all: self.n});
+			return Err(Error::NeedMoreShards { have: existential_count, min: self.k, all: self.n });
 		}
 
 		// Evaluate error locator polynomial only once
@@ -764,8 +747,8 @@ pub fn reconstruct_sub(
 
 #[cfg(test)]
 mod test {
-	use rand::seq::index::IndexVec;
 	use rand::distributions::Uniform;
+	use rand::seq::index::IndexVec;
 
 	use super::*;
 
@@ -879,11 +862,16 @@ mod test {
 		Ok(())
 	}
 
-	fn deterministic_drop_shards<T: Sized, G: rand::SeedableRng + rand::Rng>(codewords: &mut [Option<T>], n: usize, k: usize, _rng: &mut G) -> IndexVec {
+	fn deterministic_drop_shards<T: Sized, G: rand::SeedableRng + rand::Rng>(
+		codewords: &mut [Option<T>],
+		n: usize,
+		k: usize,
+		_rng: &mut G,
+	) -> IndexVec {
 		let l = codewords.len();
-		let mut v = Vec::with_capacity(n-k);
+		let mut v = Vec::with_capacity(n - k);
 		// k is a power of 2
-		let half = (n-k) >> 1;
+		let half = (n - k) >> 1;
 		for i in 0..half {
 			codewords[i] = None;
 			v.push(i);
@@ -891,7 +879,7 @@ mod test {
 		// if the codewords is shorter than n
 		// the remaining ones were
 		// already dropped implicitly
-		for i in n-half..n {
+		for i in n - half..n {
 			if i < l {
 				codewords[i] = None;
 				v.push(i);
@@ -900,11 +888,15 @@ mod test {
 		IndexVec::from(v)
 	}
 
-	fn deterministic_drop_shards_clone<T: Sized + Clone>(codewords: &[T], n: usize, k: usize) -> (Vec<Option<T>>, IndexVec) {
+	fn deterministic_drop_shards_clone<T: Sized + Clone>(
+		codewords: &[T],
+		n: usize,
+		k: usize,
+	) -> (Vec<Option<T>>, IndexVec) {
 		let mut rng = SmallRng::from_seed(crate::SMALL_RNG_SEED);
 		let mut codewords = codewords.into_iter().map(|x| Some(x.clone())).collect::<Vec<Option<T>>>();
 		let idx = deterministic_drop_shards::<T, SmallRng>(&mut codewords, n, k, &mut rng);
-		assert!(idx.len() <= n-k);
+		assert!(idx.len() <= n - k);
 		(codewords, idx)
 	}
 
@@ -1001,9 +993,21 @@ mod test {
 		assert_recovery(payload, &reconstructed_payload, dropped_indices);
 
 		// verify integrity with criterion tests
-		roundtrip_w_drop_closure::<_,_,_,SmallRng>(encode, reconstruct, payload, N_VALIDATORS, deterministic_drop_shards::<WrappedShard, SmallRng>)?;
+		roundtrip_w_drop_closure::<_, _, _, SmallRng>(
+			encode,
+			reconstruct,
+			payload,
+			N_VALIDATORS,
+			deterministic_drop_shards::<WrappedShard, SmallRng>,
+		)?;
 
-		roundtrip_w_drop_closure::<_,_,_,SmallRng>(encode, reconstruct, payload, N_VALIDATORS, crate::drop_random_max)?;
+		roundtrip_w_drop_closure::<_, _, _, SmallRng>(
+			encode,
+			reconstruct,
+			payload,
+			N_VALIDATORS,
+			crate::drop_random_max,
+		)?;
 
 		Ok(())
 	}
@@ -1029,7 +1033,6 @@ mod test {
 			}
 		};
 	}
-
 
 	simplicissimus!(case_0: validators: 2003, payload: 0; Err(Error::PayloadSizeIsZero));
 

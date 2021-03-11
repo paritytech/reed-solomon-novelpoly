@@ -14,7 +14,7 @@ pub enum Error {
 	NeedMoreShards { have: usize, min: usize, all: usize },
 
 	#[error("Parameters: n (= {n}) and k (= {k}) both must be a power of 2")]
-	ParamterMustBePowerOf2 {n: usize, k: usize},
+	ParamterMustBePowerOf2 { n: usize, k: usize },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

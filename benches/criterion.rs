@@ -16,10 +16,10 @@ macro_rules! instanciate_upper_bound_test {
 			/// payload sizes.
 			const PAYLOAD_SIZE_CUTOFF: usize = 10_000_000;
 
-			use crate::$mp::{encode, reconstruct};
-			use crate::{BYTES, SMALL_RNG_SEED};
 			use crate::drop_random_max;
+			use crate::$mp::{encode, reconstruct};
 			use crate::WrappedShard;
+			use crate::{BYTES, SMALL_RNG_SEED};
 			use criterion::{black_box, Criterion};
 			use rand::{rngs::SmallRng, SeedableRng};
 
@@ -64,16 +64,16 @@ pub mod tests {
 pub mod parameterized {
 	use std::ops::Range;
 
-    use crate::{BYTES, SMALL_RNG_SEED};
 	use crate::drop_random_max;
 	use crate::WrappedShard;
+	use crate::{BYTES, SMALL_RNG_SEED};
 	use criterion::{black_box, BenchmarkId, Criterion};
 	use rand::{rngs::SmallRng, SeedableRng};
 
 	const STEPS_VALIDATORS: usize = 3;
 	const STEPS_PAYLOAD: usize = 7;
 
-	pub fn steped(range: Range<usize>, steps: usize) -> impl Iterator<Item=usize>{
+	pub fn steped(range: Range<usize>, steps: usize) -> impl Iterator<Item = usize> {
 		assert!(steps > 1);
 		let step = range.len() / (steps - 1);
 		range.into_iter().step_by(step)
@@ -81,24 +81,19 @@ pub mod parameterized {
 
 	pub fn bench_encode_2d(crit: &mut Criterion) {
 		for validator_count in steped(4..100, STEPS_VALIDATORS) {
-
-			let mut group =
-				crit.benchmark_group(format!("parameterized encode validator_count={}", validator_count));
+			let mut group = crit.benchmark_group(format!("parameterized encode validator_count={}", validator_count));
 
 			for payload_size in steped(1_000..10_000_000, STEPS_PAYLOAD) {
 				encode_add_to_group(&mut group, payload_size, validator_count, payload_size);
 			}
 			group.finish();
 		}
-
 	}
 	pub fn bench_encode_fixed_1mb_payload(crit: &mut Criterion) {
 		let payload_size: usize = 1_000_000;
 
-		let mut group =
-		crit.benchmark_group("parameterized encode fixed payload");
+		let mut group = crit.benchmark_group("parameterized encode fixed payload");
 		for validator_count in steped(4..1000, STEPS_VALIDATORS * 4) {
-
 			encode_add_to_group(&mut group, validator_count, validator_count, payload_size);
 		}
 		group.finish();
@@ -108,8 +103,8 @@ pub mod parameterized {
 		let mut rng = SmallRng::from_seed(SMALL_RNG_SEED);
 
 		for validator_count in steped(4..100, STEPS_VALIDATORS) {
-
-			let mut group = crit.benchmark_group(format!("parameterized reconstruct validator_count={}", validator_count));
+			let mut group =
+				crit.benchmark_group(format!("parameterized reconstruct validator_count={}", validator_count));
 			for payload_size in steped(1_000..10_000_000, STEPS_PAYLOAD) {
 				reconstruct_add_to_group(&mut group, payload_size, validator_count, payload_size, &mut rng);
 			}
@@ -128,8 +123,12 @@ pub mod parameterized {
 		group.finish();
 	}
 
-
-	fn encode_add_to_group<M: criterion::measurement::Measurement>(group: &mut criterion::BenchmarkGroup<M>, param: impl ToString, validator_count: usize, payload_size: usize) {
+	fn encode_add_to_group<M: criterion::measurement::Measurement>(
+		group: &mut criterion::BenchmarkGroup<M>,
+		param: impl ToString,
+		validator_count: usize,
+		payload_size: usize,
+	) {
 		{
 			use crate::novel_poly_basis::encode;
 
@@ -161,7 +160,13 @@ pub mod parameterized {
 		}
 	}
 
-	fn reconstruct_add_to_group<M: criterion::measurement::Measurement>(group: &mut criterion::BenchmarkGroup<M>, param: impl ToString, validator_count: usize, payload_size: usize, rng: &mut SmallRng) {
+	fn reconstruct_add_to_group<M: criterion::measurement::Measurement>(
+		group: &mut criterion::BenchmarkGroup<M>,
+		param: impl ToString,
+		validator_count: usize,
+		payload_size: usize,
+		rng: &mut SmallRng,
+	) {
 		{
 			use crate::novel_poly_basis::{encode, reconstruct};
 
@@ -203,11 +208,8 @@ pub mod parameterized {
 	}
 }
 
-
 fn parameterized_criterion() -> Criterion {
-	let crit = Criterion::default()
-		.sample_size(10)
-		.warm_up_time(Duration::from_millis(100));
+	let crit = Criterion::default().sample_size(10).warm_up_time(Duration::from_millis(100));
 	crit
 }
 
@@ -240,6 +242,4 @@ targets =
 	// tests::status_quo::bench_reconstruct,
 );
 
-criterion_main!(
-	plot_paramterized, upper_bounds
-);
+criterion_main!(plot_paramterized, upper_bounds);
