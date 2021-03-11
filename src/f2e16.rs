@@ -18,7 +18,7 @@ impl Additive {
 
     /// Return multiplier prepared form
     pub fn to_multiplier(self) -> Multiplier {
-        Multiplier( unsafe { LOG_TABLE[self.0 as usize] } )
+        Multiplier( LOG_TABLE[self.0 as usize] )
     }
 
     /// Return a*EXP_TABLE[b] over GF(2^r)
@@ -100,10 +100,10 @@ fn write_field_tables<W: std::io::Write>(mut w: W) -> std::io::Result<()> {
     let mut log_table: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
     let mut exp_table: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
 
-	let mas: GFSymbol = (1 << FIELD_BITS - 1) - 1;
+	let mas: Elt = (1 << FIELD_BITS - 1) - 1;
 	let mut state: usize = 1;
 	for i in 0_usize..(ONEMASK as usize) {
-		exp_table[state] = i as GFSymbol;
+		exp_table[state] = i as Elt;
 		if (state >> FIELD_BITS - 1) != 0 {
 			state &= mas as usize;
 			state = state << 1_usize ^ GENERATOR as usize;

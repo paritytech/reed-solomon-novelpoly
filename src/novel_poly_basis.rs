@@ -26,13 +26,6 @@ static mut B: [Multiplier; FIELD_SIZE >> 1] = [Multiplier(0_u16); FIELD_SIZE >> 
 
 
 
-
-//return a*EXP_TABLE[b] over GF(2^r)
-pub fn mul_table(a: GFSymbol, b: Multiplier) -> GFSymbol {
-    Additive(a).mul(b).0
-}
-
-
 pub const fn log2(mut x: usize) -> usize {
 	let mut o: usize = 0;
 	while x > 1 {
@@ -48,7 +41,7 @@ pub const fn is_power_of_2(x: usize) -> bool {
 
 
 //formal derivative of polynomial in the new basis
-pub fn formal_derivative(cos: &mut [GFSymbol], size: usize) {
+pub fn formal_derivative(cos: &mut [Additive], size: usize) {
 	for i in 1..size {
 		let length = ((i ^ i - 1) + 1) >> 1;
 		for j in (i - length)..i {
@@ -73,7 +66,7 @@ pub fn formal_derivative(cos: &mut [GFSymbol], size: usize) {
 // We're hunting for the differences and trying to undersrtand the algorithm.
 
 //IFFT in the proposed basis
-pub fn inverse_afft_in_novel_poly_basis(data: &mut [GFSymbol], size: usize, index: usize) {
+pub fn inverse_afft_in_novel_poly_basis(data: &mut [Additive], size: usize, index: usize) {
 	// All line references to Algorithm 2 page 6288 of
 	// https://www.citi.sinica.edu.tw/papers/whc/5524-F.pdf
 
@@ -115,7 +108,7 @@ pub fn inverse_afft_in_novel_poly_basis(data: &mut [GFSymbol], size: usize, inde
 				for i in (j - depart_no)..j {
 					// Line 5, justified by (35) page 6288, but
 					// adding depart_no acts like the r+2^i superscript.
-					data[i] ^= Additive(data[i + depart_no]).mul(skew).0;
+					data[i] ^= data[i + depart_no].mul(skew);
 				}
 			}
 
@@ -128,7 +121,7 @@ pub fn inverse_afft_in_novel_poly_basis(data: &mut [GFSymbol], size: usize, inde
 }
 
 //FFT in the proposed basis
-pub fn afft_in_novel_poly_basis(data: &mut [GFSymbol], size: usize, index: usize) {
+pub fn afft_in_novel_poly_basis(data: &mut [Additive], size: usize, index: usize) {
 	// All line references to Algorithm 1 page 6287 of
 	// https://www.citi.sinica.edu.tw/papers/whc/5524-F.pdf
 
@@ -168,7 +161,7 @@ pub fn afft_in_novel_poly_basis(data: &mut [GFSymbol], size: usize, index: usize
 				for i in (j - depart_no)..j {
 					// Line 6, explained by (28) page 6287, but
 					// adding depart_no acts like the r+2^i superscript.
-					data[i] ^= Additive(data[i + depart_no]).mul(skew).0;
+					data[i] ^= data[i + depart_no].mul(skew);
 				}
 			}
 
@@ -282,7 +275,7 @@ pub fn setup() {
 }
 
 // Encoding alg for k/n < 0.5: message is a power of two
-pub fn encode_low(data: &[GFSymbol], k: usize, codeword: &mut [GFSymbol], n: usize) {
+pub fn encode_low(data: &[Additive], k: usize, codeword: &mut [Additive], n: usize) {
 	assert!(k + k <= n);
 	assert_eq!(codeword.len(), n);
 	assert_eq!(data.len(), n);
@@ -315,13 +308,8 @@ pub fn encode_low(data: &[GFSymbol], k: usize, codeword: &mut [GFSymbol], n: usi
 	mem_cpy(&mut codeword[0..k], &data[0..k]);
 }
 
-fn mem_zero(zerome: &mut [GFSymbol]) {
-	for i in 0..zerome.len() {
-		zerome[i] = 0_u16;
-	}
-}
 
-fn mem_cpy(dest: &mut [GFSymbol], src: &[GFSymbol]) {
+fn mem_cpy(dest: &mut [Additive], src: &[Additive]) {
 	let sl = src.len();
 	debug_assert_eq!(dest.len(), sl);
 	for i in 0..sl {
@@ -331,10 +319,13 @@ fn mem_cpy(dest: &mut [GFSymbol], src: &[GFSymbol]) {
 
 //data: message array. parity: parity array. mem: buffer(size>= n-k)
 //Encoding alg for k/n>0.5: parity is a power of two.
-pub fn encode_high(data: &[GFSymbol], k: usize, parity: &mut [GFSymbol], mem: &mut [GFSymbol], n: usize) {
+pub fn encode_high(data: &[Additive], k: usize, parity: &mut [Additive], mem: &mut [Additive], n: usize) {
 	let t: usize = n - k;
 
-	mem_zero(&mut parity[0..t]);
+	// mem_zero(&mut parity[0..t]);
+	for i in 0..t {
+		parity[i] = Additive(0);
+	}
 
 	let mut i = t;
 	while i < n {
@@ -378,7 +369,7 @@ pub fn eval_error_polynomial(erasure: &[bool], log_walsh2: &mut [Multiplier], n:
 // the first `k` instead of all `n` which
 // would include parity chunks.
 fn decode_main(
-    codeword: &mut [GFSymbol],
+    codeword: &mut [Additive],
     recover_up_to: usize,
     erasure: &[bool],
     log_walsh2: &[Multiplier],
@@ -389,7 +380,7 @@ fn decode_main(
 	assert_eq!(erasure.len(), n);
 
 	for i in 0..n {
-		codeword[i] = if erasure[i] { 0_u16 } else { mul_table(codeword[i], log_walsh2[i]) };
+		codeword[i] = if erasure[i] { Additive(0) } else { codeword[i].mul(log_walsh2[i]) };
 	}
 
 	inverse_afft_in_novel_poly_basis(codeword, n, 0);
@@ -402,8 +393,8 @@ fn decode_main(
 		let b = Multiplier(ONEMASK) - unsafe { B[i >> 1] };
         #[cfg(test)]
         let x: [_; 2] = [ codeword[i], codeword[i+1] ];
-		codeword[i] = mul_table(codeword[i], b);
-		codeword[i + 1] = mul_table(codeword[i + 1], b);
+		codeword[i] = codeword[i].mul(b);
+		codeword[i + 1] = codeword[i + 1].mul(b);
         #[cfg(test)]
         assert_eq!(x, [ codeword[i], codeword[i+1] ]);
 	}
@@ -416,8 +407,8 @@ fn decode_main(
         #[cfg(test)]
         let x: [_; 2] = [ codeword[i], codeword[i+1] ];
 		let b = unsafe { B[i >> 1] };
-		codeword[i] = mul_table(codeword[i], b);
-		codeword[i + 1] = mul_table(codeword[i + 1], b);
+		codeword[i] = codeword[i].mul(b);
+		codeword[i + 1] = codeword[i + 1].mul(b);
         #[cfg(test)]
         assert_eq!(x, [ codeword[i], codeword[i+1] ]);
 	}
@@ -425,7 +416,7 @@ fn decode_main(
 	afft_in_novel_poly_basis(codeword, n, 0);
 
 	for i in 0..recover_up_to {
-		codeword[i] = if erasure[i] { mul_table(codeword[i], log_walsh2[i]) } else { 0_u16 };
+		codeword[i] = if erasure[i] { codeword[i].mul(log_walsh2[i]) } else { Additive(0) };
 	}
 }
 use itertools::Itertools;
@@ -554,7 +545,7 @@ impl ReedSolomon {
 			assert!(data_piece.len() <= k2);
 			let encoding_run = encode_sub(data_piece, self.n, self.k)?;
 			for val_idx in 0..validator_count {
-				AsMut::<[[u8; 2]]>::as_mut(&mut shards[val_idx])[chunk_idx] = encoding_run[val_idx].to_be_bytes();
+				AsMut::<[[u8; 2]]>::as_mut(&mut shards[val_idx])[chunk_idx] = encoding_run[val_idx].0.to_be_bytes();
 			}
 		}
 
@@ -606,10 +597,10 @@ impl ReedSolomon {
 				.map(|x| {
 					x.as_ref().map(|x| {
 						let z = AsRef::<[[u8; 2]]>::as_ref(&x)[i];
-						u16::from_be_bytes(z)
+						Additive(u16::from_be_bytes(z))
 					})
 				})
-				.collect::<Vec<Option<GFSymbol>>>();
+				.collect::<Vec<Option<Additive>>>();
 
 			assert_eq!(decoding_run.len(), self.n);
 
@@ -623,7 +614,7 @@ impl ReedSolomon {
 }
 
 /// Bytes shall only contain payload data
-pub fn encode_sub(bytes: &[u8], n: usize, k: usize) -> Result<Vec<GFSymbol>> {
+pub fn encode_sub(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additive>> {
 	assert!(is_power_of_2(n), "Algorithm only works for 2^i sizes for N");
 	assert!(is_power_of_2(k), "Algorithm only works for 2^i sizes for K");
 	assert!(bytes.len() <= k << 1);
@@ -645,14 +636,14 @@ pub fn encode_sub(bytes: &[u8], n: usize, k: usize) -> Result<Vec<GFSymbol>> {
 	// pad the incoming bytes with trailing 0s
 	// so we get a buffer of size `N` in `GF` symbols
 	let zero_bytes_to_add = n * 2 - dl;
-	let data: Vec<GFSymbol> = bytes
+	let data: Vec<Additive> = bytes
 		.into_iter()
 		.copied()
 		.chain(std::iter::repeat(0u8).take(zero_bytes_to_add))
 		.tuple_windows()
 		.step_by(2)
-		.map(|(a, b)| u16::from_le_bytes([a, b]))
-		.collect::<Vec<GFSymbol>>();
+		.map( |(a, b)| Additive(u16::from_be_bytes([a, b])))
+		.collect::<Vec<Additive>>();
 
 	// update new data bytes with zero padded bytes
 	// `l` is now `GF(2^16)` symbols
@@ -668,7 +659,7 @@ pub fn encode_sub(bytes: &[u8], n: usize, k: usize) -> Result<Vec<GFSymbol>> {
 }
 
 pub fn reconstruct_sub(
-	codewords: &[Option<GFSymbol>],
+	codewords: &[Option<Additive>],
 	erasures: &[bool],
 	n: usize,
 	k: usize,
@@ -683,7 +674,7 @@ pub fn reconstruct_sub(
 	let recover_up_to = k; // n;
 
 	// The recovered _payload_ chunks AND parity chunks
-	let mut recovered = vec![0 as GFSymbol; recover_up_to];
+	let mut recovered = vec![Additive(0); recover_up_to];
 
 	// get rid of all `None`s
 	let mut codeword = codewords
@@ -694,7 +685,7 @@ pub fn reconstruct_sub(
 			if let Some(sym) = sym {
 				(idx, *sym)
 			} else {
-				(idx, 0_u16)
+				(idx, Additive(0))
 			}
 		})
 		.map(|(idx, codeword)| {
@@ -703,7 +694,7 @@ pub fn reconstruct_sub(
 			}
 			codeword
 		})
-		.collect::<Vec<u16>>();
+		.collect::<Vec<Additive>>();
 
 	// filled up the remaining spots with 0s
 	assert_eq!(codeword.len(), n);
@@ -753,7 +744,7 @@ mod test {
 	}
     */
 
-	fn print_sha256(txt: &'static str, data: &[GFSymbol]) {
+	fn print_sha256(txt: &'static str, data: &[Additive]) {
 		use sha2::Digest;
 		let data = unsafe { ::std::slice::from_raw_parts(data.as_ptr() as *const u8, data.len() * 2) };
 
@@ -767,10 +758,10 @@ mod test {
 	}
 
 	/// Generate a random index
-	fn rand_gf_element() -> GFSymbol {
+	fn rand_gf_element() -> Additive {
 		let mut rng = thread_rng();
-		let uni = Uniform::<GFSymbol>::new_inclusive(0, ONEMASK);
-		uni.sample(&mut rng)
+		let uni = Uniform::<Elt>::new_inclusive(0, ONEMASK);
+		Additive(uni.sample(&mut rng))
 	}
 
 	#[test]
@@ -817,7 +808,7 @@ mod test {
 	fn flt_back_and_forth() {
 		const N: usize = 128;
 
-		let mut data = (0..N).into_iter().map(|_x| rand_gf_element()).collect::<Vec<GFSymbol>>();
+		let mut data = (0..N).into_iter().map(|_x| rand_gf_element()).collect::<Vec<Additive>>();
 		let expected = data.clone();
 
 		afft_in_novel_poly_basis(&mut data, N, N / 4);
@@ -902,9 +893,9 @@ mod test {
 	}
 
 	// for shards of length 1
-	fn wrapped_shard_len1_as_gf_sym(w: &WrappedShard) -> GFSymbol {
+	fn wrapped_shard_len1_as_gf_sym(w: &WrappedShard) -> Additive {
 		let val = AsRef::<[[u8; 2]]>::as_ref(w)[0];
-		u16::from_be_bytes(val)
+		Additive(u16::from_be_bytes(val))
 	}
 
 	#[test]
@@ -1052,7 +1043,8 @@ mod test {
 	#[test]
 	fn flt_roundtrip_small() {
 		const N: usize = 16;
-		const EXPECTED: [GFSymbol; N] = [1, 2, 3, 5, 8, 13, 21, 44, 65, 0, 0xFFFF, 2, 3, 5, 7, 11];
+		const EXPECTED: [Additive; N] =
+            unsafe { std::mem::transmute([1_u16, 2, 3, 5, 8, 13, 21, 44, 65, 0, 0xFFFF, 2, 3, 5, 7, 11]) };
 
 		let mut data = EXPECTED.clone();
 
@@ -1060,7 +1052,7 @@ mod test {
 
 		println!("novel basis(rust):");
 		data.iter().for_each(|sym| {
-			print!(" {:04X}", sym);
+			print!(" {:04X}", sym.0);
 		});
 		println!("");
 
@@ -1077,11 +1069,11 @@ mod test {
 
 		//-----------Generating message----------
 		//message array
-		let mut data: [GFSymbol; N] = [0; N];
+		let mut data = [Additive(0); N];
 
 		for i in 0..K {
 			//filled with random numbers
-			data[i] = (i * i % ONEMASK as usize) as u16;
+			data[i] = Additive((i * i % ONEMASK as usize) as u16);
 			// data[i] = rand_gf_element();
 		}
 
@@ -1089,13 +1081,13 @@ mod test {
 
 		println!("Message(Last n-k are zeros): ");
 		for i in 0..K {
-			print!("{:04x} ", data[i]);
+			print!("{:04x} ", data[i].0);
 		}
 		println!("");
 		print_sha256("data", &data[..]);
 
 		//---------encoding----------
-		let mut codeword = [0_u16; N];
+		let mut codeword = [Additive(0); N];
 
 		if K + K > N && false {
 			let (data_till_t, data_skip_t) = data.split_at_mut(N - K);
@@ -1131,7 +1123,7 @@ mod test {
 		for i in erasures_iv {
 			//erasure codeword symbols
 			erasure[i] = true;
-			codeword[i] = 0 as GFSymbol;
+			codeword[i] = Additive(0);
 		}
 
 		print_sha256("erased", &codeword);
@@ -1151,7 +1143,7 @@ mod test {
 		println!("Decoded result:");
 		for i in 0..N {
 			// the data word plus a few more
-			print!("{:04x} ", codeword[i]);
+			print!("{:04x} ", codeword[i].0);
 		}
 		println!("");
 
@@ -1159,7 +1151,7 @@ mod test {
 			//Check the correctness of the result
 			if data[i] != codeword[i] {
 				println!("🐍🐍🐍🐍🐍🐍🐍🐍🐍🐍🐍🐍🐍🐍🐍🐍🐍");
-				panic!("Decoding ERROR! value at [{}] should={:04x} vs is={:04x}", i, data[i], codeword[i]);
+				panic!("Decoding ERROR! value at [{}] should={:04x} vs is={:04x}", i, data[i].0, codeword[i].0);
 			}
 		}
 		println!(
