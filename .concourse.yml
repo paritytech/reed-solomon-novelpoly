@@ -185,18 +185,17 @@ jobs:
             platform: linux
             inputs:
             - name: git-pull-request-resource
-            try:
-              run:
-                # user: root
-                path: sh
-                args:
-                - -exc
-                - |
-                  rustc +stable --version --verbose
+            run:
+              # user: root
+              path: sh
+              args:
+              - -exc
+              - |
+                rustc +stable --version --verbose
 
-                  cargo +stable fmt -- --check
+                cargo +stable fmt -- --check
 
-                dir: git-pull-request-resource
+              dir: git-pull-request-resource
 
           on_success:
             put: git-pull-request-resource
