@@ -470,7 +470,7 @@ pub const fn next_lower_power_of_2(k: usize) -> usize {
 
 /// Params for the encoder / decoder
 /// derived from a target validator count.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CodeParams {
 	/// total number of message symbols to send
 	/// Invariant is a power of base 2
@@ -522,9 +522,12 @@ pub struct ReedSolomon {
 }
 
 impl ReedSolomon {
-	fn shard_len(&self, payload_size: usize) -> usize {
-		let shard_len = ((payload_size + 1) / 2 + self.k - 1) / self.k;
-		shard_len
+	/// Returns the size per shard in bytes
+	pub fn shard_len(&self, payload_size: usize) -> usize {
+		let payload_symbols = (payload_size + 1) / 2;
+		let shard_symbols_ceil = (payload_symbols + self.k - 1) / self.k;
+		let shard_bytes = shard_symbols_ceil * 2;
+		shard_bytes
 	}
 
 	pub fn new(n: usize, k: usize, validator_count: usize) -> Result<Self> {
@@ -543,7 +546,7 @@ impl ReedSolomon {
 
 		// setup the shards, n is likely _larger_, so use the truely required number of shards
 
-		// shard length in GF(2^16) symbols
+		// required shard length in bytes, rounded to full symbols
 		let shard_len = self.shard_len(bytes.len());
 		assert!(shard_len > 0);
 		// collect all sub encoding runs
@@ -553,8 +556,8 @@ impl ReedSolomon {
 		// prepare one wrapped shard per validator
 		let mut shards = vec![
 			WrappedShard::new({
-				let mut v = Vec::<u8>::with_capacity(shard_len * 2);
-				unsafe { v.set_len(shard_len * 2) }
+				let mut v = Vec::<u8>::with_capacity(shard_len);
+				unsafe { v.set_len(shard_len) }
 				v
 			});
 			validator_count
@@ -585,7 +588,7 @@ impl ReedSolomon {
 
 		// obtain a sample of a shard length and assume that is the truth
 		// XXX make sure all shards have equal length
-		let shard_len = received_shards
+		let shard_len_in_syms = received_shards
 			.iter()
 			.find_map(|x| {
 				x.as_ref().map(|x| {
@@ -612,8 +615,8 @@ impl ReedSolomon {
 		let mut error_poly_in_log = [0_u16 as GFSymbol; FIELD_SIZE];
 		eval_error_polynomial(&erasures[..], &mut error_poly_in_log[..], FIELD_SIZE);
 
-		let mut acc = Vec::<u8>::with_capacity(shard_len * 2 * self.k);
-		for i in 0..shard_len {
+		let mut acc = Vec::<u8>::with_capacity(shard_len_in_syms * 2 * self.k);
+		for i in 0..shard_len_in_syms {
 			// take the i-th element of all shards and try to recover
 			let decoding_run = received_shards
 				.iter()
