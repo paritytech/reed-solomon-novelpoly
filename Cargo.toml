@@ -4,7 +4,6 @@ version = "0.1.0"
 authors = ["Bernhard Schuster <bernhard@ahoi.io>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [build-dependencies]
 derive_more = { version = "0.99.0", default-features = false, features = ["add_assign", "add"] }
 rand = { version = "0.8", features = ["alloc", "small_rng"] }
@@ -18,13 +17,10 @@ reed-solomon-erasure = { version = "4.0", features = ["simd-accel"], optional = 
 derive_more = { version = "0.99.0", default-features = false, features = ["add_assign", "add"] }
 constuneval = "0.1.0"
 
-# fffft = "*"
-# ff = "*"
-# subtle = "2.4"
-# ffaster = { path = "../reed-solomon-erasure", features = ["simd-accel"] }
 thiserror = "1.0.23"
+
 # required for randomly dropping shards
-rand = { version = "0.8", features = ["alloc"] }
+rand = { version = "0.8", features = ["alloc", "small_rng"] }
 itertools = "0.10"
 sha2 = "0.9"
 assert_matches = "1"

@@ -1,5 +1,17 @@
 use derive_more::{BitXor,BitXorAssign,Add,AddAssign,Sub,SubAssign};
 
+#[cfg(not(table_bootstrap_complete))]
+pub(crate) const LOG_TABLE: [u16; FIELD_SIZE] = [0; FIELD_SIZE];
+#[cfg(not(table_bootstrap_complete))]
+pub(crate) const LOG_WALSH: [u16; FIELD_SIZE] = [0; FIELD_SIZE];
+#[cfg(not(table_bootstrap_complete))]
+pub(crate) const EXP_TABLE: [u16; FIELD_SIZE] = [0; FIELD_SIZE];
+
+// must be placed in a separate file, such that the preproc never tries to eval OUT_DIR
+// in env which does not exist in the build.rs case
+#[cfg(table_bootstrap_complete)]
+include!(concat!(env!("OUT_DIR"), "/table_f2e16.rs"));
+
 
 pub type Elt = u16;
 pub type Wide = u32;
@@ -77,67 +89,9 @@ pub fn walsh(data: &mut [Multiplier], size: usize) {
 pub type GFSymbol = Elt;
 pub const ONEMASK: GFSymbol = (FIELD_SIZE - 1) as GFSymbol;
 
-/// Quotient ideal generator given by tail of irreducible polynomial 
+/// Quotient ideal generator given by tail of irreducible polynomial
 pub const GENERATOR: GFSymbol = 0x2D; // x^16 + x^5 + x^3 + x^2 + 1
 
 // Cantor basis
 pub const BASE: [GFSymbol; FIELD_BITS] =
 	[1_u16, 44234, 15374, 5694, 50562, 60718, 37196, 16402, 27800, 4312, 27250, 47360, 64952, 64308, 65336, 39198];
-
-
-include!("f2e16.tables.rs");
-
-
-/// Compute tables determined solely by the field, which never depend
-/// upon the FFT domain or erasure coding paramaters.
-///
-/// We compute `LOG_TABLE` and `EXP_TABLE` here of course.  We compute
-/// the Walsh transform table `LOG_WALSH` here too because we never figured
-/// out how to shrink `LOG_WALSH` below the size of the full field (TODO).
-/// We thus assume it depends only upon the field for now.
-#[cfg(not(table_build_done))]
-fn write_field_tables<W: std::io::Write>(mut w: W) -> std::io::Result<()> {
-    let mut log_table: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
-    let mut exp_table: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
-
-	let mas: Elt = (1 << FIELD_BITS - 1) - 1;
-	let mut state: usize = 1;
-	for i in 0_usize..(ONEMASK as usize) {
-		exp_table[state] = i as Elt;
-		if (state >> FIELD_BITS - 1) != 0 {
-			state &= mas as usize;
-			state = state << 1_usize ^ GENERATOR as usize;
-		} else {
-			state <<= 1;
-		}
-	}
-	exp_table[0] = ONEMASK;
-
-	log_table[0] = 0;
-	for i in 0..FIELD_BITS {
-		for j in 0..(1 << i) {
-			log_table[j + (1 << i)] = log_table[j] ^ BASE[i];
-		}
-	}
-	for i in 0..FIELD_SIZE {
-		log_table[i] = exp_table[log_table[i] as usize];
-	}
-
-	for i in 0..FIELD_SIZE {
-		exp_table[log_table[i] as usize] = i as GFSymbol;
-	}
-	exp_table[ONEMASK as usize] = exp_table[0];
-
-    write_const(&mut w,"LOG_TABLE",&log_table,Some("[u16; FIELD_SIZE]")) ?;
-    write_const(&mut w,"EXP_TABLE",&exp_table,Some("[u16; FIELD_SIZE]")) ?;
-
-	// mem_cpy(&mut log_walsh[..], &log_table[..]);
-    let log_walsh = log_table.clone();
-    let mut log_walsh = unsafe { core::mem::transmute::<_,[Multiplier; FIELD_SIZE]>(log_walsh) };
-	log_walsh[0] = Multiplier(0);
-	walsh(&mut log_walsh[..], FIELD_SIZE);
-
-    write_const(w,"LOG_WALSH",&log_walsh,Some("[Multiplier; FIELD_SIZE]"))
-}
-
-
