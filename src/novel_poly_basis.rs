@@ -11,11 +11,6 @@ use super::*;
 
 use super::f2e16::*;
 
-
-use std::slice::from_raw_parts;
-
-
-
 //-----Used in decoding procedure-------
 //twisted factors used in FFT
 static mut SKEW_FACTOR: [GFSymbol; ONEMASK as usize] = [0_u16; ONEMASK as usize];
@@ -23,8 +18,6 @@ static mut SKEW_FACTOR: [GFSymbol; ONEMASK as usize] = [0_u16; ONEMASK as usize]
 //factors used in formal derivative
 #[cfg(test)]
 static mut B: [Multiplier; FIELD_SIZE >> 1] = [Multiplier(0_u16); FIELD_SIZE >> 1];
-
-
 
 pub const fn log2(mut x: usize) -> usize {
 	let mut o: usize = 0;
@@ -38,7 +31,6 @@ pub const fn log2(mut x: usize) -> usize {
 pub const fn is_power_of_2(x: usize) -> bool {
 	x > 0_usize && x & (x - 1) == 0
 }
-
 
 //formal derivative of polynomial in the new basis
 pub fn formal_derivative(cos: &mut [Additive], size: usize) {
@@ -180,14 +172,13 @@ pub fn afft_in_novel_poly_basis(data: &mut [Additive], size: usize, index: usize
 	}
 }
 
-
 //initialize SKEW_FACTOR and B
 unsafe fn init_dec() {
-    // We cannot yet identify if base has an additive or multiplicative
-    // representation, or mybe something else entirely.  (TODO)
+	// We cannot yet identify if base has an additive or multiplicative
+	// representation, or mybe something else entirely.  (TODO)
 	let mut base: [GFSymbol; FIELD_BITS - 1] = Default::default();
 
-    let mut skew_factor: [Additive; ONEMASK as usize] = [Additive(0_u16); ONEMASK as usize];
+	let mut skew_factor: [Additive; ONEMASK as usize] = [Additive(0_u16); ONEMASK as usize];
 
 	for i in 1..FIELD_BITS {
 		base[i - 1] = 1 << i;
@@ -215,10 +206,10 @@ unsafe fn init_dec() {
 		// TODO: But why?
 		//
 		// let idx = mul_table(base[m], LOG_TABLE[(base[m] ^ 1_u16) as usize]);
-		let idx = Additive(base[m]).mul( Additive(base[m] ^ 1_u16).to_multiplier() );
-        // WTF?!?
+		let idx = Additive(base[m]).mul(Additive(base[m] ^ 1_u16).to_multiplier());
+		// WTF?!?
 		// base[m] = ONEMASK - LOG_TABLE[idx as usize];
-        base[m] = ONEMASK - idx.to_multiplier().0;
+		base[m] = ONEMASK - idx.to_multiplier().0;
 
 		// Compute base[i] = base[i] * EXP[b % ONEMASK]
 		// where b = base[m] + LOG[base[i] ^ 1_u16].
@@ -240,27 +231,23 @@ unsafe fn init_dec() {
 		SKEW_FACTOR[i] = skew_factor[i].to_multiplier().0;
 	}
 
-    #[cfg(test)]
-    {
-	// TODO: How does this alter base?
-	base[0] = ONEMASK - base[0];
-	for i in 1..(FIELD_BITS - 1) {
-		base[i] = ( (
-            (ONEMASK as Wide) - (base[i] as Wide) + (base[i - 1] as Wide)
-        ) % (ONEMASK as Wide) ) as Elt;
-	}
-
-	// TODO: What is B anyways?
-	B[0] = Multiplier(0);
-	for i in 0..(FIELD_BITS - 1) {
-		let depart = 1 << i;
-		for j in 0..depart {
-			B[j + depart] = Multiplier( ((
-                B[j].to_wide() + (base[i] as Wide)
-            ) % (ONEMASK as Wide)) as Elt);
+	#[cfg(test)]
+	{
+		// TODO: How does this alter base?
+		base[0] = ONEMASK - base[0];
+		for i in 1..(FIELD_BITS - 1) {
+			base[i] = (((ONEMASK as Wide) - (base[i] as Wide) + (base[i - 1] as Wide)) % (ONEMASK as Wide)) as Elt;
 		}
-	}
-    } // cfg(test)
+
+		// TODO: What is B anyways?
+		B[0] = Multiplier(0);
+		for i in 0..(FIELD_BITS - 1) {
+			let depart = 1 << i;
+			for j in 0..depart {
+				B[j + depart] = Multiplier(((B[j].to_wide() + (base[i] as Wide)) % (ONEMASK as Wide)) as Elt);
+			}
+		}
+	} // cfg(test)
 }
 
 /// Setup both decoder and encoder.
@@ -307,7 +294,6 @@ pub fn encode_low(data: &[Additive], k: usize, codeword: &mut [Additive], n: usi
 	// restore `M` from the derived ones
 	mem_cpy(&mut codeword[0..k], &data[0..k]);
 }
-
 
 fn mem_cpy(dest: &mut [Additive], src: &[Additive]) {
 	let sl = src.len();
@@ -368,13 +354,7 @@ pub fn eval_error_polynomial(erasure: &[bool], log_walsh2: &mut [Multiplier], n:
 // technically we only need to recover
 // the first `k` instead of all `n` which
 // would include parity chunks.
-fn decode_main(
-    codeword: &mut [Additive],
-    recover_up_to: usize,
-    erasure: &[bool],
-    log_walsh2: &[Multiplier],
-    n: usize
-) {
+fn decode_main(codeword: &mut [Additive], recover_up_to: usize, erasure: &[bool], log_walsh2: &[Multiplier], n: usize) {
 	assert_eq!(codeword.len(), n);
 	assert!(n >= recover_up_to);
 	assert_eq!(erasure.len(), n);
@@ -387,30 +367,30 @@ fn decode_main(
 
 	// formal derivative
 
-    // We should change nothing when multiplying by b from B.
-    #[cfg(test)]
+	// We should change nothing when multiplying by b from B.
+	#[cfg(test)]
 	for i in (0..n).into_iter().step_by(2) {
 		let b = Multiplier(ONEMASK) - unsafe { B[i >> 1] };
-        #[cfg(test)]
-        let x: [_; 2] = [ codeword[i], codeword[i+1] ];
+		#[cfg(test)]
+		let x: [_; 2] = [codeword[i], codeword[i + 1]];
 		codeword[i] = codeword[i].mul(b);
 		codeword[i + 1] = codeword[i + 1].mul(b);
-        #[cfg(test)]
-        assert_eq!(x, [ codeword[i], codeword[i+1] ]);
+		#[cfg(test)]
+		assert_eq!(x, [codeword[i], codeword[i + 1]]);
 	}
 
 	formal_derivative(codeword, n);
 
-    // Again changes nothing by multiplying by b although b differs here.
-    #[cfg(test)]
+	// Again changes nothing by multiplying by b although b differs here.
+	#[cfg(test)]
 	for i in (0..n).into_iter().step_by(2) {
-        #[cfg(test)]
-        let x: [_; 2] = [ codeword[i], codeword[i+1] ];
+		#[cfg(test)]
+		let x: [_; 2] = [codeword[i], codeword[i + 1]];
 		let b = unsafe { B[i >> 1] };
 		codeword[i] = codeword[i].mul(b);
 		codeword[i + 1] = codeword[i + 1].mul(b);
-        #[cfg(test)]
-        assert_eq!(x, [ codeword[i], codeword[i+1] ]);
+		#[cfg(test)]
+		assert_eq!(x, [codeword[i], codeword[i + 1]]);
 	}
 
 	afft_in_novel_poly_basis(codeword, n, 0);
@@ -455,14 +435,14 @@ impl CodeParams {
 	/// Create a new reed solomon erasure encoding wrapper
 	pub fn derive_from_validator_count(validator_count: usize) -> Result<Self> {
 		if validator_count < 2 {
-			return Err(Error::ValidatorCountTooLow(validator_count))
+			return Err(Error::ValidatorCountTooLow(validator_count));
 		}
 		// we need to be able to reconstruct from 1/3 - eps
 		let k = std::cmp::max(validator_count / 3, 1); // for the odd case of 2 validators
 		let k = next_lower_power_of_2(k);
 		let n = next_higher_power_of_2(validator_count);
 		if n > FIELD_SIZE as usize {
-			return Err(Error::ValidatorCountTooLow(validator_count))
+			return Err(Error::ValidatorCountTooLow(validator_count));
 		}
 		Ok(Self { n, k, validator_count })
 	}
@@ -642,7 +622,7 @@ pub fn encode_sub(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additive>> {
 		.chain(std::iter::repeat(0u8).take(zero_bytes_to_add))
 		.tuple_windows()
 		.step_by(2)
-		.map( |(a, b)| Additive(u16::from_be_bytes([a, b])))
+		.map(|(a, b)| Additive(u16::from_be_bytes([a, b])))
 		.collect::<Vec<Additive>>();
 
 	// update new data bytes with zero padded bytes
@@ -712,21 +692,20 @@ pub fn reconstruct_sub(
 		};
 	}
 
-
 	let mut recovered_bytes = Vec::with_capacity(recover_up_to * 2);
-	recovered.into_iter().take(k).for_each(|x| { recovered_bytes.extend_from_slice( &x.0.to_be_bytes()[..] ) });
+	recovered.into_iter().take(k).for_each(|x| recovered_bytes.extend_from_slice(&x.0.to_be_bytes()[..]));
 	Ok(recovered_bytes)
 }
 
 #[cfg(test)]
 mod test {
+	use assert_matches::assert_matches;
 	use rand::distributions::Uniform;
 	use rand::seq::index::IndexVec;
-	use assert_matches::assert_matches;
 
 	use super::*;
 
-    /*
+	/*
 	// If this passes then you do not require the b_not_one feature
 	fn b_is_one() {
 		let n = FIELD_SIZE >> 1;
@@ -738,7 +717,7 @@ mod test {
 			assert_eq!(b, ONEMASK);
 		}
 	}
-    */
+	*/
 
 	fn print_sha256(txt: &'static str, data: &[Additive]) {
 		use sha2::Digest;
@@ -1040,7 +1019,7 @@ mod test {
 	fn flt_roundtrip_small() {
 		const N: usize = 16;
 		const EXPECTED: [Additive; N] =
-            unsafe { std::mem::transmute([1_u16, 2, 3, 5, 8, 13, 21, 44, 65, 0, 0xFFFF, 2, 3, 5, 7, 11]) };
+			unsafe { std::mem::transmute([1_u16, 2, 3, 5, 8, 13, 21, 44, 65, 0, 0xFFFF, 2, 3, 5, 7, 11]) };
 
 		let mut data = EXPECTED.clone();
 
@@ -1129,7 +1108,7 @@ mod test {
 
 		eval_error_polynomial(&erasure[..], &mut log_walsh2[..], FIELD_SIZE);
 
-        // TODO: Make print_sha256 polymorphic
+		// TODO: Make print_sha256 polymorphic
 		// print_sha256("log_walsh2", &log_walsh2);
 
 		decode_main(&mut codeword[..], K, &erasure[..], &log_walsh2[..], N);
@@ -1157,45 +1136,27 @@ mod test {
 		);
 	}
 
-
 	#[test]
 	fn test_code_params() {
 		assert_matches!(CodeParams::derive_from_validator_count(0), Err(_));
 
 		assert_matches!(CodeParams::derive_from_validator_count(1), Err(_));
 
-		assert_eq!(CodeParams::derive_from_validator_count(2), Ok(CodeParams {
-			n: 2,
-			k: 1,
-			validator_count: 2,
-		}));
+		assert_eq!(CodeParams::derive_from_validator_count(2), Ok(CodeParams { n: 2, k: 1, validator_count: 2 }));
 
-		assert_eq!(CodeParams::derive_from_validator_count(3), Ok(CodeParams {
-			n: 4,
-			k: 1,
-			validator_count: 3,
-		}));
+		assert_eq!(CodeParams::derive_from_validator_count(3), Ok(CodeParams { n: 4, k: 1, validator_count: 3 }));
 
-		assert_eq!(CodeParams::derive_from_validator_count(4), Ok(CodeParams {
-			n: 4,
-			k: 1,
-			validator_count: 4,
-		}));
+		assert_eq!(CodeParams::derive_from_validator_count(4), Ok(CodeParams { n: 4, k: 1, validator_count: 4 }));
 
-		assert_eq!(CodeParams::derive_from_validator_count(100), Ok(CodeParams {
-			n: 128,
-			k: 32,
-			validator_count: 100,
-		}));
+		assert_eq!(
+			CodeParams::derive_from_validator_count(100),
+			Ok(CodeParams { n: 128, k: 32, validator_count: 100 })
+		);
 	}
 
 	#[test]
 	fn shard_len_is_reasonable() {
-		let rs = CodeParams {
-			n: 16,
-			k: 4,
-			validator_count: 5,
-		}.make_encoder();
+		let rs = CodeParams { n: 16, k: 4, validator_count: 5 }.make_encoder();
 
 		// since n must be a power of 2
 		// the chunk sizes becomes slightly larger

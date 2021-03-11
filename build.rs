@@ -1,24 +1,21 @@
-
 use std::env;
-use std::io::{self,Write,Result};
-use std::path::{Path,PathBuf};
-use std::fmt;
 
-use fs_err::{self as fs, OpenOptions};
+use std::io::{Result, Write};
+use std::path::PathBuf;
+
+use fs_err::OpenOptions;
 use rand::{self, distributions::Uniform, prelude::Distribution};
 
 include!("src/f2e16.rs");
 
-
 /// Write Rust `const` declaration
-pub fn write_const<W,T>(mut w: W, name: &str, value: &T, type_name: &str) -> Result<()>
+pub fn write_const<W, T>(mut w: W, name: &str, value: &T, type_name: &str) -> Result<()>
 where
-    W: std::io::Write,
-    T: std::fmt::Debug
+	W: std::io::Write,
+	T: std::fmt::Debug,
 {
-    write!(w, "pub(crate) static {}: {} = {:#?};\n\n", name, type_name, value)
+	write!(w, "pub(crate) static {}: {} = {:#?};\n\n", name, type_name, value)
 }
-
 
 /// Compute tables determined solely by the field, which never depend
 /// upon the FFT domain or erasure coding paramaters.
@@ -29,8 +26,8 @@ where
 /// We thus assume it depends only upon the field for now.
 #[allow(dead_code)]
 fn write_field_tables<W: std::io::Write>(mut w: W) -> std::io::Result<()> {
-    let mut log_table: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
-    let mut exp_table: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
+	let mut log_table: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
+	let mut exp_table: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
 
 	let mas: Elt = (1 << FIELD_BITS - 1) - 1;
 	let mut state: usize = 1;
@@ -60,20 +57,18 @@ fn write_field_tables<W: std::io::Write>(mut w: W) -> std::io::Result<()> {
 	}
 	exp_table[ONEMASK as usize] = exp_table[0];
 
-    write_const(&mut w,"LOG_TABLE",&log_table, "[u16; FIELD_SIZE]") ?;
-    write_const(&mut w,"EXP_TABLE",&exp_table, "[u16; FIELD_SIZE]") ?;
+	write_const(&mut w, "LOG_TABLE", &log_table, "[u16; FIELD_SIZE]")?;
+	write_const(&mut w, "EXP_TABLE", &exp_table, "[u16; FIELD_SIZE]")?;
 
 	// mem_cpy(&mut log_walsh[..], &log_table[..]);
-    let log_walsh = log_table.clone();
-    let mut log_walsh = unsafe { core::mem::transmute::<_,[Multiplier; FIELD_SIZE]>(log_walsh) };
+	let log_walsh = log_table.clone();
+	let mut log_walsh = unsafe { core::mem::transmute::<_, [Multiplier; FIELD_SIZE]>(log_walsh) };
 	log_walsh[0] = Multiplier(0);
 	walsh(&mut log_walsh[..], FIELD_SIZE);
 
-    write_const(w, "LOG_WALSH", &log_walsh, "[Multiplier; FIELD_SIZE]")?;
+	write_const(w, "LOG_WALSH", &log_walsh, "[Multiplier; FIELD_SIZE]")?;
 	Ok(())
 }
-
-
 
 /// Create tables file
 ///
@@ -87,11 +82,10 @@ pub fn gen_field_tables() -> std::io::Result<()> {
 	// about to spawn
 	println!("cargo:rustc-cfg=table_bootstrap_complete");
 
-
 	let out = env::var("OUT_DIR").expect("OUT_DIR is set by cargo after process launch. qed");
 
 	let path = PathBuf::from(out).join(format!("table_{}.rs", "f2e16"));
-	let mut f = OpenOptions::new().create(true).truncate(true).write(true).open(path)?;
+	let f = OpenOptions::new().create(true).truncate(true).write(true).open(path)?;
 	write_field_tables(f)?;
 
 	Ok(())
@@ -137,7 +131,7 @@ fn gen_ffi_novel_poly_basis_bindgen() {
 }
 
 fn main() -> Result<()> {
-    gen_field_tables()?;
+	gen_field_tables()?;
 
 	#[cfg(feature = "cmp-with-cxx")]
 	{

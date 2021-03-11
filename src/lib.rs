@@ -1,6 +1,4 @@
-
 extern crate derive_more;
-
 
 pub static SMALL_RNG_SEED: [u8; 32] = [
 	0, 6, 0xFA, 0, 0x37, 3, 19, 89, 32, 032, 0x37, 0x77, 77, 0b11, 112, 52, 12, 40, 82, 34, 0, 0, 0, 1, 4, 4, 1, 4, 99,
@@ -29,9 +27,6 @@ pub mod novel_poly_basis_cxx;
 pub const N_VALIDATORS: usize = 2000;
 
 pub const BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/rand_data.bin"));
-
-
-
 
 /// Assert the byte ranges derived from the index vec are recovered properly
 pub fn assert_recovery(payload: &[u8], reconstructed_payload: &[u8], dropped_indices: IndexVec) {

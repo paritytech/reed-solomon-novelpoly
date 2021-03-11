@@ -1,9 +1,9 @@
-use derive_more::{BitXor,BitXorAssign,Add,AddAssign,Sub,SubAssign};
+use derive_more::{Add, AddAssign, BitXor, BitXorAssign, Sub, SubAssign};
 
 #[cfg(not(table_bootstrap_complete))]
 pub(crate) const LOG_TABLE: [u16; FIELD_SIZE] = [0; FIELD_SIZE];
-#[cfg(not(table_bootstrap_complete))]
-pub(crate) const LOG_WALSH: [u16; FIELD_SIZE] = [0; FIELD_SIZE];
+// #[cfg(not(table_bootstrap_complete))]
+// pub(crate) const LOG_WALSH: [u16; FIELD_SIZE] = [0; FIELD_SIZE];
 #[cfg(not(table_bootstrap_complete))]
 pub(crate) const EXP_TABLE: [u16; FIELD_SIZE] = [0; FIELD_SIZE];
 
@@ -12,49 +12,59 @@ pub(crate) const EXP_TABLE: [u16; FIELD_SIZE] = [0; FIELD_SIZE];
 #[cfg(table_bootstrap_complete)]
 include!(concat!(env!("OUT_DIR"), "/table_f2e16.rs"));
 
-
 pub type Elt = u16;
 pub type Wide = u32;
 
 pub const FIELD_BITS: usize = 16;
 pub const FIELD_SIZE: usize = 1_usize << FIELD_BITS;
 
-#[derive(Clone,Copy,Debug,Default,BitXor,BitXorAssign,PartialEq,Eq)] // PartialOrd,Ord
+#[derive(Clone, Copy, Debug, Default, BitXor, BitXorAssign, PartialEq, Eq)] // PartialOrd,Ord
 pub struct Additive(pub Elt);
 impl Additive {
-    pub fn to_wide(self) -> Wide { self.0 as Wide }
-    pub fn from_wide(x: Wide) -> Additive { Additive(x as Elt) }
+	pub fn to_wide(self) -> Wide {
+		self.0 as Wide
+	}
+	pub fn from_wide(x: Wide) -> Additive {
+		Additive(x as Elt)
+	}
 
-    pub const ZERO: Additive = Additive(0u16);
-    // pub const ONE: Additive = Additive(???);
+	pub const ZERO: Additive = Additive(0u16);
+	// pub const ONE: Additive = Additive(???);
 
-    /// Return multiplier prepared form
-    pub fn to_multiplier(self) -> Multiplier {
-        Multiplier( LOG_TABLE[self.0 as usize] )
-    }
+	/// Return multiplier prepared form
+	pub fn to_multiplier(self) -> Multiplier {
+		Multiplier(LOG_TABLE[self.0 as usize])
+	}
 
-    /// Return a*EXP_TABLE[b] over GF(2^r)
-    pub fn mul(self, other: Multiplier) -> Additive {
-    	if self == Self::ZERO { return Self::ZERO; }
-    	let log = (LOG_TABLE[self.0 as usize] as u32) + other.0 as u32;
-    	let offset = (log & ONEMASK as u32) + (log >> FIELD_BITS);
-    	Additive(EXP_TABLE[offset as usize])
-    }
+	/// Return a*EXP_TABLE[b] over GF(2^r)
+	pub fn mul(self, other: Multiplier) -> Additive {
+		if self == Self::ZERO {
+			return Self::ZERO;
+		}
+		let log = (LOG_TABLE[self.0 as usize] as u32) + other.0 as u32;
+		let offset = (log & ONEMASK as u32) + (log >> FIELD_BITS);
+		Additive(EXP_TABLE[offset as usize])
+	}
 
-    /// Multiply field elements by a single multiplier, using SIMD if available
-    pub fn mul_assign_slice(selfy: &mut [Self], other: Multiplier) {
-        // TODO: SIMD
-        for s in selfy { *s = s.mul(other); }
-    }
+	/// Multiply field elements by a single multiplier, using SIMD if available
+	pub fn mul_assign_slice(selfy: &mut [Self], other: Multiplier) {
+		// TODO: SIMD
+		for s in selfy {
+			*s = s.mul(other);
+		}
+	}
 }
 
-#[derive(Clone,Copy,Debug,Add,AddAssign,Sub,SubAssign,PartialEq,Eq)] // Default, PartialOrd,Ord
+#[derive(Clone, Copy, Debug, Add, AddAssign, Sub, SubAssign, PartialEq, Eq)] // Default, PartialOrd,Ord
 pub struct Multiplier(pub u16);
 impl Multiplier {
-    pub fn to_wide(self) -> u32 { self.0 as u32 }
-    pub fn from_wide(x: u32) -> Multiplier { Multiplier(x as u16) }
+	pub fn to_wide(self) -> u32 {
+		self.0 as u32
+	}
+	pub fn from_wide(x: u32) -> Multiplier {
+		Multiplier(x as u16)
+	}
 }
-
 
 /// Fast Walsh–Hadamard transform over modulo ONEMASK
 pub fn walsh(data: &mut [Multiplier], size: usize) {
@@ -70,19 +80,14 @@ pub fn walsh(data: &mut [Multiplier], size: usize) {
 				let mask = ONEMASK as Wide;
 				let tmp2: Wide = data[i].to_wide() + mask - data[i + depart_no].to_wide();
 				let tmp1: Wide = data[i].to_wide() + data[i + depart_no].to_wide();
-				data[i] = Multiplier((
-                    (tmp1 & mask) + (tmp1 >> FIELD_BITS)
-                ) as Elt);
-				data[i + depart_no] = Multiplier((
-                    (tmp2 & mask) + (tmp2 >> FIELD_BITS)
-                ) as Elt);
+				data[i] = Multiplier(((tmp1 & mask) + (tmp1 >> FIELD_BITS)) as Elt);
+				data[i + depart_no] = Multiplier(((tmp2 & mask) + (tmp2 >> FIELD_BITS)) as Elt);
 			}
 			j += depart_no_next;
 		}
 		depart_no = depart_no_next;
 	}
 }
-
 
 /* Needs Cleanup  */
 
