@@ -468,70 +468,45 @@ pub const fn next_lower_power_of_2(k: usize) -> usize {
 	}
 }
 
+
+/// Params for the encoder / decoder
+/// derived from a target validator count.
 #[derive(Debug, Clone, Copy)]
-struct ReedSolomon {
+pub struct CodeParams {
 	/// total number of message symbols to send
 	/// Invariant is a power of base 2
 	n: usize,
 	/// number of information containing chunks
 	/// Invariant is a power of base 2, `k < n`
 	k: usize,
+	/// Avoid copying unnecessary chunks.
+	validator_count: usize,
 }
 
-impl ReedSolomon {
+impl CodeParams {
 	/// Create a new reed solomon erasure encoding wrapper
-	fn new(validator_count: usize) -> ReedSolomon {
+	pub fn derive_from_validator_count(validator_count: usize) -> Self {
+		// TODO return a result
 		// we need to be able to reconstruct from 1/3 - eps
 		let k = validator_count / 3;
 		let k = next_lower_power_of_2(k);
 		let n = next_higher_power_of_2(validator_count);
-		Self { n, k }
+		Self { n, k, validator_count }
+	}
+
+	// make a reed-solomon instance.
+	pub fn make_encoder(&self) -> ReedSolomon {
+		ReedSolomon::new(self.n, self.k, self.validator_count)
+			.expect("this struct is not created with invalid shard number; qed")
 	}
 }
 
+
 pub fn encode(bytes: &[u8], validator_count: usize) -> Result<Vec<WrappedShard>> {
-	if validator_count < 3 {
-		return Err(Error::ValidatorCountTooLow(validator_count))
-	} else if validator_count > FIELD_SIZE as usize {
-		return Err(Error::ValidatorCountTooHigh{ want: validator_count, max: FIELD_SIZE})
-	} else if bytes.is_empty() {
-		return Err(Error::PayloadSizeIsZero)
-	}
+	let params = CodeParams::derive_from_validator_count(validator_count);
 
-	setup();
-	let rs = ReedSolomon::new(validator_count);
-
-	// setup the shards, n is likely _larger_, so use the truely required number of shards
-
-	// shard length in GF(2^16) symbols
-	let shard_len = ((bytes.len() + 1) / 2 + rs.k - 1) / rs.k;
-	assert!(shard_len > 0);
-	// collect all sub encoding runs
-
-	let k2 = rs.k * 2;
-	// prepare one wrapped shard per validator
-	let mut shards = vec![
-		WrappedShard::new({
-			let mut v = Vec::<u8>::with_capacity(shard_len * 2);
-			unsafe { v.set_len(shard_len * 2) }
-			v
-		});
-		validator_count
-	];
-
-	for (chunk_idx, i) in (0..bytes.len()).into_iter().step_by(k2).enumerate() {
-		let end = std::cmp::min(i + k2, bytes.len());
-		assert_ne!(i, end);
-		let data_piece = &bytes[i..end];
-		assert!(!data_piece.is_empty());
-		assert!(data_piece.len() <= k2);
-		let encoding_run = encode_sub(data_piece, rs.n, rs.k)?;
-		for val_idx in 0..validator_count {
-			AsMut::<[[u8; 2]]>::as_mut(&mut shards[val_idx])[chunk_idx] = encoding_run[val_idx].to_be_bytes();
-		}
-	}
-
-	Ok(shards)
+	let rs = params.make_encoder();
+	rs.encode(bytes)
 }
 
 /// each shard contains one symbol of one run of erasure coding
@@ -539,65 +514,143 @@ pub fn reconstruct(
 	received_shards: Vec<Option<WrappedShard>>,
 	validator_count: usize,
 ) -> Result<Vec<u8>>
-{
-	setup();
-	let rs = ReedSolomon::new(validator_count);
+{	let params = CodeParams::derive_from_validator_count(validator_count);
 
-	let gap = rs.n.saturating_sub(received_shards.len());
-	let received_shards = received_shards
-		.into_iter().take(rs.n)
-		.chain(std::iter::repeat(None).take(gap))
-		.collect::<Vec<_>>();
+	let rs = params.make_encoder();
+	rs.reconstruct(received_shards)
+}
 
-	assert_eq!(received_shards.len(), rs.n);
+pub struct ReedSolomon {
+	n: usize,
+	k: usize,
+	validator_count: usize,
+}
 
-	// obtain a sample of a shard length and assume that is the truth
-	// XXX make sure all shards have equal length
-	let shard_len = received_shards
-		.iter()
-		.find_map(|x| {
-			x.as_ref().map(|x| {
-				let x = AsRef::<[[u8; 2]]>::as_ref(x);
-				x.len()
-			})
-		})
-		.unwrap();
-
-	let mut existential_count = 0_usize;
-	let erasures = received_shards.iter()
-		.map(|x| x.is_none())
-		.inspect(|erased| existential_count += !*erased as usize)
-		.collect::<Vec<bool>>();
-
-	if existential_count < rs.k {
-		return Err(Error::NeedMoreShards { have: existential_count, min: rs.k, all: rs.n});
+impl ReedSolomon {
+	fn shard_len(&self, payload_size: usize) -> usize {
+		let shard_len = ((payload_size + 1) / 2 + self.k - 1) / self.k;
+		shard_len
 	}
 
-	// Evaluate error locator polynomial only once
-	let mut error_poly_in_log = [0_u16 as GFSymbol; FIELD_SIZE];
-	eval_error_polynomial(&erasures[..], &mut error_poly_in_log[..], FIELD_SIZE);
+	pub fn new(n: usize, k: usize, validator_count: usize) -> Result<Self> {
+		setup();
+		if !is_power_of_2(n) && !is_power_of_2(k) {
+			Err(Error::ParamterMustBePowerOf2 {
+				n, k,
+			})
+		} else {
+			Ok(Self {
+				validator_count,
+				n,
+				k,
+			})
+		}
+	}
 
-	let mut acc = Vec::<u8>::with_capacity(shard_len * 2 * rs.k);
-	for i in 0..shard_len {
-		// take the i-th element of all shards and try to recover
-		let decoding_run = received_shards
+	pub fn encode(&self, bytes: &[u8]) -> Result<Vec<WrappedShard>> {
+		if bytes.is_empty() {
+			return Err(Error::PayloadSizeIsZero)
+		}
+
+		// setup the shards, n is likely _larger_, so use the truely required number of shards
+
+		// shard length in GF(2^16) symbols
+		let shard_len = self.shard_len(bytes.len());
+		assert!(shard_len > 0);
+		// collect all sub encoding runs
+
+		let validator_count = self.validator_count;
+		let k2 = self.k * 2;
+		// prepare one wrapped shard per validator
+		let mut shards = vec![
+			WrappedShard::new({
+				let mut v = Vec::<u8>::with_capacity(shard_len * 2);
+				unsafe { v.set_len(shard_len * 2) }
+				v
+			});
+			validator_count
+		];
+
+		for (chunk_idx, i) in (0..bytes.len()).into_iter().step_by(k2).enumerate() {
+			let end = std::cmp::min(i + k2, bytes.len());
+			assert_ne!(i, end);
+			let data_piece = &bytes[i..end];
+			assert!(!data_piece.is_empty());
+			assert!(data_piece.len() <= k2);
+			let encoding_run = encode_sub(data_piece, self.n, self.k)?;
+			for val_idx in 0..validator_count {
+				AsMut::<[[u8; 2]]>::as_mut(&mut shards[val_idx])[chunk_idx] = encoding_run[val_idx].to_be_bytes();
+			}
+		}
+
+		Ok(shards)
+	}
+
+	/// each shard contains one symbol of one run of erasure coding
+	pub fn reconstruct(
+		&self,
+		received_shards: Vec<Option<WrappedShard>>,
+	) -> Result<Vec<u8>>
+	{
+
+		let gap = self.n.saturating_sub(received_shards.len());
+		let received_shards = received_shards
+			.into_iter().take(self.n)
+			.chain(std::iter::repeat(None).take(gap))
+			.collect::<Vec<_>>();
+
+		assert_eq!(received_shards.len(), self.n);
+
+		// obtain a sample of a shard length and assume that is the truth
+		// XXX make sure all shards have equal length
+		let shard_len = received_shards
 			.iter()
-			.map(|x| {
+			.find_map(|x| {
 				x.as_ref().map(|x| {
-					let z = AsRef::<[[u8; 2]]>::as_ref(&x)[i];
-					u16::from_be_bytes(z)
+					let x = AsRef::<[[u8; 2]]>::as_ref(x);
+					x.len()
 				})
 			})
-			.collect::<Vec<Option<GFSymbol>>>();
+			.unwrap();
 
-		assert_eq!(decoding_run.len(), rs.n);
+		// TODO check shard length is what we'd expect
 
-		// reconstruct from one set of symbols which was spread over all erasure chunks
-		let piece = reconstruct_sub(&decoding_run[..], &erasures, rs.n, rs.k, &error_poly_in_log).unwrap();
-		acc.extend_from_slice(&piece[..]);
+		let mut existential_count = 0_usize;
+		let erasures = received_shards.iter()
+			.map(|x| x.is_none())
+			.inspect(|erased| existential_count += !*erased as usize)
+			.collect::<Vec<bool>>();
+
+		if existential_count < self.k {
+			return Err(Error::NeedMoreShards { have: existential_count, min: self.k, all: self.n});
+		}
+
+		// Evaluate error locator polynomial only once
+		let mut error_poly_in_log = [0_u16 as GFSymbol; FIELD_SIZE];
+		eval_error_polynomial(&erasures[..], &mut error_poly_in_log[..], FIELD_SIZE);
+
+		let mut acc = Vec::<u8>::with_capacity(shard_len * 2 * self.k);
+		for i in 0..shard_len {
+			// take the i-th element of all shards and try to recover
+			let decoding_run = received_shards
+				.iter()
+				.map(|x| {
+					x.as_ref().map(|x| {
+						let z = AsRef::<[[u8; 2]]>::as_ref(&x)[i];
+						u16::from_be_bytes(z)
+					})
+				})
+				.collect::<Vec<Option<GFSymbol>>>();
+
+			assert_eq!(decoding_run.len(), self.n);
+
+			// reconstruct from one set of symbols which was spread over all erasure chunks
+			let piece = reconstruct_sub(&decoding_run[..], &erasures, self.n, self.k, &error_poly_in_log).unwrap();
+			acc.extend_from_slice(&piece[..]);
+		}
+
+		Ok(acc)
 	}
-
-	Ok(acc)
 }
 
 /// Bytes shall only contain payload data
@@ -768,7 +821,7 @@ mod test {
 	#[test]
 	fn k_n_construction() {
 		for validator_count in 3_usize..=8200 {
-			let ReedSolomon { n, k } = ReedSolomon::new(validator_count);
+			let CodeParams { n, k } = CodeParams::derive_from_validator_count(validator_count);
 
 			assert!(validator_count <= n);
 			assert!(validator_count / 3 >= k);
@@ -872,7 +925,7 @@ mod test {
 		const K2: usize = K * 2;
 
 		// assure the derived sizes match
-		let rs = ReedSolomon::new(N_VALIDATORS);
+		let rs = CodeParams::derive_from_validator_count(N_VALIDATORS);
 		assert_eq!(rs.n, N);
 		assert_eq!(rs.k, K);
 
@@ -923,7 +976,7 @@ mod test {
 		const K2: usize = K * 2;
 
 		// assure the derived sizes match
-		let rs = ReedSolomon::new(N_VALIDATORS);
+		let rs = CodeParams::derive_from_validator_count(N_VALIDATORS);
 		assert_eq!(rs.n, N);
 		assert_eq!(rs.k, K);
 
