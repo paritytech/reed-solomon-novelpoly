@@ -804,7 +804,7 @@ mod test {
 	#[test]
 	fn k_n_construction() {
 		for validator_count in 3_usize..=8200 {
-			let CodeParams { n, k } = CodeParams::derive_from_validator_count(validator_count);
+			let CodeParams { n, k, .. } = CodeParams::derive_from_validator_count(validator_count);
 
 			assert!(validator_count <= n);
 			assert!(validator_count / 3 >= k);
