@@ -1,4 +1,4 @@
-cargo-features = ["named-profiles"]
+# cargo-features = ["named-profiles"]
 
 [package]
 name = "rs-ec-perf"
@@ -10,8 +10,8 @@ edition = "2018"
 [build-dependencies]
 rand = { version = "0.8", features = ["alloc", "small_rng"] }
 fs-err = "2"
-bindgen = "0.57"
-cc = { version = "1.0", features = ["parallel"] }
+bindgen = { version = "0.57", optional = true }
+cc = { version = "1.0", features = ["parallel"], optional = true }
 
 [dependencies]
 reed-solomon-erasure = { version = "4.0", features = ["simd-accel"] }
@@ -32,7 +32,7 @@ criterion = "0.3"
 
 [features]
 default = []
-cmp-with-cxx = []
+cmp-with-cxx = ["cc", "bindgen"]
 status-quo = []
 
 

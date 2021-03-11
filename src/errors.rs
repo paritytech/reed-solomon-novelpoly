@@ -1,3 +1,4 @@
+#[non_exhaustive]
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum Error {
 	#[error("Valdiator number {want} exceeds max of {max}")]
@@ -11,6 +12,9 @@ pub enum Error {
 
 	#[error("Needs at least {min} shards of {all} to recover, have {have}")]
 	NeedMoreShards { have: usize, min: usize, all: usize },
+
+	#[error("Parameters: n (= {n}) and k (= {k}) both must be a power of 2")]
+	ParamterMustBePowerOf2 {n: usize, k: usize},
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
