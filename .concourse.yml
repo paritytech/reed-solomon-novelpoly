@@ -177,38 +177,40 @@ jobs:
             context: win64-cross-build
             status: failure
 
-      - task: format-check
-        timeout: 5m
-        image: env-glibc
-        config:
-          platform: linux
-          inputs:
-          - name: git-pull-request-resource
-          run:
-            # user: root
-            path: sh
-            args:
-            - -exc
-            - |
-              rustc +stable --version --verbose
+      - try:
+          task: format-check
+          timeout: 5m
+          image: env-glibc
+          config:
+            platform: linux
+            inputs:
+            - name: git-pull-request-resource
+            try:
+              run:
+                # user: root
+                path: sh
+                args:
+                - -exc
+                - |
+                  rustc +stable --version --verbose
 
-              cargo +stable fmt -- --check
+                  cargo +stable fmt -- --check
 
-            dir: git-pull-request-resource
+                dir: git-pull-request-resource
 
-        on_success:
-          put: git-pull-request-resource
-          params:
-            path: git-pull-request-resource
-            context: meta-check
-            status: success
+          on_success:
+            put: git-pull-request-resource
+            params:
+              path: git-pull-request-resource
+              context: meta-check
+              status: success
 
-        on_failure:
-          put: git-pull-request-resource
-          params:
-            path: git-pull-request-resource
-            context: meta-check
-            status: failure
+          on_failure:
+            put: git-pull-request-resource
+            params:
+              path: git-pull-request-resource
+              context: meta-check
+              status: failure
 
   ####################################################################################
   #                                 M A S T E R
