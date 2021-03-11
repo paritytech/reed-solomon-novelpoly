@@ -483,6 +483,18 @@ pub struct CodeParams {
 }
 
 impl CodeParams {
+
+	pub fn n(&self) -> usize {
+		self.n
+	}
+
+	pub fn k(&self) -> usize {
+		self.k
+	}
+	pub fn validator_count(&self) -> usize {
+		self.validator_count
+	}
+
 	/// Create a new reed solomon erasure encoding wrapper
 	pub fn derive_from_validator_count(validator_count: usize) -> Self {
 		// TODO return a result
