@@ -1,5 +1,3 @@
-# cargo-features = ["named-profiles"]
-
 [package]
 name = "rs-ec-perf"
 version = "0.1.0"
