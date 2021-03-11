@@ -483,26 +483,19 @@ pub struct CodeParams {
 }
 
 impl CodeParams {
-
-	pub fn n(&self) -> usize {
-		self.n
-	}
-
-	pub fn k(&self) -> usize {
-		self.k
-	}
-	pub fn validator_count(&self) -> usize {
-		self.validator_count
-	}
-
 	/// Create a new reed solomon erasure encoding wrapper
-	pub fn derive_from_validator_count(validator_count: usize) -> Self {
-		// TODO return a result
+	pub fn derive_from_validator_count(validator_count: usize) -> Result<Self> {
+		if validator_count < 2 {
+			return Err(Error::ValidatorCountTooLow(validator_count))
+		}
 		// we need to be able to reconstruct from 1/3 - eps
-		let k = validator_count / 3;
+		let k = std::cmp::max(validator_count / 3, 1); // for the odd case of 2 validators
 		let k = next_lower_power_of_2(k);
 		let n = next_higher_power_of_2(validator_count);
-		Self { n, k, validator_count }
+		if n > FIELD_SIZE as usize {
+			return Err(Error::ValidatorCountTooLow(validator_count))
+		}
+		Ok(Self { n, k, validator_count })
 	}
 
 	// make a reed-solomon instance.
@@ -513,7 +506,7 @@ impl CodeParams {
 }
 
 pub fn encode(bytes: &[u8], validator_count: usize) -> Result<Vec<WrappedShard>> {
-	let params = CodeParams::derive_from_validator_count(validator_count);
+	let params = CodeParams::derive_from_validator_count(validator_count)?;
 
 	let rs = params.make_encoder();
 	rs.encode(bytes)
@@ -521,7 +514,7 @@ pub fn encode(bytes: &[u8], validator_count: usize) -> Result<Vec<WrappedShard>>
 
 /// each shard contains one symbol of one run of erasure coding
 pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>, validator_count: usize) -> Result<Vec<u8>> {
-	let params = CodeParams::derive_from_validator_count(validator_count);
+	let params = CodeParams::derive_from_validator_count(validator_count)?;
 
 	let rs = params.make_encoder();
 	rs.reconstruct(received_shards)
@@ -764,6 +757,7 @@ pub fn reconstruct_sub(
 mod test {
 	use rand::distributions::Uniform;
 	use rand::seq::index::IndexVec;
+	use assert_matches::assert_matches;
 
 	use super::*;
 
@@ -818,12 +812,12 @@ mod test {
 
 	#[test]
 	fn k_n_construction() {
+		// skip the two, it's a special case
 		for validator_count in 3_usize..=8200 {
-			let CodeParams { n, k, .. } = CodeParams::derive_from_validator_count(validator_count);
-
-			assert!(validator_count <= n);
-			assert!(validator_count / 3 >= k);
-			assert!(validator_count >= k * 3);
+			let CodeParams { n, k, .. } = CodeParams::derive_from_validator_count(validator_count).unwrap();
+			assert!(validator_count <= n, "vc={} <= n={} violated", validator_count, n);
+			assert!(validator_count / 3 >= k, "vc={} / 3 >= k={} violated", validator_count, k);
+			assert!(validator_count >= k * 3, "vc={} <= k={} *3  violated", validator_count, k);
 		}
 	}
 
@@ -932,7 +926,7 @@ mod test {
 		const K2: usize = K * 2;
 
 		// assure the derived sizes match
-		let rs = CodeParams::derive_from_validator_count(N_VALIDATORS);
+		let rs = CodeParams::derive_from_validator_count(N_VALIDATORS).unwrap();
 		assert_eq!(rs.n, N);
 		assert_eq!(rs.k, K);
 
@@ -983,7 +977,7 @@ mod test {
 		const K2: usize = K * 2;
 
 		// assure the derived sizes match
-		let rs = CodeParams::derive_from_validator_count(N_VALIDATORS);
+		let rs = CodeParams::derive_from_validator_count(N_VALIDATORS).unwrap();
 		assert_eq!(rs.n, N);
 		assert_eq!(rs.k, K);
 
@@ -1180,5 +1174,61 @@ mod test {
 >>>>>>>>> > Decoding is **SUCCESS** ful! 🎈
 >>>>>>>>>"#
 		);
+	}
+
+
+	#[test]
+	fn test_code_params() {
+		assert_matches!(CodeParams::derive_from_validator_count(0), Err(_));
+
+		assert_matches!(CodeParams::derive_from_validator_count(1), Err(_));
+
+		assert_eq!(CodeParams::derive_from_validator_count(2), Ok(CodeParams {
+			n: 2,
+			k: 1,
+			validator_count: 2,
+		}));
+
+		assert_eq!(CodeParams::derive_from_validator_count(3), Ok(CodeParams {
+			n: 4,
+			k: 1,
+			validator_count: 3,
+		}));
+
+		assert_eq!(CodeParams::derive_from_validator_count(4), Ok(CodeParams {
+			n: 4,
+			k: 1,
+			validator_count: 4,
+		}));
+
+		assert_eq!(CodeParams::derive_from_validator_count(100), Ok(CodeParams {
+			n: 128,
+			k: 32,
+			validator_count: 100,
+		}));
+	}
+
+	#[test]
+	fn shard_len_is_reasonable() {
+		let rs = CodeParams {
+			n: 16,
+			k: 4,
+			validator_count: 5,
+		}.make_encoder();
+
+		// since n must be a power of 2
+		// the chunk sizes becomes slightly larger
+		// than strictly necessary
+		assert_eq!(rs.shard_len(100), 26);
+		assert_eq!(rs.shard_len(99), 26);
+
+		// see if it rounds up to 2.
+		assert_eq!(rs.shard_len(95), 24);
+		assert_eq!(rs.shard_len(94), 24);
+
+		assert_eq!(rs.shard_len(90), 24);
+
+		// needs 3 bytes to fit, rounded up to next even number.
+		assert_eq!(rs.shard_len(19), 6);
 	}
 }

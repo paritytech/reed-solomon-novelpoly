@@ -1,5 +1,5 @@
 #[non_exhaustive]
-#[derive(Debug, Clone, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error, PartialEq, Eq)]
 pub enum Error {
 	#[error("Valdiator number {want} exceeds max of {max}")]
 	ValidatorCountTooHigh { want: usize, max: usize },
