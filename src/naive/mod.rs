@@ -1,8 +1,13 @@
-use super::*;
+use std::result;
 
-use reed_solomon_erasure::galois_16::ReedSolomon;
+mod wrapped_shard;
+use wrapped_shard::WrappedShard;
 
-pub fn to_shards(payload: &[u8], rs: &ReedSolomon) -> Result<Vec<WrappedShard>> {
+use reed_solomon_erasure as reed_solomon_naive;
+use reed_solomon_naive::galois_16::ReedSolomon;
+pub use reed_solomon_naive::Error;
+
+pub fn to_shards(payload: &[u8], rs: &ReedSolomon) -> Vec<WrappedShard> {
 	let base_len = payload.len();
 
 	// how many bytes we actually need.
@@ -22,7 +27,7 @@ pub fn to_shards(payload: &[u8], rs: &ReedSolomon) -> Result<Vec<WrappedShard>> 
 		blank_shard[..len].copy_from_slice(&data_chunk[..len]);
 	}
 
-	Ok(shards)
+	shards
 }
 
 pub fn rs(validator_count: usize) -> ReedSolomon {
@@ -30,14 +35,14 @@ pub fn rs(validator_count: usize) -> ReedSolomon {
 		.expect("this struct is not created with invalid shard number; qed")
 }
 
-pub fn encode(data: &[u8], validator_count: usize) -> Result<Vec<WrappedShard>> {
+pub fn encode(data: &[u8], validator_count: usize) -> result::Result<Vec<WrappedShard>, Error> {
 	let encoder = rs(validator_count);
-	let mut shards = to_shards(data, &encoder)?;
+	let mut shards = to_shards(data, &encoder);
 	encoder.encode(&mut shards).unwrap();
 	Ok(shards)
 }
 
-pub fn reconstruct(mut received_shards: Vec<Option<WrappedShard>>, validator_count: usize) -> Result<Vec<u8>> {
+pub fn reconstruct(mut received_shards: Vec<Option<WrappedShard>>, validator_count: usize) -> result::Result<Vec<u8>, Error> {
 	let r = rs(validator_count);
 
 	// Try to reconstruct missing shards

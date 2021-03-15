@@ -91,12 +91,11 @@ pub fn walsh(data: &mut [Multiplier], size: usize) {
 
 /* Needs Cleanup  */
 
-pub type GFSymbol = Elt;
-pub const ONEMASK: GFSymbol = (FIELD_SIZE - 1) as GFSymbol;
+pub const ONEMASK: Elt = (FIELD_SIZE - 1) as Elt;
 
 /// Quotient ideal generator given by tail of irreducible polynomial
-pub const GENERATOR: GFSymbol = 0x2D; // x^16 + x^5 + x^3 + x^2 + 1
+pub const GENERATOR: Elt = 0x2D; // x^16 + x^5 + x^3 + x^2 + 1
 
 // Cantor basis
-pub const BASE: [GFSymbol; FIELD_BITS] =
+pub const BASE: [Elt; FIELD_BITS] =
 	[1_u16, 44234, 15374, 5694, 50562, 60718, 37196, 16402, 27800, 4312, 27250, 47360, 64952, 64308, 65336, 39198];

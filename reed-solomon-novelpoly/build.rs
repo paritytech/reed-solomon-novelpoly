@@ -1,18 +1,18 @@
 use std::env;
 
-use std::io::{Result, Write};
+use std::io;
 use std::path::PathBuf;
+use std::fmt;
 
-use fs_err::OpenOptions;
-use rand::{self, distributions::Uniform, prelude::Distribution};
-
+use fs_err as fs;
+use fs::OpenOptions;
 include!("src/f2e16.rs");
 
 /// Write Rust `const` declaration
-pub fn write_const<W, T>(mut w: W, name: &str, value: &T, type_name: &str) -> Result<()>
+pub fn write_const<W, T>(mut w: W, name: &str, value: &T, type_name: &str) -> io::Result<()>
 where
-	W: std::io::Write,
-	T: std::fmt::Debug,
+	W: io::Write,
+	T: fmt::Debug,
 {
 	write!(w, "pub(crate) static {}: {} = {:#?};\n\n", name, type_name, value)
 }
@@ -25,9 +25,9 @@ where
 /// out how to shrink `LOG_WALSH` below the size of the full field (TODO).
 /// We thus assume it depends only upon the field for now.
 #[allow(dead_code)]
-fn write_field_tables<W: std::io::Write>(mut w: W) -> std::io::Result<()> {
-	let mut log_table: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
-	let mut exp_table: [GFSymbol; FIELD_SIZE] = [0_u16; FIELD_SIZE];
+fn write_field_tables<W: io::Write>(mut w: W) -> io::Result<()> {
+	let mut log_table: [Elt; FIELD_SIZE] = [0_u16; FIELD_SIZE];
+	let mut exp_table: [Elt; FIELD_SIZE] = [0_u16; FIELD_SIZE];
 
 	let mas: Elt = (1 << FIELD_BITS - 1) - 1;
 	let mut state: usize = 1;
@@ -53,7 +53,7 @@ fn write_field_tables<W: std::io::Write>(mut w: W) -> std::io::Result<()> {
 	}
 
 	for i in 0..FIELD_SIZE {
-		exp_table[log_table[i] as usize] = i as GFSymbol;
+		exp_table[log_table[i] as usize] = i as Elt;
 	}
 	exp_table[ONEMASK as usize] = exp_table[0];
 
@@ -76,7 +76,7 @@ fn write_field_tables<W: std::io::Write>(mut w: W) -> std::io::Result<()> {
 /// dislikes build artifacts appearing outside env!("OUT_DIR") and we
 /// require tables to build other tables.
 /// ref.  https://doc.rust-lang.org/cargo/reference/build-scripts.html#outputs-of-the-build-script
-pub fn gen_field_tables() -> std::io::Result<()> {
+pub fn gen_field_tables() -> io::Result<()> {
 	// to avoid a circular loop, we need to import a dummy
 	// table, such that we do not depend on the thing we are
 	// about to spawn
@@ -91,29 +91,12 @@ pub fn gen_field_tables() -> std::io::Result<()> {
 	Ok(())
 }
 
-fn gen_10mb_rand_data() -> Result<()> {
-	let mut rng = rand::thread_rng();
-	let dice = Uniform::<u8>::new_inclusive(0, 255);
-	let data = dice.sample_iter(&mut rng).take(10_000_000).collect::<Vec<_>>();
-
-	let out = env::var("OUT_DIR").expect("OUT_DIR is set by cargo after process launch. qed");
-	let dest = PathBuf::from(out).join("rand_data.bin");
-
-	let mut f = OpenOptions::new().truncate(true).write(true).create(true).open(&dest)?;
-
-	f.write_all(&data)?;
-
-	f.flush()?;
-
-	Ok(())
-}
-
-#[cfg(feature = "cmp-with-cxx")]
+#[cfg(feature = "with-alt-cxx-impl")]
 fn gen_ffi_novel_poly_basis_lib() {
 	cc::Build::new().file("cxx/RSErasureCode.c").file("cxx/sha-256.c").include("cxx").compile("novelpolycxxffi");
 }
 
-#[cfg(feature = "cmp-with-cxx")]
+#[cfg(feature = "with-alt-cxx-impl")]
 fn gen_ffi_novel_poly_basis_bindgen() {
 	println!("cargo:rustc-link-lib=novelpolycxxffi");
 
@@ -130,13 +113,14 @@ fn gen_ffi_novel_poly_basis_bindgen() {
 	bindings.write_to_file(out_path.join("bindings.rs")).expect("Couldn't write bindings!");
 }
 
-fn main() -> Result<()> {
+fn main() -> io::Result<()> {
 	gen_field_tables()?;
 
-	#[cfg(feature = "cmp-with-cxx")]
+	#[cfg(feature = "with-alt-cxx-impl")]
 	{
 		gen_ffi_novel_poly_basis_lib();
 		gen_ffi_novel_poly_basis_bindgen();
 	}
-	gen_10mb_rand_data()
+
+	Ok(())
 }

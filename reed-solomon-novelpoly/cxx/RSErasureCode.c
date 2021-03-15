@@ -14,8 +14,6 @@ Lin, Han and Chung, "Novel Polynomial Basis and Its Application to Reed-Solomon 
 #include <stdio.h>
 
 
-#include "sha-256.h"
-
 #include "RSErasureCode.h"
 
 /*

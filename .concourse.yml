@@ -123,7 +123,7 @@ jobs:
               export CARGO_HOME="$(pwd)/../cargo"
               sudo chown $(whoami): -Rf ${CARGO_HOME} .
               rustc +stable --version --verbose
-              cargo +stable t
+              cargo +stable test --all
             dir: git-pull-request-resource
           caches:
           - path: cargo
@@ -294,30 +294,31 @@ jobs:
               export CARGO_HOME="$(pwd)/../cargo"
               sudo chown $(whoami): -Rf ${CARGO_HOME} .
               rustc +stable --version --verbose
-              cargo +stable t
+              cargo +stable test --all
             dir: git-repo
           caches:
           - path: cargo
 
-      - task: validate-meta-master
-        timeout: 5m
-        image: env-glibc
-        config:
-          platform: linux
-          inputs:
-          - name: git-repo
-          run:
-            # user: root
-            path: sh
-            args:
-            - -exc
-            - |
-              export CARGO_HOME="$(pwd)/../cargo"
-              sudo chown $(whoami): -Rf ${CARGO_HOME} .
-              rustc +stable --version --verbose
+      - try:
+          task: validate-meta-master
+          timeout: 5m
+          image: env-glibc
+          config:
+            platform: linux
+            inputs:
+            - name: git-repo
+            run:
+              # user: root
+              path: sh
+              args:
+              - -exc
+              - |
+                export CARGO_HOME="$(pwd)/../cargo"
+                sudo chown $(whoami): -Rf ${CARGO_HOME} .
+                rustc +stable --version --verbose
 
-              cargo +stable fmt -- --check
+                cargo +stable fmt -- --check
 
-            dir: git-repo
-          caches:
-          - path: cargo
+              dir: git-repo
+            caches:
+            - path: cargo

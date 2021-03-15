@@ -7,8 +7,7 @@ mod cxx {
 	include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
 
-use crate::{novel_poly_basis, WrappedShard};
-use rand::Rng;
+use crate::Shard;
 
 pub fn setup() {
 	use std::sync::Once;
@@ -20,18 +19,19 @@ pub fn setup() {
 	});
 }
 
-pub fn encode(bytes: &[u8]) -> Vec<WrappedShard> {
+pub fn encode<S: Shard>(_bytes: &[u8]) -> Vec<S> {
 	setup();
 	unimplemented!("encode for C for usage in rs bench is not implemented")
 }
 
-pub fn reconstruct(received_shards: Vec<Option<WrappedShard>>) -> Option<Vec<u8>> {
+pub fn reconstruct<S: Shard>(_received_shards: Vec<Option<S>>) -> Option<Vec<u8>> {
 	setup();
 	unimplemented!("reconstruction for C for usage in rs bench is not implemented")
 }
 
 #[cfg(test)]
 mod tests {
+	use rand::Rng;
 	use rand::prelude::SmallRng;
 
 	use crate::novel_poly_basis::{fft_in_novel_poly_basis, GFSymbol};
@@ -40,10 +40,10 @@ mod tests {
 
 	#[test]
 	fn konst() {
-		assert_eq!(cxx::FIELD_SIZE as usize, novel_poly_basis::FIELD_SIZE);
-		assert_eq!(cxx::FIELD_BITS as usize, novel_poly_basis::FIELD_BITS);
-		assert_eq!(cxx::MODULO as u16, novel_poly_basis::MODULO);
-		itertools::assert_equal(unsafe { &cxx::Base }.iter(), novel_poly_basis::BASE.iter());
+		assert_eq!(cxx::FIELD_SIZE as usize, crate::f2e16::FIELD_SIZE);
+		assert_eq!(cxx::FIELD_BITS as usize, crate::f2e16::FIELD_BITS);
+		assert_eq!(cxx::MODULO as u16, crate::f2e16::MODULO);
+		itertools::assert_equal(unsafe { &cxx::Base }.iter(), crate::f2e16::BASE.iter());
 	}
 
 	#[test]

@@ -1,0 +1,21 @@
+[package]
+name = "fuzzit"
+version = "0.1.0"
+authors = ["Bernhard Schuster <bernhard@ahoi.io>"]
+edition = "2018"
+publish = false
+
+[dependencies]
+honggfuzz = "=0.5.54"
+arbitrary = { version = "1", features = ["derive"] }
+rstester = { path = "../reed-solomon-tester", package = "reed-solomon-tester" }
+novelpoly = { path = "../reed-solomon-novelpoly", package = "reed-solomon-novelpoly" }
+
+[profile.bench]
+debug = true
+
+[profile.dev]
+debug = true
+
+[profile.release]
+debug = true

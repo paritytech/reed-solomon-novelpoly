@@ -20,6 +20,12 @@ impl WrappedShard {
 	}
 }
 
+impl From<Vec<u8>> for WrappedShard {
+	fn from(data: Vec<u8>) -> Self {
+		Self::new(data)
+	}
+}
+
 impl AsRef<[u8]> for WrappedShard {
 	fn as_ref(&self) -> &[u8] {
 		self.inner.as_ref()

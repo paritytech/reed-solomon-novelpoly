@@ -1,7 +1,9 @@
 use std::time::Duration;
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use rs_ec_perf::*;
+
+use reed_solomon_tester::*;
+use reed_solomon_novelpoly::WrappedShard;
 
 /// Create a new testset for a particular RS encoding.
 macro_rules! instanciate_upper_bound_test {
@@ -17,36 +19,36 @@ macro_rules! instanciate_upper_bound_test {
 			const PAYLOAD_SIZE_CUTOFF: usize = 10_000_000;
 
 			use crate::drop_random_max;
-			use crate::$mp::{encode, reconstruct};
 			use crate::WrappedShard;
-			use crate::{BYTES, SMALL_RNG_SEED};
 			use criterion::{black_box, Criterion};
 			use rand::{rngs::SmallRng, SeedableRng};
+			use reed_solomon_performance::$mp::{encode, reconstruct};
+			use reed_solomon_tester::{BYTES, SMALL_RNG_SEED};
 
 			#[test]
 			fn criterion_roundtrip_integrity() {
-				roundtrip(encode, reconstruct, black_box(&BYTES[..PAYLOAD_SIZE_CUTOFF]), VALIDATOR_COUNT);
+				roundtrip(encode::<WrappedShard>, reconstruct::<WrappedShard>, black_box(&BYTES[..PAYLOAD_SIZE_CUTOFF]), VALIDATOR_COUNT);
 			}
 
 			pub fn bench_encode(crit: &mut Criterion) {
 				crit.bench_function(concat!($name, " encode upper bound"), |b| {
 					b.iter(|| {
-						let _ = encode(black_box(&BYTES[..PAYLOAD_SIZE_CUTOFF]), VALIDATOR_COUNT);
+						let _ = encode::<WrappedShard>(black_box(&BYTES[..PAYLOAD_SIZE_CUTOFF]), VALIDATOR_COUNT);
 					})
 				});
 			}
 
 			pub fn bench_reconstruct(crit: &mut Criterion) {
 				crit.bench_function(concat!($name, " decode upper bound"), |b| {
-					let encoded = encode(&BYTES[..PAYLOAD_SIZE_CUTOFF], VALIDATOR_COUNT).unwrap();
-					let shards = encoded.clone().into_iter().map(Some).collect::<Vec<Option<WrappedShard>>>();
+					let encoded = encode::<WrappedShard>(&BYTES[..PAYLOAD_SIZE_CUTOFF], VALIDATOR_COUNT).unwrap();
+					let shards = encoded.clone().into_iter().map(Some).collect::<Vec<Option<_>>>();
 
 					let mut rng = SmallRng::from_seed(SMALL_RNG_SEED);
 
 					b.iter(|| {
-						let mut shards2: Vec<Option<WrappedShard>> = shards.clone();
+						let mut shards2: Vec<Option<_>> = shards.clone();
 						drop_random_max(&mut shards2[..], VALIDATOR_COUNT, VALIDATOR_COUNT / 3, &mut rng);
-						let _ = reconstruct(black_box(shards2), VALIDATOR_COUNT);
+						let _ = reconstruct::<WrappedShard>(black_box(shards2), VALIDATOR_COUNT);
 					})
 				});
 			}
@@ -55,23 +57,23 @@ macro_rules! instanciate_upper_bound_test {
 }
 
 pub mod tests {
-	instanciate_upper_bound_test!("novel poly", novel_poly_basis);
+	#[cfg(feature = "novelpoly")]
+	instanciate_upper_bound_test!("novelpoly", novelpoly);
 
-	#[cfg(feature = "status-quo")]
-	instanciate_upper_bound_test!("status quo", status_quo);
+	#[cfg(feature = "naive")]
+	instanciate_upper_bound_test!("naive", naive);
 }
 
 pub mod parameterized {
+	use criterion::{black_box, BenchmarkId, Criterion};
+
+	use rand::{rngs::SmallRng, SeedableRng};
+	use reed_solomon_novelpoly::WrappedShard;
+    use reed_solomon_tester::{drop_random_max, BYTES, SMALL_RNG_SEED};
 	use std::ops::Range;
 
-	use crate::drop_random_max;
-	use crate::WrappedShard;
-	use crate::{BYTES, SMALL_RNG_SEED};
-	use criterion::{black_box, BenchmarkId, Criterion};
-	use rand::{rngs::SmallRng, SeedableRng};
-
-	const STEPS_VALIDATORS: usize = 3;
-	const STEPS_PAYLOAD: usize = 7;
+	const STEPS_VALIDATORS: usize = 4;
+	const STEPS_PAYLOAD: usize = 10;
 
 	pub fn steped(range: Range<usize>, steps: usize) -> impl Iterator<Item = usize> {
 		assert!(steps > 1);
@@ -129,31 +131,34 @@ pub mod parameterized {
 		validator_count: usize,
 		payload_size: usize,
 	) {
+		#[cfg(feature = "novelpoly")]
 		{
-			use crate::novel_poly_basis::encode;
-
 			group.bench_with_input(
 				BenchmarkId::new("novel-poly-encode", param.to_string()),
 				&payload_size,
 				|b, &payload_size| {
 					{
 						b.iter(|| {
-							let _ = encode(black_box(&BYTES[..payload_size]), black_box(validator_count));
+							let _ = reed_solomon_performance::novelpoly::encode::<WrappedShard>(
+								black_box(&BYTES[..payload_size]),
+								black_box(validator_count),
+							);
 						})
 					}
 				},
 			);
 		}
-		#[cfg(feature = "status-quo")]
+		#[cfg(feature = "naive")]
 		{
-			use crate::status_quo::encode;
-
 			group.bench_with_input(
-				BenchmarkId::new("status-quo-encode", param.to_string()),
+				BenchmarkId::new("naive-encode", param.to_string()),
 				&payload_size,
 				|b, &payload_size| {
 					b.iter(|| {
-						let _ = encode(black_box(&BYTES[..payload_size]), black_box(validator_count));
+						let _ = reed_solomon_performance::naive::encode::<WrappedShard>(
+							black_box(&BYTES[..payload_size]),
+							black_box(validator_count),
+						);
 					})
 				},
 			);
@@ -168,39 +173,43 @@ pub mod parameterized {
 		rng: &mut SmallRng,
 	) {
 		{
-			use crate::novel_poly_basis::{encode, reconstruct};
-
 			group.bench_with_input(
 				BenchmarkId::new("novel-poly-reconstruct", param.to_string()),
 				&payload_size,
 				|b, &payload_size| {
-					let encoded = encode(&BYTES[..payload_size], validator_count).unwrap();
+					let encoded =
+						reed_solomon_performance::novelpoly::encode::<WrappedShard>(&BYTES[..payload_size], validator_count).unwrap();
 					let shards = encoded.clone().into_iter().map(Some).collect::<Vec<_>>();
 
 					b.iter(|| {
-						let mut shards2: Vec<Option<WrappedShard>> = shards.clone();
+						let mut shards2: Vec<Option<_>> = shards.clone();
 						drop_random_max(&mut shards2[..], validator_count, validator_count / 3, rng);
-						let _ = reconstruct(black_box(shards2), black_box(validator_count));
+						let _ = reed_solomon_performance::novelpoly::reconstruct::<WrappedShard>(
+							black_box(shards2),
+							black_box(validator_count),
+						);
 					})
 				},
 			);
 		}
 
-		#[cfg(feature = "status-quo")]
+		#[cfg(feature = "naive")]
 		{
-			use crate::status_quo::{encode, reconstruct};
-
 			group.bench_with_input(
-				BenchmarkId::new("status-quo-reconstruct", param.to_string()),
+				BenchmarkId::new("naive-reconstruct", param.to_string()),
 				&payload_size,
 				|b, &payload_size| {
-					let encoded = encode(&BYTES[..payload_size], validator_count).unwrap();
+					let encoded =
+						reed_solomon_performance::naive::encode::<WrappedShard>(&BYTES[..payload_size], validator_count).unwrap();
 					let shards = encoded.clone().into_iter().map(Some).collect::<Vec<_>>();
 
 					b.iter(|| {
-						let mut shards2: Vec<Option<WrappedShard>> = shards.clone();
+						let mut shards2: Vec<Option<_>> = shards.clone();
 						drop_random_max(&mut shards2[..], validator_count, validator_count / 3, rng);
-						let _ = reconstruct(black_box(shards2), black_box(validator_count));
+						let _ = reed_solomon_performance::naive::reconstruct::<WrappedShard>(
+							black_box(shards2),
+							black_box(validator_count),
+						);
 					})
 				},
 			);
@@ -235,11 +244,11 @@ criterion_group!(
 name = upper_bounds;
 config = adjusted_criterion();
 targets =
-	tests::novel_poly_basis::bench_encode,
-	tests::novel_poly_basis::bench_reconstruct,
+	tests::novelpoly::bench_encode,
+	tests::novelpoly::bench_reconstruct,
 	// too slow, takes 30 minutes for 10 test runs
-	// tests::status_quo::bench_encode,
-	// tests::status_quo::bench_reconstruct,
+	// tests::naive::bench_encode,
+	// tests::naive::bench_reconstruct,
 );
 
 criterion_main!(plot_paramterized, upper_bounds);

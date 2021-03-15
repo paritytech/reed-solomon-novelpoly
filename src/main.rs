@@ -1,16 +1,39 @@
-use rs_ec_perf::*;
+use color_eyre::Result;
 
 fn main() -> Result<()> {
-	#[cfg(feature = "cmp-with-cxx")]
+	color_eyre::install()?;
+
+	#[allow(unused)]
+	use reed_solomon_performance::{BYTES, N_SHARDS, TEST_DATA_CHUNK_SIZE};
+
+	#[cfg(feature = "novelpoly")]
 	{
-		// roundtrip(novel_poly_basis_cxx::encode, novel_poly_basis_cxx::reconstruct, &BYTES[..DATA_SHARDS * 2], DATA_SHARDS)?;
+		use reed_solomon_performance::novelpoly;
+		use novelpoly::WrappedShard;
+		reed_solomon_tester::roundtrip(
+			novelpoly::encode::<WrappedShard>,
+			novelpoly::reconstruct::<WrappedShard>,
+			&BYTES[..TEST_DATA_CHUNK_SIZE],
+			N_SHARDS,
+		)?;
 	}
 
-	roundtrip(novel_poly_basis::encode, novel_poly_basis::reconstruct, &BYTES[..], N_VALIDATORS)?;
-
-	#[cfg(feature = "status-quo")]
+	#[cfg(feature = "novelpoly-with-alt-cxx-impl")]
 	{
-		roundtrip(status_quo::encode, status_quo::reconstruct, &BYTES[..], N_VALIDATORS)?;
+		use reed_solomon_performance::novelpoly;
+		use novelpoly::WrappedShard;
+		reed_solomon_tester::roundtrip(
+			novelpoly::cxx::encode,
+			novelpoly::cxx::reconstruct,
+			&BYTES[..TEST_DATA_CHUNK_SIZE],
+			N_SHARDS,
+		)?;
+	}
+
+	#[cfg(feature = "naive")]
+	{
+		use reed_solomon_performance::naive;
+		reed_solomon_tester::roundtrip(naive::encode, naive::reconstruct, &BYTES[..TEST_DATA_CHUNK_SIZE], N_SHARDS)?;
 	}
 
 	Ok(())

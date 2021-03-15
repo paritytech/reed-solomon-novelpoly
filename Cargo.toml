@@ -1,28 +1,19 @@
 [package]
-name = "rs-ec-perf"
+name = "reed-solomon-performance"
 version = "0.1.0"
 authors = ["Bernhard Schuster <bernhard@ahoi.io>"]
 edition = "2018"
-
-[build-dependencies]
-derive_more = { version = "0.99.0", default-features = false, features = ["add_assign", "add"] }
-rand = { version = "0.8", features = ["alloc", "small_rng"] }
-fs-err = "2"
-bindgen = { version = "0.57", optional = true }
-cc = { version = "1.0", features = ["parallel"], optional = true }
+publish = false
 
 [dependencies]
 reed-solomon-erasure = { version = "4.0", features = ["simd-accel"], optional = true }
+reed-solomon-novelpoly = { package = "reed-solomon-novelpoly", path = "./reed-solomon-novelpoly", optional = true }
+reed-solomon-tester = { package = "reed-solomon-tester", path = "./reed-solomon-tester" }
 
-derive_more = { version = "0.99.0", default-features = false, features = ["add_assign", "add"] }
-constuneval = "0.1.0"
+color-eyre = "0.5"
 
-thiserror = "1.0.23"
-
-# required for randomly dropping shards
 rand = { version = "0.8", features = ["alloc", "small_rng"] }
 itertools = "0.10"
-sha2 = "0.9"
 assert_matches = "1"
 
 [dev-dependencies]
@@ -30,9 +21,10 @@ iai = "0.1"
 criterion = "0.3"
 
 [features]
-default = []
-cmp-with-cxx = ["cc", "bindgen"]
-status-quo = ["reed-solomon-erasure"]
+default = ["novelpoly"]
+novelpoly = ["reed-solomon-novelpoly"]
+novelpoly-cxx = ["reed-solomon-novelpoly/with-alt-cxx-impl", "novelpoly"]
+naive = ["reed-solomon-erasure"]
 
 [profile.bench]
 debug = true
@@ -56,5 +48,7 @@ bench = true
 
 [workspace]
 members = [
-     "fuzzit"
+     "./reed-solomon-tester",
+     "./reed-solomon-novelpoly",
+     "./reed-solomon-novelpoly-fuzzit",
 ]
