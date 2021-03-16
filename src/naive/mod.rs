@@ -42,7 +42,10 @@ pub fn encode(data: &[u8], validator_count: usize) -> result::Result<Vec<Wrapped
 	Ok(shards)
 }
 
-pub fn reconstruct(mut received_shards: Vec<Option<WrappedShard>>, validator_count: usize) -> result::Result<Vec<u8>, Error> {
+pub fn reconstruct(
+	mut received_shards: Vec<Option<WrappedShard>>,
+	validator_count: usize,
+) -> result::Result<Vec<u8>, Error> {
 	let r = rs(validator_count);
 
 	// Try to reconstruct missing shards

@@ -240,6 +240,7 @@ void decode_main(GFSymbol* codeword, int k, Boolean* erasure, GFSymbol* log_wals
 }
 
 void print_sha256(char* txt, uint8_t* data, size_t lx) {
+#if 0
 	uint8_t hash[32];
 	memset(hash, 0x00, 32);
 	calc_sha_256(hash, data, lx);
@@ -248,6 +249,7 @@ void print_sha256(char* txt, uint8_t* data, size_t lx) {
 		printf("%02x", hash[i]);
 	}
 	printf("\n");
+#endif
 }
 
 int roundtrip(int n, int k) {

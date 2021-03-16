@@ -11,7 +11,7 @@ mod test {
 
 	use novelpoly::WrappedShard;
 
-    use super::*;
+	use super::*;
 
 	#[cfg(feature = "novelpoly")]
 	#[test]

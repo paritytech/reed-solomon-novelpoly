@@ -8,8 +8,8 @@ fn main() -> Result<()> {
 
 	#[cfg(feature = "novelpoly")]
 	{
-		use reed_solomon_performance::novelpoly;
 		use novelpoly::WrappedShard;
+		use reed_solomon_performance::novelpoly;
 		reed_solomon_tester::roundtrip(
 			novelpoly::encode::<WrappedShard>,
 			novelpoly::reconstruct::<WrappedShard>,
@@ -20,8 +20,8 @@ fn main() -> Result<()> {
 
 	#[cfg(feature = "novelpoly-with-alt-cxx-impl")]
 	{
-		use reed_solomon_performance::novelpoly;
 		use novelpoly::WrappedShard;
+		use reed_solomon_performance::novelpoly;
 		reed_solomon_tester::roundtrip(
 			novelpoly::cxx::encode,
 			novelpoly::cxx::reconstruct,

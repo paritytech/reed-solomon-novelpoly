@@ -1,5 +1,7 @@
 use super::*;
 
+use crate::field::f2e16;
+use crate::WrappedShard;
 use assert_matches::assert_matches;
 use rand::distributions::Uniform;
 use rand::prelude::*;
@@ -7,34 +9,6 @@ use rand::rngs::SmallRng;
 use rand::seq::index::IndexVec;
 use rand::thread_rng;
 use reed_solomon_tester::*;
-use crate::WrappedShard;
-
-/*
-// If this passes then you do not require the b_not_one feature
-fn b_is_one() {
-	let n = FIELD_SIZE >> 1;
-	// Everything
-	// for i in (0..n) {
-	// Just like in decode_main
-	for i in (0..n).into_iter().step_by(2) {
-		let b = Multiplier(ONEMASK) - unsafe { B[i >> 1] };
-		assert_eq!(b, ONEMASK);
-	}
-}
-*/
-
-fn print_sha256(txt: &'static str, data: &[Additive]) {
-	use sha2::Digest;
-	let data = unsafe { ::std::slice::from_raw_parts(data.as_ptr() as *const u8, data.len() * 2) };
-
-	let mut digest = sha2::Sha256::new();
-	digest.update(data);
-	println!("sha256(rs|{}):", txt);
-	for byte in digest.finalize().into_iter() {
-		print!("{:02x}", byte);
-	}
-	println!("")
-}
 
 /// Generate a random index
 fn rand_gf_element() -> Additive {
@@ -81,8 +55,8 @@ fn k_n_construction() {
 			Ok(CodeParams { n, k, wanted_n }) => {
 				assert_eq!(wanted_n, validator_count);
 				assert!(validator_count <= n, "vc={} <= n={} violated", validator_count, n);
-				assert!(validator_count / 3 >= k, "vc={} / 3 >= k={} violated", validator_count, k);
-				assert!(validator_count >= k * 3, "vc={} <= k={} *3  violated", validator_count, k);
+				assert!(validator_count / 3 >= k - 1, "vc={} / 3 >= k={} violated", validator_count, k);
+				assert!(validator_count >= (k-1) *3, "vc={} <= k={} *3  violated", validator_count, k);
 			}
 		}
 	}
@@ -95,20 +69,19 @@ fn flt_back_and_forth() {
 	let mut data = (0..N).into_iter().map(|_x| rand_gf_element()).collect::<Vec<Additive>>();
 	let expected = data.clone();
 
-	afft_in_novel_poly_basis(&mut data, N, N / 4);
+	afft(&mut data, N, N / 4);
 
 	// make sure something is done
 	assert!(data.iter().zip(expected.iter()).filter(|(a, b)| { a != b }).count() > 0);
 
-	inverse_afft_in_novel_poly_basis(&mut data, N, N / 4);
+	inverse_afft(&mut data, N, N / 4);
 
 	itertools::assert_equal(data, expected);
 }
 
 #[test]
 fn sub_encode_decode() -> Result<()> {
-	setup();
-	let mut rng = rand::thread_rng();
+	let mut rng = rand::rngs::SmallRng::from_seed(SMALL_RNG_SEED);
 
 	const N: usize = 32;
 	const K: usize = 4;
@@ -149,8 +122,6 @@ fn sub_eq_big_for_small_messages() {
 	const N_WANTED_SHARDS: usize = 128;
 	const N: usize = N_WANTED_SHARDS;
 	const K: usize = 32;
-
-	setup();
 
 	const K2: usize = K * 2;
 
@@ -201,12 +172,11 @@ fn roundtrip_for_large_messages() -> Result<()> {
 	const N: usize = 2048;
 	const K: usize = 512;
 
-	setup();
-
 	const K2: usize = K * 2;
 
 	// assure the derived sizes match
-	let rs = CodeParams::derive_parameters(N_WANTED_SHARDS, N_WANTED_SHARDS.saturating_sub(1) / 3).expect("Const test parameters are ok. qed");
+	let rs = CodeParams::derive_parameters(N_WANTED_SHARDS, N_WANTED_SHARDS.saturating_sub(1) / 3)
+		.expect("Const test parameters are ok. qed");
 	assert_eq!(rs.n, N);
 	assert_eq!(rs.k, K);
 
@@ -294,7 +264,7 @@ fn flt_roundtrip_small() {
 
 	let mut data = EXPECTED.clone();
 
-	afft_in_novel_poly_basis(&mut data, N, N / 4);
+	f2e16::afft(&mut data, N, N / 4);
 
 	println!("novel basis(rust):");
 	data.iter().for_each(|sym| {
@@ -302,7 +272,7 @@ fn flt_roundtrip_small() {
 	});
 	println!("");
 
-	inverse_afft_in_novel_poly_basis(&mut data, N, N / 4);
+	f2e16::inverse_afft(&mut data, N, N / 4);
 	itertools::assert_equal(data.iter(), EXPECTED.iter());
 }
 
@@ -310,8 +280,6 @@ fn flt_roundtrip_small() {
 fn ported_c_test() {
 	const N: usize = 256;
 	const K: usize = 8;
-
-	setup();
 
 	//-----------Generating message----------
 	//message array
@@ -330,16 +298,15 @@ fn ported_c_test() {
 		print!("{:04x} ", data[i].0);
 	}
 	println!("");
-	print_sha256("data", &data[..]);
 
 	//---------encoding----------
 	let mut codeword = [Additive(0); N];
 
 	if K + K > N && false {
 		let (data_till_t, data_skip_t) = data.split_at_mut(N - K);
-		encode_high(data_skip_t, K, data_till_t, &mut codeword[..], N);
+		f2e16::encode_high(data_skip_t, K, data_till_t, &mut codeword[..], N);
 	} else {
-		encode_low(&data[..], K, &mut codeword[..], N);
+		f2e16::encode_low(&data[..], K, &mut codeword[..], N);
 	}
 
 	// println!("Codeword:");
@@ -347,8 +314,6 @@ fn ported_c_test() {
 	// print!("{:04x} ", codeword[i]);
 	// }
 	// println!("");
-
-	print_sha256("encoded", &codeword);
 
 	//--------erasure simulation---------
 
@@ -372,19 +337,15 @@ fn ported_c_test() {
 		codeword[i] = Additive(0);
 	}
 
-	print_sha256("erased", &codeword);
-
 	//---------Erasure decoding----------------
 	let mut log_walsh2: [Multiplier; FIELD_SIZE] = [Multiplier(0); FIELD_SIZE];
 
-	eval_error_polynomial(&erasure[..], &mut log_walsh2[..], FIELD_SIZE);
+	f2e16::eval_error_polynomial(&erasure[..], &mut log_walsh2[..], FIELD_SIZE);
 
 	// TODO: Make print_sha256 polymorphic
 	// print_sha256("log_walsh2", &log_walsh2);
 
-	decode_main(&mut codeword[..], K, &erasure[..], &log_walsh2[..], N);
-
-	print_sha256("decoded", &codeword[0..K]);
+	f2e16::decode_main(&mut codeword[..], K, &erasure[..], &log_walsh2[..], N);
 
 	println!("Decoded result:");
 	for i in 0..N {
@@ -413,14 +374,25 @@ fn test_code_params() {
 
 	assert_matches!(CodeParams::derive_parameters(1, recoverablity_subset_size(1)), Err(_));
 
-	// FIXME this should be cought in the using code
-	// assert_eq!(CodeParams::derive_parameters(2, recoverablity_subset_size(2)), Ok(CodeParams { n: 2, k: 1, wanted_n: 2 }));
+	assert_eq!(
+		CodeParams::derive_parameters(2, recoverablity_subset_size(2)),
+		Ok(CodeParams { n: 2, k: 1, wanted_n: 2 })
+	);
 
-	assert_eq!(CodeParams::derive_parameters(3, recoverablity_subset_size(3)), Ok(CodeParams { n: 4, k: 1, wanted_n: 3 }));
+	assert_eq!(
+		CodeParams::derive_parameters(3, recoverablity_subset_size(3)),
+		Ok(CodeParams { n: 4, k: 1, wanted_n: 3 })
+	);
 
-	assert_eq!(CodeParams::derive_parameters(4, recoverablity_subset_size(4)), Ok(CodeParams { n: 4, k: 1, wanted_n: 4 }));
+	assert_eq!(
+		CodeParams::derive_parameters(4, recoverablity_subset_size(4)),
+		Ok(CodeParams { n: 4, k: 2, wanted_n: 4 })
+	);
 
-	assert_eq!(CodeParams::derive_parameters(100, recoverablity_subset_size(100)), Ok(CodeParams { n: 128, k: 32, wanted_n: 100 }));
+	assert_eq!(
+		CodeParams::derive_parameters(100, recoverablity_subset_size(100)),
+		Ok(CodeParams { n: 128, k: 32, wanted_n: 100 })
+	);
 }
 
 #[test]

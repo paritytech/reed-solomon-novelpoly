@@ -3,14 +3,18 @@
 pub mod errors;
 pub use errors::*;
 
-pub mod f2e16;
+pub mod util;
+pub use util::*;
+
+pub mod field;
+pub use self::field::f256;
+pub use self::field::f2e16;
 
 mod novel_poly_basis;
 pub use self::novel_poly_basis::*;
 
 pub mod shard;
 pub use self::shard::Shard;
-
 
 pub mod wrapped_shard;
 pub use self::wrapped_shard::WrappedShard;
@@ -31,6 +35,11 @@ mod test {
 
 	#[test]
 	fn novel_poly_basis_roundtrip() -> Result<()> {
-		roundtrip(novel_poly_basis::encode::<WrappedShard>, novel_poly_basis::reconstruct::<WrappedShard>, &BYTES[..1337], N_SHARDS)
+		roundtrip(
+			novel_poly_basis::encode::<WrappedShard>,
+			novel_poly_basis::reconstruct::<WrappedShard>,
+			&BYTES[..1337],
+			N_SHARDS,
+		)
 	}
 }

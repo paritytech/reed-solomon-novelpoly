@@ -3,8 +3,8 @@ CCFLAGS := -ggdb
 LDFLAGS :=
 
 TARGETS:= rsec
-OBJ    := main.o RSErasureCode.o sha-256.o
-DEPS   := sha-256.h RSErasureCode.h
+OBJ    := main.o RSErasureCode.o
+DEPS   := RSErasureCode.h
 
 .PHONY: all clean
 

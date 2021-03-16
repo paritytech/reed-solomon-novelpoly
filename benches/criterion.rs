@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use criterion::{criterion_group, criterion_main, Criterion};
 
-use reed_solomon_tester::*;
 use reed_solomon_novelpoly::WrappedShard;
+use reed_solomon_tester::*;
 
 /// Create a new testset for a particular RS encoding.
 macro_rules! instanciate_upper_bound_test {
@@ -27,7 +27,12 @@ macro_rules! instanciate_upper_bound_test {
 
 			#[test]
 			fn criterion_roundtrip_integrity() {
-				roundtrip(encode::<WrappedShard>, reconstruct::<WrappedShard>, black_box(&BYTES[..PAYLOAD_SIZE_CUTOFF]), VALIDATOR_COUNT);
+				roundtrip(
+					encode::<WrappedShard>,
+					reconstruct::<WrappedShard>,
+					black_box(&BYTES[..PAYLOAD_SIZE_CUTOFF]),
+					VALIDATOR_COUNT,
+				);
 			}
 
 			pub fn bench_encode(crit: &mut Criterion) {
@@ -69,7 +74,7 @@ pub mod parameterized {
 
 	use rand::{rngs::SmallRng, SeedableRng};
 	use reed_solomon_novelpoly::WrappedShard;
-    use reed_solomon_tester::{drop_random_max, BYTES, SMALL_RNG_SEED};
+	use reed_solomon_tester::{drop_random_max, BYTES, SMALL_RNG_SEED};
 	use std::ops::Range;
 
 	const STEPS_VALIDATORS: usize = 4;
@@ -177,8 +182,11 @@ pub mod parameterized {
 				BenchmarkId::new("novel-poly-reconstruct", param.to_string()),
 				&payload_size,
 				|b, &payload_size| {
-					let encoded =
-						reed_solomon_performance::novelpoly::encode::<WrappedShard>(&BYTES[..payload_size], validator_count).unwrap();
+					let encoded = reed_solomon_performance::novelpoly::encode::<WrappedShard>(
+						&BYTES[..payload_size],
+						validator_count,
+					)
+					.unwrap();
 					let shards = encoded.clone().into_iter().map(Some).collect::<Vec<_>>();
 
 					b.iter(|| {
@@ -199,8 +207,11 @@ pub mod parameterized {
 				BenchmarkId::new("naive-reconstruct", param.to_string()),
 				&payload_size,
 				|b, &payload_size| {
-					let encoded =
-						reed_solomon_performance::naive::encode::<WrappedShard>(&BYTES[..payload_size], validator_count).unwrap();
+					let encoded = reed_solomon_performance::naive::encode::<WrappedShard>(
+						&BYTES[..payload_size],
+						validator_count,
+					)
+					.unwrap();
 					let shards = encoded.clone().into_iter().map(Some).collect::<Vec<_>>();
 
 					b.iter(|| {
