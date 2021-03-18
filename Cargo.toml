@@ -7,7 +7,7 @@ publish = false
 
 [dependencies]
 reed-solomon-erasure = { version = "4.0", features = ["simd-accel"], optional = true }
-reed-solomon-novelpoly = { package = "reed-solomon-novelpoly", path = "./reed-solomon-novelpoly", optional = true }
+reed-solomon-novelpoly = { package = "reed-solomon-novelpoly", path = "./reed-solomon-novelpoly" }
 reed-solomon-tester = { package = "reed-solomon-tester", path = "./reed-solomon-tester" }
 
 color-eyre = "0.5"
@@ -21,10 +21,10 @@ iai = "0.1"
 criterion = "0.3"
 
 [features]
-default = ["novelpoly"]
-novelpoly = ["reed-solomon-novelpoly"]
-novelpoly-cxx = ["reed-solomon-novelpoly/with-alt-cxx-impl", "novelpoly"]
+default = []
+novelpoly-cxx = ["reed-solomon-novelpoly/with-alt-cxx-impl"]
 naive = ["reed-solomon-erasure"]
+upperbounds=["naive"]
 
 [profile.bench]
 debug = true

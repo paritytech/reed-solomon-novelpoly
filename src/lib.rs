@@ -1,4 +1,4 @@
-#[cfg(feature = "novelpoly")]
+pub use novelpoly::{Shard, WrappedShard};
 pub use reed_solomon_novelpoly as novelpoly;
 
 #[cfg(feature = "naive")]
@@ -8,8 +8,6 @@ pub use reed_solomon_tester::{BYTES, N_SHARDS, TEST_DATA_CHUNK_SIZE};
 
 #[cfg(test)]
 mod test {
-
-	use novelpoly::WrappedShard;
 
 	use super::*;
 
@@ -37,6 +35,11 @@ mod test {
 	#[cfg(feature = "naive")]
 	#[test]
 	fn naive_roundtrip() -> std::result::Result<(), naive::Error> {
-		reed_solomon_tester::roundtrip(naive::encode, naive::reconstruct, &BYTES[..TEST_DATA_CHUNK_SIZE], N_SHARDS)
+		reed_solomon_tester::roundtrip(
+			naive::encode::<WrappedShard>,
+			naive::reconstruct::<WrappedShard>,
+			&BYTES[..TEST_DATA_CHUNK_SIZE],
+			N_SHARDS,
+		)
 	}
 }

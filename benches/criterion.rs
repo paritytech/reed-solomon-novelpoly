@@ -62,7 +62,6 @@ macro_rules! instanciate_upper_bound_test {
 }
 
 pub mod tests {
-	#[cfg(feature = "novelpoly")]
 	instanciate_upper_bound_test!("novelpoly", novelpoly);
 
 	#[cfg(feature = "naive")]
@@ -136,7 +135,6 @@ pub mod parameterized {
 		validator_count: usize,
 		payload_size: usize,
 	) {
-		#[cfg(feature = "novelpoly")]
 		{
 			group.bench_with_input(
 				BenchmarkId::new("novel-poly-encode", param.to_string()),
@@ -234,7 +232,7 @@ fn parameterized_criterion() -> Criterion {
 }
 
 criterion_group!(
-name = plot_paramterized;
+name = plot_parameterized;
 config = parameterized_criterion();
 targets =
 	parameterized::bench_encode_2d,
@@ -251,15 +249,20 @@ fn adjusted_criterion() -> Criterion {
 	crit
 }
 
+#[cfg(feature = "upperbounds")]
 criterion_group!(
 name = upper_bounds;
 config = adjusted_criterion();
 targets =
 	tests::novelpoly::bench_encode,
 	tests::novelpoly::bench_reconstruct,
-	// too slow, takes 30 minutes for 10 test runs
-	// tests::naive::bench_encode,
-	// tests::naive::bench_reconstruct,
+	// very slow, takes 30 minutes for 10 test runs
+	tests::naive::bench_encode,
+	tests::naive::bench_reconstruct,
 );
 
-criterion_main!(plot_paramterized, upper_bounds);
+#[cfg(feature = "upperbounds")]
+criterion_main!(upper_bounds, plot_parameterized);
+
+#[cfg(not(feature = "upperbounds"))]
+criterion_main!(plot_parameterized);
