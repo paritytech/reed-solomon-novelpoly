@@ -1,12 +1,10 @@
 use honggfuzz::fuzz;
 
-
 use novelpoly::WrappedShard;
 
 use arbitrary::*;
 
 use rand::prelude::*;
-
 
 #[derive(Debug, Clone)]
 struct ReconstructionFeed {
@@ -16,21 +14,17 @@ struct ReconstructionFeed {
 
 impl<'a> Arbitrary<'a> for ReconstructionFeed {
 	fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
-
 		let validator_count = u.int_in_range(0_usize..=2200)?;
 		let shard_drop_count = u.int_in_range(0_usize..=validator_count)?;
 
 		let n_chunks = validator_count - shard_drop_count;
-        let bytes_per_shard = if n_chunks > 0 {
-			u.len() / n_chunks
-		} else {
-			0
-		};
+		let bytes_per_shard = if n_chunks > 0 { u.len() / n_chunks } else { 0 };
 
-		let mut rng = rand_chacha::ChaCha8Rng::from_seed([0u8;32]);
+		let mut rng = rand_chacha::ChaCha8Rng::from_seed([0u8; 32]);
 		let iv = rand::seq::index::sample(&mut rng, validator_count, validator_count - n_chunks).into_vec();
 
-		let mut received = (0..validator_count).into_iter()
+		let mut received = (0..validator_count)
+			.into_iter()
 			.map(|idx| {
 				if iv.contains(&idx) {
 					None
@@ -46,13 +40,9 @@ impl<'a> Arbitrary<'a> for ReconstructionFeed {
 			received.push(Some(WrappedShard::new(data)));
 		}
 
-		Ok(Self {
-			validator_count,
-			received,
-		})
+		Ok(Self { validator_count, received })
 	}
 }
-
 
 fn main() {
 	// You have full control over the loop but
@@ -64,7 +54,7 @@ fn main() {
 		// `&[u8]` when possible.
 		// Here, this slice will contain a "random" quantity of "random" data.
 		fuzz!(|feed: ReconstructionFeed| {
-            let _ = novelpoly::reconstruct::<WrappedShard>(feed.received, feed.validator_count);
+			let _ = novelpoly::reconstruct::<WrappedShard>(feed.received, feed.validator_count);
 		});
 	}
 }
