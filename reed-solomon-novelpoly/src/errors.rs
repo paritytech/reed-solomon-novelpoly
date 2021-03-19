@@ -19,6 +19,9 @@ pub enum Error {
 
 	#[error("Parameters: n (= {n}) and k (= {k}) both must be a power of 2")]
 	ParamterMustBePowerOf2 { n: usize, k: usize },
+
+	#[error("Shards do have inconsistent lengths: first = {first}, other = {other})")]
+	InconsistentShardLengths { first: usize, other: usize },
 }
 
 /// Result alias to simplify API.

@@ -151,16 +151,31 @@ impl ReedSolomon {
 		}
 
 		// obtain a sample of a shard length and assume that is the truth
-		// XXX make sure all shards have equal length
-		let shard_len_in_syms = received_shards
-			.iter()
-			.find_map(|x| {
-				x.as_ref().map(|x| {
-					let x = AsRef::<[[u8; 2]]>::as_ref(x);
-					x.len()
+		let shard_len_in_syms =
+		{
+			let (first_shard_idx, first_shard_len) = received_shards.iter().enumerate()
+				.find_map(|(idx, shard)| {
+					shard.as_ref().map(|shard| {
+						let shard = AsRef::<[[u8; 2]]>::as_ref(shard);
+						(idx, shard.len())
+					})
 				})
-			})
-			.expect("Existential shard count is at least k shards. qed");
+				.expect("Existential shard count is at least k shards. qed");
+
+			// make sure all shards have the same length as the first one
+			if let Some(other_shard_len) = received_shards[(first_shard_idx+1)..].iter().find_map(|shard| shard.as_ref().and_then(|shard| {
+				let shard = AsRef::<[[u8; 2]]>::as_ref(shard);
+				if first_shard_len != shard.len() {
+					Some(shard.len())
+				} else {
+					None
+				}
+			})) {
+				return Err(Error::InconsistentShardLengths{ first: first_shard_len, other: other_shard_len })
+			}
+
+			first_shard_len
+		};
 
 		// Evaluate error locator polynomial only once
 		let mut error_poly_in_log = [Multiplier(0); FIELD_SIZE];
