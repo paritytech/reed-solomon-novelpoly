@@ -11,7 +11,6 @@ mod test {
 
 	use super::*;
 
-	#[cfg(feature = "novelpoly")]
 	#[test]
 	fn novelpoly_roundtrip() -> std::result::Result<(), novelpoly::Error> {
 		reed_solomon_tester::roundtrip(
