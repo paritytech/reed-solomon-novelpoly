@@ -1,0 +1,6 @@
+reorder_imports = false
+brace_style = "SameLineWhere"
+hard_tabs = true
+max_width = 120
+use_small_heuristics = "Max"
+edition = "2018"
