@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use std::io;
 
 include!("src/util.rs");

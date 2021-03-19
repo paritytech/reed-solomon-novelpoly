@@ -1,3 +1,4 @@
+#[cfg(table_bootstrap_complete)]
 use super::*;
 
 decl_field!(

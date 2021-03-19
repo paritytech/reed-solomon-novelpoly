@@ -1,7 +1,6 @@
 use honggfuzz::fuzz;
 
-
-use novelpoly::{Shard, WrappedShard};
+use novelpoly::WrappedShard;
 
 use arbitrary::*;
 
