@@ -10,6 +10,16 @@ honggfuzz = "=0.5.54"
 arbitrary = { version = "1", features = ["derive"] }
 rstester = { path = "../reed-solomon-tester", package = "reed-solomon-tester" }
 novelpoly = { path = "../reed-solomon-novelpoly", package = "reed-solomon-novelpoly" }
+rand_chacha = "0.3.0"
+rand = "0.8.3"
+
+[[bin]]
+name = "fuzz_reconstruct"
+path = "src/reconstruct.rs"
+
+[[bin]]
+name = "fuzz_roundtrip"
+path = "src/roundtrip.rs"
 
 [profile.bench]
 debug = true

@@ -392,6 +392,8 @@ version = "0.1.0"
 dependencies = [
  "arbitrary",
  "honggfuzz",
+ "rand",
+ "rand_chacha",
  "reed-solomon-novelpoly",
  "reed-solomon-tester",
 ]
