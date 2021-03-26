@@ -1,6 +1,6 @@
 [package]
 name = "reed-solomon-novelpoly"
-version = "0.0.4-alpha.0"
+version = "1.0.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 repository = "https://github.com/paritytech/reed-solomon-novelpoly"
 edition = "2018"
