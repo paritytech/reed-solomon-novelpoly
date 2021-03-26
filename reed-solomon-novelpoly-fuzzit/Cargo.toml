@@ -20,12 +20,3 @@ path = "src/reconstruct.rs"
 [[bin]]
 name = "fuzz_roundtrip"
 path = "src/roundtrip.rs"
-
-[profile.bench]
-debug = true
-
-[profile.dev]
-debug = true
-
-[profile.release]
-debug = true
