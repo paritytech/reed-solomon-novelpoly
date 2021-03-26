@@ -81,11 +81,11 @@ jobs:
             - |
               export CARGO_HOME="$(pwd)/../cargo_home"
               export CARGO_TARGET_DIR="$(pwd)/../target"
+              sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
+              rustc +stable --version --verbose
+
               export EXE="${CARGO_TARGET_DIR}/release/rs-ec-perf"
 
-              sudo chown $(whoami): -Rf ${CARGO_HOME}
-              sudo chown $(whoami): -Rf ${CARGO_TARGET_DIR}
-              sudo chown $(whoami): -Rf .
               sudo chown $(whoami): -Rf ../binary
 
               cargo +stable build --release
@@ -116,15 +116,19 @@ jobs:
           platform: linux
           inputs:
           - name: git-pull-request-resource
+          caches:
+          - path: cargo_home
           run:
             # user: root
             path: sh
             args:
             - -exc
             - |
-              export CARGO_HOME="$(pwd)/../cargo"
-              sudo chown $(whoami): -Rf ${CARGO_HOME} .
+              export CARGO_HOME="$(pwd)/../cargo_home"
+              export CARGO_TARGET_DIR="$(pwd)/../target"
+              sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
               rustc +stable --version --verbose
+
               cargo +stable test --all
             dir: git-pull-request-resource
           caches:
@@ -150,13 +154,16 @@ jobs:
           platform: linux
           inputs:
           - name: git-pull-request-resource
+          caches:
+          - path: cargo_home
           run:
             path: sh
             args:
             - -exc
             - |
-              export CARGO_HOME="$(pwd)/../cargo"
-              sudo chown $(whoami): -Rf ${CARGO_HOME} .
+              export CARGO_HOME="$(pwd)/../cargo_home"
+              export CARGO_TARGET_DIR="$(pwd)/../target"
+              sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
               rustc +stable --version --verbose
 
               cargo build --target x86_64-pc-windows-gnu
@@ -187,12 +194,18 @@ jobs:
             platform: linux
             inputs:
             - name: git-pull-request-resource
+            caches:
+            - path: cargo_home
+            - path: target
             run:
               # user: root
               path: sh
               args:
               - -exc
               - |
+                export CARGO_HOME="$(pwd)/../cargo_home"
+                export CARGO_TARGET_DIR="$(pwd)/../target"
+                sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
                 rustc +stable --version --verbose
 
                 cargo +stable fmt -- --check
@@ -237,28 +250,28 @@ jobs:
           - name: git-repo
           outputs:
           - name: binary
+          caches:
+          - path: cargo_home
+          - path: target
           run:
             # user: root
             path: sh
             args:
             - -exc
             - |
-              export CARGO_HOME="$(pwd)/../cargo"
+              export CARGO_HOME="$(pwd)/../cargo_home"
               export CARGO_TARGET_DIR="$(pwd)/../target"
+              sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
+              rustc +stable --version --verbose
+
               export EXE="${CARGO_TARGET_DIR}/release/rs-ec-perf"
 
-              sudo chown $(whoami): -Rf ${CARGO_HOME}
-              sudo chown $(whoami): -Rf ${CARGO_TARGET_DIR}
-              sudo chown $(whoami): -Rf .
               sudo chown $(whoami): -Rf ../binary
 
               cargo +stable build --release
               sudo cp -vf "${EXE}" "../binary/rs-ec-perf-$(git rev-parse HEAD)"
 
             dir: git-repo
-          caches:
-          - path: cargo
-          - path: target
 
       - task: win64-cross-build-master
         timeout: 15m
@@ -267,18 +280,21 @@ jobs:
           platform: linux
           inputs:
           - name: git-repo
+          caches:
+          - path: cargo_home
+          - path: target
           run:
             path: sh
             args:
             - -exc
             - |
-              export CARGO_HOME="$(pwd)/../cargo"
-              sudo chown $(whoami): -Rf ${CARGO_HOME} .
+              export CARGO_HOME="$(pwd)/../cargo_home"
+              export CARGO_TARGET_DIR="$(pwd)/../target"
+              sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
               rustc +stable --version --verbose
+
               cargo build --target x86_64-pc-windows-gnu
             dir: git-repo
-          caches:
-          - path: cargo
 
       - task: unit-tests-master
         timeout: 10m
@@ -287,19 +303,22 @@ jobs:
           platform: linux
           inputs:
           - name: git-repo
+          caches:
+          - path: cargo_home
+          - path: target
           run:
             # user: root
             path: sh
             args:
             - -exc
             - |
-              export CARGO_HOME="$(pwd)/../cargo"
-              sudo chown $(whoami): -Rf ${CARGO_HOME} .
+              export CARGO_HOME="$(pwd)/../cargo_home"
+              export CARGO_TARGET_DIR="$(pwd)/../target"
+              sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
               rustc +stable --version --verbose
+
               cargo +stable test --all
             dir: git-repo
-          caches:
-          - path: cargo
 
       - try:
           task: validate-meta-master
@@ -309,18 +328,21 @@ jobs:
             platform: linux
             inputs:
             - name: git-repo
+            caches:
+            - path: cargo_home
+            - path: target
+
             run:
               # user: root
               path: sh
               args:
               - -exc
               - |
-                export CARGO_HOME="$(pwd)/../cargo"
-                sudo chown $(whoami): -Rf ${CARGO_HOME} .
+                export CARGO_HOME="$(pwd)/../cargo_home"
+                export CARGO_TARGET_DIR="$(pwd)/../target"
+                sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
                 rustc +stable --version --verbose
 
                 cargo +stable fmt -- --check
 
               dir: git-repo
-            caches:
-            - path: cargo
