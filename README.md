@@ -1,52 +1,16 @@
 # reed-solomon-novelpoly
 
-An implementation of [reed solomon erasure encoding in a novel polynomial base (README)](./reed-solomon-novelpoly/README.md) for speed.
+An implementation of  Novel Polynomial Basis and its Application to Reed-Solomon Erasure Codes [1] [2] .
 
+Runs encoding and reconstruction in `O(n lg(n))`. Note that for small number `n` there is a static offset due to a walsh transform over the full domain in reconstruction.
 
-# Validation and Verification
-## erasure coding
+## Goals
 
-This repo only exists, to check various erasure coding implementation algorithms in order to determin the most time and space efficient ones.
+Be really fast for `n > 100`.
 
-### test
+## Non-goals
 
-All benches are also tests with smaller data samples to verify integrity.
+TODO
 
-```sh
-cargo test
-```
-
-must always pass.
-
-
-### criterion
-
-For benchmarking the implementation against itself and the naive implementation,
-`cargo criterion` is used.
-
-### bench
-
-```sh
-cargo bench
-```
-
-will use `valgrind` to run the bench binaries, which will show various metrics, and their changes relative to the previous run.
-
-### flamegraph
-
-```sh
-cargo run
-```
-
-runs a test case with 10 MB of randomly sampled data which is the recommended way to retrieve a `flamegraph` via `cargo flamegraph` (`cargo install flamegraph` to install).
-
-
-### fuzzing
-
-Currently `honggfuzz` is used.
-
-To build that a `clang` based toolchain is required.
-
-Install `cargo install honggfuzz` and run with
-
-Run the fuzzer with `cargo hfuzz run fuzzit`.
+[1]: https://www.citi.sinica.edu.tw/papers/whc/4454-F.pdf
+[2]: https://arxiv.org/abs/1404.3458

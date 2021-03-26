@@ -1,0 +1,28 @@
+[package]
+name = "reed-solomon-benches"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+publish = false
+
+[dependencies]
+reed-solomon-erasure = { version = "4.0", features = ["simd-accel"], optional = true }
+reed-solomon-novelpoly = { package = "reed-solomon-novelpoly", path = "../reed-solomon-novelpoly" }
+reed-solomon-tester = { package = "reed-solomon-tester", path = "../reed-solomon-tester" }
+
+color-eyre = "0.5"
+
+rand = { version = "0.8", features = ["alloc", "small_rng"] }
+itertools = "0.10"
+assert_matches = "1"
+
+[dev-dependencies]
+iai = "0.1"
+criterion = "0.3"
+
+[features]
+default = []
+novelpoly-cxx = ["reed-solomon-novelpoly/with-alt-cxx-impl"]
+naive = ["reed-solomon-erasure"]
+upperbounds=["naive"]
+

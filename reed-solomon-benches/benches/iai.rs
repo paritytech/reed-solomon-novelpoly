@@ -1,6 +1,6 @@
 use iai::black_box;
-use reed_solomon_performance::novelpoly::WrappedShard;
-use reed_solomon_performance::*;
+use reed_solomon_benches::novelpoly::WrappedShard;
+use reed_solomon_benches::*;
 use reed_solomon_tester::*;
 
 const N_SHARDS_MANY: usize = 2000;

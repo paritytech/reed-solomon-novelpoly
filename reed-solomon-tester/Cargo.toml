@@ -1,7 +1,7 @@
 [package]
 name = "reed-solomon-tester"
-version = "0.0.1"
-authors = ["Bernhard Schuster <bernhard@ahoi.io>"]
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 publish = false
 

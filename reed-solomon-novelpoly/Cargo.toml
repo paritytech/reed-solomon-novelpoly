@@ -7,6 +7,7 @@ edition = "2018"
 license = "Apache-2.0 AND MIT"
 description = "An implementation of a reed solomon code / encoder / decoder with complexity `O(n lg(n))`"
 keywords = ["reed-solomon", "erasure", "encoding", "algorithm"]
+readme = "../README.md"
 
 [build-dependencies]
 derive_more = { version = "0.99.0", default-features = false, features = ["add_assign", "add"] }

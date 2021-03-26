@@ -71,13 +71,15 @@ jobs:
           - name: git-pull-request-resource
           outputs:
           - name: binary
+          caches:
+          - path: cargo_home
           run:
             # user: root
             path: sh
             args:
             - -exc
             - |
-              export CARGO_HOME="$(pwd)/../cargo"
+              export CARGO_HOME="$(pwd)/../cargo_home"
               export CARGO_TARGET_DIR="$(pwd)/../target"
               export EXE="${CARGO_TARGET_DIR}/release/rs-ec-perf"
 
