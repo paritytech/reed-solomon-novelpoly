@@ -11,6 +11,7 @@ debug = true
 members = [
      "./reed-solomon-tester",
      "./reed-solomon-novelpoly",
+     "./reed-solomon-gao-mateer",
      "./reed-solomon-novelpoly-fuzzit",
      "./reed-solomon-benches",
 ]
