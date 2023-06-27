@@ -2,7 +2,7 @@
 name = "reed-solomon-tester"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 publish = false
 
 [build-dependencies]
@@ -11,5 +11,5 @@ fs-err = "2"
 
 [dependencies]
 rand = { version = "0.8", features = ["alloc", "small_rng"] }
-itertools = "0.10"
+itertools = "0.11"
 assert_matches = "1"
