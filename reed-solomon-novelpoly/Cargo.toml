@@ -3,7 +3,7 @@ name = "reed-solomon-novelpoly"
 version = "1.0.1-alpha.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 repository = "https://github.com/paritytech/reed-solomon-novelpoly"
-edition = "2018"
+edition = "2021"
 license = "Apache-2.0 AND MIT"
 description = "An implementation of a reed solomon code / encoder / decoder with complexity `O(n lg(n))`"
 keywords = ["reed-solomon", "erasure", "encoding", "algorithm"]
@@ -12,16 +12,16 @@ readme = "../README.md"
 [build-dependencies]
 derive_more = { version = "0.99.0", default-features = false, features = ["add_assign", "add"] }
 fs-err = "2.5.0"
-bindgen = { version = "0.57.0", optional = true }
+bindgen = { version = "0.66.1", optional = true }
 cc = { version = "1.0.67", features = ["parallel"], optional = true }
 
 [dependencies]
-reed-solomon-erasure = { version = "4.0", features = ["simd-accel"], optional = true }
-static_init = "0.5.2"
+reed-solomon-erasure = { version = "6.0", features = ["simd-accel"], optional = true }
+static_init = "1"
 
 thiserror = "1.0.23"
 derive_more = { version = "0.99.0", default-features = false, features = ["add_assign", "add"] }
-itertools = "0.10.0"
+itertools = "0.11.0"
 
 [dev-dependencies]
 reed-solomon-tester = { path = "../reed-solomon-tester" }

@@ -22,8 +22,8 @@ macro_rules! instanciate_upper_bound_test {
 			use crate::WrappedShard;
 			use criterion::{black_box, Criterion};
 			use rand::{rngs::SmallRng, SeedableRng};
-			use reed_solomon_performance::$mp::{encode, reconstruct};
-			use reed_solomon_tester::{BYTES, SMALL_RNG_SEED};
+			use reed_solomon_benches::$mp::{encode, reconstruct};
+			use ::reed_solomon_tester::{BYTES, SMALL_RNG_SEED};
 
 			#[test]
 			fn criterion_roundtrip_integrity() {
@@ -32,7 +32,7 @@ macro_rules! instanciate_upper_bound_test {
 					reconstruct::<WrappedShard>,
 					black_box(&BYTES[..PAYLOAD_SIZE_CUTOFF]),
 					VALIDATOR_COUNT,
-				);
+				).unwrap();
 			}
 
 			pub fn bench_encode(crit: &mut Criterion) {
@@ -142,7 +142,7 @@ pub mod parameterized {
 				|b, &payload_size| {
 					{
 						b.iter(|| {
-							let _ = reed_solomon_performance::novelpoly::encode::<WrappedShard>(
+							let _ = reed_solomon_benches::novelpoly::encode::<WrappedShard>(
 								black_box(&BYTES[..payload_size]),
 								black_box(validator_count),
 							);
@@ -158,7 +158,7 @@ pub mod parameterized {
 				&payload_size,
 				|b, &payload_size| {
 					b.iter(|| {
-						let _ = reed_solomon_performance::naive::encode::<WrappedShard>(
+						let _ = reed_solomon_benches::naive::encode::<WrappedShard>(
 							black_box(&BYTES[..payload_size]),
 							black_box(validator_count),
 						);
@@ -180,7 +180,7 @@ pub mod parameterized {
 				BenchmarkId::new("novel-poly-reconstruct", param.to_string()),
 				&payload_size,
 				|b, &payload_size| {
-					let encoded = reed_solomon_performance::novelpoly::encode::<WrappedShard>(
+					let encoded = reed_solomon_benches::novelpoly::encode::<WrappedShard>(
 						&BYTES[..payload_size],
 						validator_count,
 					)
@@ -190,7 +190,7 @@ pub mod parameterized {
 					b.iter(|| {
 						let mut shards2: Vec<Option<_>> = shards.clone();
 						drop_random_max(&mut shards2[..], validator_count, validator_count / 3, rng);
-						let _ = reed_solomon_performance::novelpoly::reconstruct::<WrappedShard>(
+						let _ = reed_solomon_benches::novelpoly::reconstruct::<WrappedShard>(
 							black_box(shards2),
 							black_box(validator_count),
 						);
@@ -205,7 +205,7 @@ pub mod parameterized {
 				BenchmarkId::new("naive-reconstruct", param.to_string()),
 				&payload_size,
 				|b, &payload_size| {
-					let encoded = reed_solomon_performance::naive::encode::<WrappedShard>(
+					let encoded = reed_solomon_benches::naive::encode::<WrappedShard>(
 						&BYTES[..payload_size],
 						validator_count,
 					)
@@ -215,7 +215,7 @@ pub mod parameterized {
 					b.iter(|| {
 						let mut shards2: Vec<Option<_>> = shards.clone();
 						drop_random_max(&mut shards2[..], validator_count, validator_count / 3, rng);
-						let _ = reed_solomon_performance::naive::reconstruct::<WrappedShard>(
+						let _ = reed_solomon_benches::naive::reconstruct::<WrappedShard>(
 							black_box(shards2),
 							black_box(validator_count),
 						);
@@ -241,6 +241,7 @@ targets =
 	parameterized::bench_reconstruct_fixed_1mb_payload,
 );
 
+#[cfg(feature = "upperbounds")]
 fn adjusted_criterion() -> Criterion {
 	let crit = Criterion::default()
 		.sample_size(10)
