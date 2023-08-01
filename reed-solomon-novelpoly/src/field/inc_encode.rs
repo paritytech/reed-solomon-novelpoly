@@ -40,6 +40,22 @@ pub fn encode_low(data: &[Additive], k: usize, codeword: &mut [Additive], n: usi
 pub fn encode_high(data: &[Additive], k: usize, parity: &mut [Additive], mem: &mut [Additive], n: usize) {
 	let t: usize = n - k;
 
+	if t % 8 == 0 && n % 8 == 0 && k % 8 == 0 {
+		let mut mem8 = vec![Additive8x::zero(); mem.len()/8];
+		let data8 = Vec::from_iter(data.iter().step_by(8).enumerate().map(|(piece_idx, _offset)| {
+			Additive8x::load(&data[(piece_idx*8)..(piece_idx+1)*8])
+		}));
+		let mut parity8 = Vec::from_iter(data.iter().step_by(8).enumerate().map(|(piece_idx, _offset)| {
+			Additive8x::load(&*parity[(piece_idx*8)..(piece_idx+1)*8])
+		}));
+		
+		encode_high_faster8(&data8, &mut parity8, &mut mem8, n);
+		
+		parity8.copy_to(&mut parity);
+		mem8.copy_to(&mut mem);
+		return;
+	}
+	
 	// mem_zero(&mut parity[0..t]);
 	for i in 0..t {
 		parity[i] = Additive(0);
@@ -56,6 +72,32 @@ pub fn encode_high(data: &[Additive], k: usize, parity: &mut [Additive], mem: &m
 		i += t;
 	}
 	afft(parity, t, 0);
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Additive8x(pub simd::u16x8);
+
+pub fn encode_high_faster8(data: &[Additive8x], k: usize, parity: &mut [Additive8x], mem: &mut [Additive8x], n: usize) {
+	let t: usize = n - k;
+	assert!(t >= 8);
+	assert_eq!(t % 8, 0);
+
+	let t8s = (t >> 3);
+	for i in 0..t8s {
+		parity[i] = Additive8x::zero();
+	}
+
+	let mut i = t8s;
+	while i < n {
+		(&mut mem[..t8s]).copy_from_slice(&data[(i - t8s)..t]);
+
+		inverse_afft_faster8(mem, t8s, i);
+		for j in 0..t8s {
+			parity[j] ^= mem[j];
+		}
+		i += t8s;
+	}
+	afft_faster8(parity, t8s, 0);
 }
 
 /// Bytes shall only contain payload data

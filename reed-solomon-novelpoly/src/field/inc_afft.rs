@@ -94,9 +94,18 @@ pub fn inverse_afft(data: &mut [Additive], size: usize, index: usize) {
     unsafe { &AFFT }.inverse_afft(data,size,index)
 }
 
+pub fn inverse_afft_faster8(data: &mut [Additive8x], size: usize, index: usize) {
+    unsafe { &AFFT }.inverse_afft_faster8(data,size,index)
+}
+
 /// Additive FFT in the "novel polynomial basis"
 pub fn afft(data: &mut [Additive], size: usize, index: usize) {
     unsafe { &AFFT }.afft(data,size,index)
+}
+
+/// Additive FFT in the "novel polynomial basis"
+pub fn afft_faster8(data: &mut [Additive8x], size: usize, index: usize) {
+    unsafe { &AFFT }.afft_faster8(data,size,index)
 }
 
 
@@ -217,6 +226,54 @@ impl AdditiveFFT {
     	}
     }
 
+    /// Inverse additive FFT in the "novel polynomial basis", but do 8 at once using available vector units
+    pub fn inverse_afft_faster8(&self, data: &mut [Additive8x], size: usize, index: usize) {
+    	let mut depart_no = size >> 1_usize;
+		assert!(depart_no >= 8);
+		assert_eq!(depart_no % 8, 0);
+
+    	while depart_no < size {
+    		let mut j = depart_no;
+    		while j < size {
+    			for i in ((j - depart_no)/8)..(j/8) {
+    				data[i + depart_no/8] ^= data[i];
+    			}
+    			let skew = self.skews[j + index - 1];
+    			if skew.0 != ONEMASK {
+    				for i in ((j - depart_no)/8)..(j/8) {
+    					data[i] ^= data[i + depart_no/8].mul(skew);
+    				}
+    			}
+    			j += depart_no << 1;
+    		}
+    		depart_no <<= 1;
+    	}
+    }
+
+    /// Additive FFT in the "novel polynomial basis", but do 8 at once using available vector units
+    pub fn afft_faster8(&self, data: &mut [Additive8x], size: usize, index: usize) {
+    	let mut depart_no = size >> 1_usize;
+		assert!(depart_no >= 8);
+		assert_eq!(depart_no % 8, 0);
+    	while depart_no > 0 {
+    		let mut j = depart_no;
+    		while j < size {
+    			let skew = self.skews[j + index - 1];
+    			if skew.0 != ONEMASK {
+    				for i in ((j - depart_no)/8)..(j/8) {
+    					data[i] ^= data[i + depart_no/8].mul(skew);
+    				}
+    			}
+
+    			for i in ((j - depart_no)/8)..(j/8) {
+    				data[i + depart_no/8] ^= data[i];
+    			}
+
+    			j += depart_no << 1;
+    		}
+    		depart_no >>= 1;
+    	}
+    }
 
     //initialize SKEW_FACTOR and B
     fn initalize() -> AdditiveFFT {
@@ -237,7 +294,8 @@ impl AdditiveFFT {
     		skews_additive[(1 << m) - 1] = Additive(0);
     		for i in m..(FIELD_BITS - 1) {
     			let s = 1 << (i + 1);
-
+				// TODO if s>=8 we cound employ SIMD
+				// TODO and step % 8 == 0
     			let mut j = (1 << m) - 1;
     			while j < s {
     				// Justified by (5) page 6285, except..

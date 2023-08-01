@@ -914,6 +914,7 @@ dependencies = [
  "rand",
  "reed-solomon-erasure",
  "reed-solomon-tester",
+ "simd",
  "static_init",
  "thiserror",
 ]
@@ -1050,6 +1051,12 @@ name = "shlex"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "43b2853a4d09f215c24cc5489c992ce46052d359b5109343cbafbf26bc62f8a3"
+
+[[package]]
+name = "simd"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2b30e0b688441c71fc3f3450953e08fb5a0ec3217d4d226d35b39d2beabf7b5"
 
 [[package]]
 name = "smallvec"
