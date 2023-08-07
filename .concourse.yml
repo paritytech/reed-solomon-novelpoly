@@ -9,12 +9,13 @@ resources:
   type: git
   source:
     branch: master
-    uri: https://github.com/drahnr/rs-ec-perf.git
+    uri: git@github.com:drahnr/reed-solomon-novelpoly.git
+    private_key: ((sirmergealot-ssh-key))
 
 - name: git-pull-request-resource
   type: pull-request
   source:
-    repository: drahnr/rs-ec-perf
+    repository: drahnr/reed-solomon-novelpoly
     access_token: ((sirmergealot-github-token))
 
 - name: env-glibc
