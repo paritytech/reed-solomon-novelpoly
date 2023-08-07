@@ -10,8 +10,8 @@ debug = true
 [workspace]
 resolver = "2"
 members = [
-     "./reed-solomon-tester",
-     "./reed-solomon-novelpoly",
-     "./reed-solomon-novelpoly-fuzzit",
-     "./reed-solomon-benches",
+  "./reed-solomon-tester",
+  "./reed-solomon-novelpoly",
+  "./reed-solomon-novelpoly-fuzzit",
+  "./reed-solomon-benches",
 ]
