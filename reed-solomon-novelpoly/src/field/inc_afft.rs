@@ -229,19 +229,19 @@ impl AdditiveFFT {
     /// Inverse additive FFT in the "novel polynomial basis", but do 8 at once using available vector units
     pub fn inverse_afft_faster8(&self, data: &mut [Additive8x], size: usize, index: usize) {
     	let mut depart_no = size >> 1_usize;
-		assert!(depart_no >= 8);
-		assert_eq!(depart_no % 8, 0);
+		assert!(depart_no >= Additive8x::LANE);
+		assert_eq!(depart_no % Additive8x::LANE, 0);
 
     	while depart_no < size {
     		let mut j = depart_no;
     		while j < size {
-    			for i in ((j - depart_no)/8)..(j/8) {
-    				data[i + depart_no/8] ^= data[i];
+    			for i in ((j - depart_no)/Additive8x::LANE)..(j/Additive8x::LANE) {
+    				data[i + depart_no/Additive8x::LANE] ^= data[i];
     			}
     			let skew = self.skews[j + index - 1];
     			if skew.0 != ONEMASK {
-    				for i in ((j - depart_no)/8)..(j/8) {
-    					data[i] ^= data[i + depart_no/8].mul(skew);
+    				for i in ((j - depart_no)/Additive8x::LANE)..(j/Additive8x::LANE) {
+    					data[i] ^= data[i + depart_no/Additive8x::LANE].mul(skew);
     				}
     			}
     			j += depart_no << 1;
@@ -260,13 +260,13 @@ impl AdditiveFFT {
     		while j < size {
     			let skew = self.skews[j + index - 1];
     			if skew.0 != ONEMASK {
-    				for i in ((j - depart_no)/8)..(j/8) {
-    					data[i] ^= data[i + depart_no/8].mul(skew);
+    				for i in ((j - depart_no)/Additive8x::LANE)..(j/Additive8x::LANE) {
+    					data[i] ^= data[i + depart_no/Additive8x::LANE].mul(skew);
     				}
     			}
 
-    			for i in ((j - depart_no)/8)..(j/8) {
-    				data[i + depart_no/8] ^= data[i];
+    			for i in ((j - depart_no)/Additive8x::LANE)..(j/Additive8x::LANE) {
+    				data[i + depart_no/Additive8x::LANE] ^= data[i];
     			}
 
     			j += depart_no << 1;

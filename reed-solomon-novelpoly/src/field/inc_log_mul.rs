@@ -22,6 +22,10 @@ impl Additive {
 	}
 
 	pub const ZERO: Additive = Additive(0);
+	
+	pub fn zero() -> Self {
+		Self(0)
+	}
 }
 
 #[cfg(table_bootstrap_complete)]

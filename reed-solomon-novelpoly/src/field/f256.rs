@@ -10,7 +10,7 @@ include!("inc_afft.rs");
 pub struct Additive8x(());
 
 impl Additive8x {
-	const LANE: usize = 8;
+	pub const LANE: usize = 8;
 
 	pub fn zero() -> Self {
 		Self(())

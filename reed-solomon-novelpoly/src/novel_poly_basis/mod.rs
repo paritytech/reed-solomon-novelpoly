@@ -60,6 +60,11 @@ impl CodeParams {
 		Ok(Self { n: n_po2, k: k_po2, wanted_n: n })
 	}
 
+	/// Check if this could use the `faster8` code path, possibly utilizing `avx2` SIMD instructions
+	pub fn is_faster8(&self) -> bool {
+		self.k >= (Additive8x::LANE << 1) && self.n % Additive8x::LANE == 0
+	}
+
 	// make a reed-solomon instance.
 	pub fn make_encoder(&self) -> ReedSolomon {
 		ReedSolomon::new(self.n, self.k, self.wanted_n)
@@ -78,8 +83,11 @@ impl CodeParams {
 }
 
 pub struct ReedSolomon {
+	/// The true number of total shards to be had, derived from `n_wanted`.
 	n: usize,
+	/// The amount of original data shards, that are part of the systematic code.
 	k: usize,
+	/// The size as desired by the user. Strictly smaller than `n`.
 	wanted_n: usize,
 }
 

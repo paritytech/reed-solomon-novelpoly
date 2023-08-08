@@ -123,7 +123,7 @@ unsafe fn load_u16x8(src: &[u16], idx: [u16; 8]) -> u16x8 {
 }
 
 impl Additive8x {
-	const LANE: usize = 8;
+	pub const LANE: usize = 8;
 
 	pub fn zero() -> Self {
 		Self(unsafe { _mm_setzero_si128() })
@@ -175,7 +175,9 @@ impl Additive8x {
 
 	pub fn copy_to_slice(&self, dest: &mut [Additive]) {
 		assert!(dest.len() >= 8);
-		todo!()
+		unsafe {
+			_mm_storeu_si128(core::intrinsics::transmute(dest.as_ptr()), self.0);
+		}
 	}
 
 	pub fn copy_from_slice(&mut self, src: &[Additive]) {
