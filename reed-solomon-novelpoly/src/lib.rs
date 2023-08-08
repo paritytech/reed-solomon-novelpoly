@@ -7,6 +7,7 @@ pub mod util;
 pub use util::*;
 
 pub mod field;
+#[cfg(feature = "f256")]
 pub use self::field::f256;
 pub use self::field::f2e16;
 

@@ -1,5 +1,5 @@
 
-use static_init::{dynamic};
+use static_init::dynamic;
 
 #[dynamic(0)]
 pub static AFFT: AdditiveFFT = AdditiveFFT::initalize();
@@ -8,7 +8,7 @@ pub static AFFT: AdditiveFFT = AdditiveFFT::initalize();
 /// Additive FFT and inverse in the "novel polynomial basis"
 #[allow(non_snake_case)]
 pub struct AdditiveFFT {
-    /// Multiplier form of twisted factors used in AdditiveFFT
+    /// Multiplier form of twisted factors used in `AdditiveFFT`
     pub skews: [Multiplier; ONEMASK as usize], // skew_multiplier
     /// Factors used in formal derivative, actually all zero if field was constructed correctly.
     #[cfg(b_is_not_one)]
@@ -20,13 +20,13 @@ pub fn formal_derivative(cos: &mut [Additive], size: usize) {
 	for i in 1..size {
 		let length = ((i ^ i - 1) + 1) >> 1;
 		for j in (i - length)..i {
-			cos[j] ^= cos.get(j + length).copied().unwrap_or_default();
+			cos[j] ^= cos.get(j + length).copied().unwrap_or(Additive::ZERO);
 		}
 	}
 	let mut i = size;
 	while i < FIELD_SIZE && i < cos.len() {
 		for j in 0..size {
-			cos[j] ^= cos.get(j + i).copied().unwrap_or_default();
+			cos[j] ^= cos.get(j + i).copied().unwrap_or(Additive::ZERO);
 		}
 		i <<= 1;
 	}

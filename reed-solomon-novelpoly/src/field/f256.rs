@@ -4,3 +4,28 @@ include!("inc_log_mul.rs");
 
 #[cfg(table_bootstrap_complete)]
 include!("inc_afft.rs");
+
+
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Additive8x(());
+
+impl Additive8x {
+	const LANE: usize = 8;
+	
+	pub fn zero() -> Self {
+		Self(())
+	}
+
+	pub fn mul(&self, other: Multiplier) -> Self {
+		unreachable!()
+	}
+	
+	pub fn load(_data: &[u8]) -> Self {
+		unreachable!()
+	}
+	
+	pub fn copy_to(dest: &mut [Additive]) {
+		unreachable!()
+	}
+}

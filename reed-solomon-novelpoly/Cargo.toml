@@ -23,7 +23,6 @@ reed-solomon-erasure = { version = "6.0", features = [
   "simd-accel",
 ], optional = true }
 static_init = "1"
-simd = "0.2"
 
 thiserror = "1.0.23"
 derive_more = { version = "0.99.0", default-features = false, features = [

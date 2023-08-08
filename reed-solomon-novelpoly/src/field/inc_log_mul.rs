@@ -1,8 +1,15 @@
 use derive_more::{Add, AddAssign, BitXor, BitXorAssign, Sub, SubAssign};
 
 /// Additive via XOR form of f2e16
-#[derive(Clone, Copy, Debug, Default, BitXor, BitXorAssign, PartialEq, Eq)] // PartialOrd,Ord
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, BitXor, BitXorAssign, PartialEq, Eq)] // PartialOrd,Ord
 pub struct Additive(pub Elt);
+
+impl AsRef<Elt> for Additive {
+	fn as_ref(&self) -> &Elt {
+		&self.0
+	}
+}
 
 impl Additive {
     #[inline(always)]
@@ -62,14 +69,14 @@ impl Multiplier {
 }
 
 
-/// Fast Walsh–Hadamard transform over modulo ONEMASK
+/// Fast Walsh–Hadamard transform over modulo `ONEMASK`
 pub fn walsh(data: &mut [Multiplier], size: usize) {
 	let mut depart_no = 1_usize;
 	while depart_no < size {
 		let mut j = 0;
 		let depart_no_next = depart_no << 1;
 		while j < size {
-			for i in j..(depart_no + j) {
+			for i in j..(j+depart_no) {
 				// We deal with data in log form here, but field form looks like:
 				//			 data[i] := data[i] / data[i+depart_no]
 				// data[i+depart_no] := data[i] * data[i+depart_no]

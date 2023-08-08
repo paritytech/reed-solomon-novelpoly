@@ -1,5 +1,15 @@
-// Encoding alg for k/n < 0.5: message is a power of two
+#[inline(always)]
 pub fn encode_low(data: &[Additive], k: usize, codeword: &mut [Additive], n: usize) {
+	if k % 8 == 0 && n % 8 == 0 && (n-k) % 8 == 0 {
+		encode_low_faster8(data, k, codeword, n);		
+	} else {
+		encode_low_plain(data, k, codeword, n);
+	}
+}
+
+
+// Encoding alg for k/n < 0.5: message is a power of two
+pub fn encode_low_plain(data: &[Additive], k: usize, codeword: &mut [Additive], n: usize) {
 	assert!(k + k <= n);
 	assert_eq!(codeword.len(), n);
 	assert_eq!(data.len(), n);
@@ -32,29 +42,70 @@ pub fn encode_low(data: &[Additive], k: usize, codeword: &mut [Additive], n: usi
 	(&mut codeword[0..k]).copy_from_slice(&data[0..k]);
 }
 
+pub fn encode_low_faster8(data: &[Additive], k: usize, codeword: &mut [Additive], n: usize) {
+	assert!(k + k <= n);
+	assert_eq!(codeword.len(), n);
+	assert_eq!(data.len(), n);
 
-// TODO: Make encode_high actually work again!  Add tests!
+	assert!(is_power_of_2(n));
+	assert!(is_power_of_2(k));
+
+	// k | n is guaranteed
+	assert_eq!((n / k) * k, n);
+
+	// move the data to the codeword
+    // FIXME redundant
+	let mut codeword8x = Vec::from_iter(data.iter().step_by(8).enumerate().map(|(piece_idx, _offset)| {
+		Additive8x::load(&codeword[(piece_idx*8)..][..8])
+	}));
+	
+	// split after the first k
+	let (codeword8x_first_k, codeword8x_skip_first_k) = codeword8x.split_at_mut(k/8);
+
+    inverse_afft_faster8(codeword8x_first_k, k, 0);
+
+	// the first codeword is now the basis for the remaining transforms
+	// denoted `M_topdash`
+
+	for shift in (k..n).into_iter().step_by(k) {
+		let codeword8x_at_shift = &mut codeword8x_skip_first_k[(shift/8 - k/8)..shift/8];
+		// copy `M_topdash` to the position we are currently at, the n transform
+		codeword8x_at_shift.copy_from_slice(codeword8x_first_k);
+		afft_faster8(codeword8x_at_shift, k, shift);
+	}
+
+	// restore `M` from the derived ones
+	(&mut codeword[0..k]).copy_from_slice(&data[0..k]);
+}
+
+
 
 //data: message array. parity: parity array. mem: buffer(size>= n-k)
 //Encoding alg for k/n>0.5: parity is a power of two.
+#[inline(always)]
 pub fn encode_high(data: &[Additive], k: usize, parity: &mut [Additive], mem: &mut [Additive], n: usize) {
-	let t: usize = n - k;
-
-	if t % 8 == 0 && n % 8 == 0 && k % 8 == 0 {
+	if (n-k) % 8 == 0 && n % 8 == 0 && k % 8 == 0 {
 		let mut mem8 = vec![Additive8x::zero(); mem.len()/8];
 		let data8 = Vec::from_iter(data.iter().step_by(8).enumerate().map(|(piece_idx, _offset)| {
-			Additive8x::load(&data[(piece_idx*8)..(piece_idx+1)*8])
+			Additive8x::load(&data[(piece_idx*8)..][..8])
 		}));
 		let mut parity8 = Vec::from_iter(data.iter().step_by(8).enumerate().map(|(piece_idx, _offset)| {
-			Additive8x::load(&*parity[(piece_idx*8)..(piece_idx+1)*8])
+			Additive8x::load(&parity[(piece_idx*8)..][..8])
 		}));
 		
-		encode_high_faster8(&data8, &mut parity8, &mut mem8, n);
+		encode_high_faster8(&data8, k, &mut parity8, &mut mem8, n);
 		
-		parity8.copy_to(&mut parity);
-		mem8.copy_to(&mut mem);
-		return;
+		// FIXME
+		// mem8.as_slice().copy_to(&mut mem);
+	} else {
+		encode_high_plain(data, k, parity, mem, n);
 	}
+}
+
+//data: message array. parity: parity array. mem: buffer(size>= n-k)
+//Encoding alg for k/n>0.5: parity is a power of two.
+pub fn encode_high_plain(data: &[Additive], k: usize, parity: &mut [Additive], mem: &mut [Additive], n: usize) {
+	let t: usize = n - k;
 	
 	// mem_zero(&mut parity[0..t]);
 	for i in 0..t {
@@ -74,15 +125,13 @@ pub fn encode_high(data: &[Additive], k: usize, parity: &mut [Additive], mem: &m
 	afft(parity, t, 0);
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Additive8x(pub simd::u16x8);
 
 pub fn encode_high_faster8(data: &[Additive8x], k: usize, parity: &mut [Additive8x], mem: &mut [Additive8x], n: usize) {
 	let t: usize = n - k;
 	assert!(t >= 8);
 	assert_eq!(t % 8, 0);
 
-	let t8s = (t >> 3);
+	let t8s = t >> 3;
 	for i in 0..t8s {
 		parity[i] = Additive8x::zero();
 	}
