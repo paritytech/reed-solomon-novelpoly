@@ -168,30 +168,30 @@ impl Additive8x {
 	}
 
 	pub fn load(data: &[Additive]) -> Self {
-		assert_eq!(data.len(), 8);
+		assert_eq!(data.len(), Self::LANE);
 		let v = unsafe { _mm_loadu_si128(core::intrinsics::transmute(data.as_ptr())) };
 		Self(v)
 	}
 
 	pub fn copy_to_slice(&self, dest: &mut [Additive]) {
-		assert!(dest.len() >= 8);
+		assert!(dest.len() >= Self::LANE);
 		unsafe {
 			_mm_storeu_si128(core::intrinsics::transmute(dest.as_ptr()), self.0);
 		}
 	}
 
 	pub fn copy_from_slice(&mut self, src: &[Additive]) {
-		*self = Self::load(&src[..8]);
+		*self = Self::load(&src[..Self::LANE]);
 	}
 }
 
-impl From<[Additive; 8]> for Additive8x {
-	fn from(a: [Additive; 8]) -> Self {
+impl From<[Additive; Additive8x::LANE]> for Additive8x {
+	fn from(a: [Additive; Additive8x::LANE]) -> Self {
 		Self::load(&a[..])
 	}
 }
-impl Into<[Additive; 8]> for Additive8x {
-	fn into(self) -> [Additive; 8] {
+impl Into<[Additive; Additive8x::LANE]> for Additive8x {
+	fn into(self) -> [Additive; Additive8x::LANE] {
 		unsafe { std::intrinsics::transmute(unpack_u16x8(self.0)) }
 	}
 }
@@ -212,5 +212,12 @@ mod tests {
 		let a = a.mul(m);
 		let a: [Additive; 8] = a.into();
 		assert_eq!(a[0], b);
+		assert_eq!(a[1], b);
+		assert_eq!(a[2], b);
+		assert_eq!(a[3], b);
+		assert_eq!(a[4], b);
+		assert_eq!(a[5], b);
+		assert_eq!(a[6], b);
+		assert_eq!(a[7], b);
 	}
 }
