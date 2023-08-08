@@ -76,10 +76,10 @@ fn splat_u32x8(v: u32) -> u32x8 {
 }
 
 unsafe fn unpack_u32x8(v: u32x8) -> [u32; 8] {
-	#[repr(C, align(64))]
+	#[repr(C, align(32))]
 	struct Aligned;
 
-	#[repr(C, align(64))]
+	#[repr(C, align(32))]
 	struct Stack {
 		_alignment: [Aligned; 0],
 		data: [u32; 8],
@@ -93,10 +93,10 @@ unsafe fn unpack_u32x8(v: u32x8) -> [u32; 8] {
 }
 
 unsafe fn unpack_u16x8(v: u16x8) -> [u16; 8] {
-	#[repr(C, align(32))]
+	#[repr(C, align(16))]
 	struct Aligned;
 
-	#[repr(C, align(32))]
+	#[repr(C, align(16))]
 	struct Stack {
 		_alignment: [Aligned; 0],
 		data: [u16; 8],
