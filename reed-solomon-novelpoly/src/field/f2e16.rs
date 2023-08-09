@@ -181,6 +181,7 @@ impl Additive8x {
 	}
 
 	pub fn copy_from_slice(&mut self, src: &[Additive]) {
+		assert_eq!(src.len(), Self::LANE);
 		*self = Self::load(&src[..Self::LANE]);
 	}
 }

@@ -295,10 +295,11 @@ pub mod parameterized {
 		let mut rng = SmallRng::from_seed(SMALL_RNG_SEED);
 		use reed_solomon_novelpoly::f2e16::{Additive8x, Additive};
 
+		// factors of 1/2..1/8 are reasonable
 		for f_exp in 1..3 {
 			let f = 1 << f_exp;
 			let mut group = crit.benchmark_group(format!("encode guts n/k={}", f));
-			for k_exp in 5..10 {
+			for k_exp in 4..10 {
 				let k = 1 << k_exp;
 				let n = k * f;
 				assert!(n > k);
