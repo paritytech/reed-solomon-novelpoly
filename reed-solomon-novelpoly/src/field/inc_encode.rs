@@ -199,7 +199,7 @@ pub fn encode_sub_plain(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additive
 
 	// pad the incoming bytes with trailing 0s
 	// so we get a buffer of size `N` in `GF` symbols
-	let zero_bytes_to_add = n * 2 - upper_len;
+	let zero_bytes_to_add = n * 2 - bytes_len;
 	let elm_data = Vec::<Additive>::from_iter(bytes
 		.into_iter()
 		.copied()
@@ -249,7 +249,7 @@ pub fn encode_sub_faster8(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additi
 
 	// pad the incoming bytes with trailing 0s
 	// so we get a buffer of size `N` in `GF` symbols
-	let zero_bytes_to_add = n * 2 - upper_len;
+	let zero_bytes_to_add = n * 2 - bytes_len;
 	let data = Vec::<Additive>::from_iter(
 		bytes
 		.into_iter()
