@@ -4,15 +4,40 @@ resource_types:
   source:
     repository: teliaoss/github-pr-resource
 
+- name: file-url
+  type: registry-image
+  source:
+    repository: pivotalservices/concourse-curl-resource
+    tag: latest
+
 resources:
+- name: minio-client
+  type: file-url
+  check_every: 24h
+  source:
+    url: https://dl.min.io/client/mc/release/linux-amd64/mc
+    filename: mc
+
 - name: git-clone-resource
   type: git
   source:
     branch: master
-    uri: git@github.com:drahnr/reed-solomon-novelpoly.git
-    private_key: ((sirmergealot-ssh-key))
+    uri: https://github.com/paritytech/reed-solomon-novelpoly.git
 
-- name: git-pull-request-resource
+- name: git-honggfuzz-rs
+  type: git
+  source:
+    branch: master
+    uri: https://github.com/drahnr/honggfuzz-rs.git
+
+
+- name: git-flamegraph
+  type: git
+  source:
+    branch: main
+    uri: https://github.com/flamegraph-rs/flamegraph.git
+
+- name: git-pr-resource
   type: pull-request
   source:
     repository: drahnr/reed-solomon-novelpoly
@@ -23,7 +48,128 @@ resources:
   source:
     repository: quay.io/drahnr/rust-glibc-builder
 
+- name: honggfuzz-artifact
+  type: s3
+  icon: yarn
+  source:
+    endpoint: https://minio.spearow.io
+    bucket: cargo-hongg
+    regexp: "^cargo-hongg-(.*)$"
+    access_key_id: ((minio-access-key))
+    secret_access_key: ((minio-secret-key))
+
+- name: flamegraph-artifact
+  type: s3
+  icon: flame
+  source:
+    endpoint: https://minio.spearow.io
+    bucket: cargo-flamegraph
+    regexp: "^cargo-flamegraph-(.*)$"
+    access_key_id: ((minio-access-key))
+    secret_access_key: ((minio-secret-key))
+
+
+- name: flamegraph-svg
+  type: s3
+  icon: flame
+  source:
+    endpoint: https://minio.spearow.io
+    bucket: reed-solomon-flamegraph
+    regexp: "^flamegraph-(.*).svg$"
+    access_key_id: ((minio-access-key))
+    secret_access_key: ((minio-secret-key))
+
 jobs:
+### static shit
+  - name: tools-cargo-hongg
+    build_logs_to_retain: 3
+    public: true
+    serial: true
+    plan:
+    - in_parallel:
+      - get: git-honggfuzz-rs
+        trigger: true
+
+      - get: env-glibc
+
+    - task: create-cargo-hongg
+      timeout: 20m
+      image: env-glibc
+      config:
+        platform: linux
+        inputs:
+        - name: git-honggfuzz-rs
+        outputs:
+        - name: honggfuzz-artifact
+        caches:
+        - path: cargo_home
+        - path: target
+        run:
+          path: sh
+          args:
+          - -exc
+          - |
+            export CARGO_HOME="$(pwd)/../cargo_home"
+            export CARGO_TARGET_DIR="$(pwd)/../target"
+            sudo mkdir -p ${CARGO_HOME} ${CARGO_TARGET_DIR}
+            sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
+            rustc +stable --version --verbose
+
+            cargo build --release
+
+            sudo cp -vf ${CARGO_TARGET_DIR}/release/cargo-hongg ../honggfuzz-artifact/cargo-hongg-$(git rev-parse HEAD)
+
+          dir: git-honggfuzz-rs
+
+    - put: honggfuzz-artifact
+      params:
+        file: ./honggfuzz-artifact/cargo-hongg-*
+        acl: public-read
+
+  - name: tools-cargo-flamegraph
+    build_logs_to_retain: 3
+    public: true
+    serial: true
+    plan:
+    - in_parallel:
+      - get: git-flamegraph
+        trigger: true
+      - get: env-glibc
+
+    - task: create-cargo-flamegraph
+      timeout: 30m
+      image: env-glibc
+      config:
+        platform: linux
+        inputs:
+        - name: git-flamegraph
+        outputs:
+        - name: flamegraph-artifact
+        caches:
+        - path: cargo_home
+        - path: target
+        run:
+          path: sh
+          args:
+          - -exc
+          - |
+            export CARGO_HOME="$(pwd)/../cargo_home"
+            export CARGO_TARGET_DIR="$(pwd)/../target"
+            export PATH=$PATH:$CARGO_HOME/bin
+            sudo mkdir -p ${CARGO_HOME}/bin ${CARGO_TARGET_DIR}
+            sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
+            rustc +stable --version --verbose
+
+            cargo build --release
+
+            sudo cp -vf $CARGO_TARGET_DIR/release/cargo-flamegraph ../flamegraph-artifact/cargo-flamegraph-$(git rev-parse HEAD)
+
+          dir: git-flamegraph
+
+    - put: flamegraph-artifact
+      params:
+        file: ./flamegraph-artifact/cargo-flamegraph-*
+        acl: public-read
 ####################################################################################
 #                              P U L L - R E Q U E S T
 ####################################################################################
@@ -33,33 +179,38 @@ jobs:
     serial: true
     plan:
     - in_parallel:
-      - get: git-pull-request-resource
-        resource: git-pull-request-resource
+      - get: git-pr-resource
+        resource: git-pr-resource
         version: every
         trigger: true
 
       - get: env-glibc
 
     - in_parallel:
-      - put: git-pull-request-resource
+      - put: git-pr-resource
         params:
-          path: git-pull-request-resource
+          path: git-pr-resource
           context: meta-check
           status: pending
-      - put: git-pull-request-resource
+      - put: git-pr-resource
         params:
-          path: git-pull-request-resource
+          path: git-pr-resource
           context: compile
           status: pending
-      - put: git-pull-request-resource
+      - put: git-pr-resource
         params:
-          path: git-pull-request-resource
+          path: git-pr-resource
           context: unit-tests
           status: pending
-      - put: git-pull-request-resource
+      - put: git-pr-resource
         params:
-          path: git-pull-request-resource
+          path: git-pr-resource
           context: win64-cross-build
+          status: pending
+      - put: git-pr-resource
+        params:
+          path: git-pr-resource
+          context: fuzz
           status: pending
 
     - in_parallel:
@@ -69,7 +220,7 @@ jobs:
         config:
           platform: linux
           inputs:
-          - name: git-pull-request-resource
+          - name: git-pr-resource
           caches:
           - path: cargo_home
           - path: target
@@ -85,22 +236,20 @@ jobs:
               sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
               rustc +stable --version --verbose
 
-              export EXE="${CARGO_TARGET_DIR}/release/rs-ec-perf"
-
               cargo +stable build --release
 
-            dir: git-pull-request-resource
+            dir: git-pr-resource
 
         on_success:
-          put: git-pull-request-resource
+          put: git-pr-resource
           params:
-            path: git-pull-request-resource
+            path: git-pr-resource
             context: compile
             status: success
         on_failure:
-          put: git-pull-request-resource
+          put: git-pr-resource
           params:
-            path: git-pull-request-resource
+            path: git-pr-resource
             context: compile
             status: failure
 
@@ -110,9 +259,10 @@ jobs:
         config:
           platform: linux
           inputs:
-          - name: git-pull-request-resource
+          - name: git-pr-resource
           caches:
           - path: cargo_home
+          - path: target
           run:
             # user: root
             path: sh
@@ -126,30 +276,30 @@ jobs:
               rustc +stable --version --verbose
 
               cargo +stable test --all
-            dir: git-pull-request-resource
+            dir: git-pr-resource
           caches:
           - path: cargo
 
         on_success:
-          put: git-pull-request-resource
+          put: git-pr-resource
           params:
-            path: git-pull-request-resource
+            path: git-pr-resource
             context: unit-tests
             status: success
         on_failure:
-          put: git-pull-request-resource
+          put: git-pr-resource
           params:
-            path: git-pull-request-resource
+            path: git-pr-resource
             context: unit-tests
             status: failure
 
       - task: pr-win64-cross-build
-        timeout: 20m
+        timeout: 40m
         image: env-glibc
         config:
           platform: linux
           inputs:
-          - name: git-pull-request-resource
+          - name: git-pr-resource
           caches:
           - path: cargo_home
           - path: target
@@ -162,25 +312,223 @@ jobs:
               export CARGO_TARGET_DIR="$(pwd)/../target"
               sudo mkdir -p ${CARGO_HOME} ${CARGO_TARGET_DIR}
               sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
+              rustup target add x86_64-pc-windows-gnu
               rustc +stable --version --verbose
 
               cargo build --target x86_64-pc-windows-gnu
 
-            dir: git-pull-request-resource
+            dir: git-pr-resource
 
         on_success:
-          put: git-pull-request-resource
+          put: git-pr-resource
           params:
-            path: git-pull-request-resource
+            path: git-pr-resource
             context: win64-cross-build
             status: success
 
         on_failure:
-          put: git-pull-request-resource
+          put: git-pr-resource
           params:
-            path: git-pull-request-resource
+            path: git-pr-resource
             context: win64-cross-build
             status: failure
+
+
+
+      - in_parallel:
+        - do:
+          - get: honggfuzz-artifact
+            passed: [tools-cargo-hongg]
+
+          - task: pr-fuzz
+            timeout: 30m
+            # image: env-glibc
+            tags: [houdini]
+            config:
+              platform: linux
+              inputs:
+              - name: honggfuzz-artifact
+              - name: git-pr-resource
+              caches:
+              - path: cargo_home
+              - path: target
+              - path: dnf_cache
+              run:
+                path: sh
+                args:
+                - -exc
+                - |
+                  sudo chmod o+w /etc/dnf/dnf.conf
+                  sudo cat >> /etc/dnf/dnf.conf << EOF
+                  cachedir=$(pwd)/../dnf_cache
+                  install_weak_deps=False
+                  keepcache=True
+                  EOF
+
+                  sudo dnf install --disablerepo="*" --enablerepo="fedora" --enablerepo="updates" -y \
+                    binutils{,-devel} \
+                    make \
+                    clang \
+                    libblocksruntime{,-static,-devel} \
+                    xz{,-devel} \
+                    libunwind{,-devel} \
+                    which \
+                    fd-find \
+                    ripgrep
+
+                  export CARGO="$HOME/.cargo/bin/cargo"
+                  export CARGO_HOME="$(pwd)/../cargo_home"
+                  export CARGO_TARGET_DIR="$(pwd)/../target"
+                  export PATH=$PATH:$CARGO_HOME/bin
+
+                  sudo mkdir -p ${CARGO_HOME}/bin ${CARGO_TARGET_DIR}
+                  sudo cp -vf ../honggfuzz-artifact/cargo-hongg-* ${CARGO_HOME}/bin/cargo-hongg
+                  sudo chmod +x ${CARGO_HOME}/bin/cargo-hongg
+                  sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
+                  rustc +stable --version --verbose
+                  cargo hongg --version
+
+                  # for now patch the honggfuzz dependency to the latest git until it's merged and released upstream
+                  which cargo-add || cargo install -f cargo-edit
+                  cargo add -p fuzzit honggfuzz --git "https://github.com/drahnr/honggfuzz-rs.git"
+
+                  # ptrace(PTRACE_SEIZE) must be explicitly allowed in containers
+                  cargo hongg run fuzz_reconstruct -vvvv --iterations=5000 --timeout=120 --exit-upon-crash=76
+                  cargo hongg run fuzz_roundtrip -vvvv --iterations=5000 --timeout=120 --exit-upon-crash=77
+
+                dir: git-pr-resource
+
+            on_success:
+              put: git-pr-resource
+              params:
+                path: git-pr-resource
+                context: fuzz
+                status: success
+
+            on_failure:
+              put: git-pr-resource
+              params:
+                path: git-pr-resource
+                context: fuzz
+                status: failure
+
+        - do:
+          - get: flamegraph-artifact
+            passed: [tools-cargo-flamegraph]
+
+          - task: pr-flamegraph
+            timeout: 10m
+            #image: env-glibc
+            tags: [houdini]
+            config:
+              platform: linux
+              inputs:
+              - name: flamegraph-artifact
+              - name: git-pr-resource
+              outputs:
+              - name: flamegraph
+              caches:
+              - path: cargo_home
+              - path: target
+              run:
+                path: sh
+                args:
+                - -exc
+                - |
+                  sudo chmod o+w /etc/dnf/dnf.conf
+                  cat >> /etc/dnf/dnf.conf << EOF
+                  cachedir=$(pwd)/../dnf_cache
+                  install_weak_deps=False
+                  keepcache=True
+                  EOF
+
+                  sudo dnf install --disablerepo="*" --enablerepo="fedora" --enablerepo="updates" -y \
+                    perf \
+                    which \
+                    fd-find \
+                    ripgrep
+
+                  export CARGO_HOME="$(pwd)/../cargo_home"
+                  export CARGO_TARGET_DIR="$(pwd)/../target"
+                  export PATH=$PATH:$CARGO_HOME/bin
+                  sudo mkdir -p ${CARGO_HOME}/bin ${CARGO_TARGET_DIR}
+                  sudo cp ../flamegraph-artifact/cargo-flamegraph-* ${CARGO_HOME}/bin/cargo-flamegraph
+                  sudo chmod +x ${CARGO_HOME}/bin/cargo-flamegraph
+                  sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
+                  rustc +stable --version --verbose
+
+                  cargo-flamegraph --version
+                  cargo flamegraph -v -F 10000 --bin reed-solomon-benches
+
+                  mv flamegraph.svg ../flamegraph/flamegraph-$(git rev-parse HEAD).svg
+
+                dir: git-pr-resource
+
+            on_success:
+              do:
+                - put: flamegraph-svg
+                  params:
+                    file: ./flamegraph/flamegraph-*.svg
+                    acl: public-read
+
+                - get: mc
+                  resource: minio-client
+
+                - task: pr-share-flamegraph
+                  timeout: 10m
+                  image: env-glibc
+                  config:
+                    platform: linux
+                    inputs:
+                    - name: mc
+                    - name: git-pr-resource
+                    - name: flamegraph
+                    outputs:
+                    - name: comment
+                    caches:
+                    - name: dnf_cache
+                    run:
+                      path: sh
+                      args:
+                      - -exc
+                      - |
+                        sudo chmod o+w /etc/dnf/dnf.conf
+                        cat >> /etc/dnf/dnf.conf << EOF
+                        cachedir=$(pwd)/dnf_cache
+                        install_weak_deps=False
+                        keepcache=True
+                        EOF
+
+                        sudo dnf install --disablerepo="*" --enablerepo="fedora" --enablerepo="updates" -y jq
+                        sudo mkdir -p /usr/local/bin/
+                        sudo cp -vf mc/mc /usr/local/bin/
+                        sudo chmod +x /usr/local/bin/mc
+                        echo -e '((minio-access-key))\n((minio-secret-key))' | mc config host add spearow https://minio.spearow.io
+
+                        export NAME="flamegraph-$(cd git-pr-resource; git rev-parse HEAD; cd ..).svg"
+
+                        mc cp flamegraph/${NAME} spearow/reed-solomon-flamegraph/${NAME}
+
+                        sudo touch comment/comment.md
+                        sudo chmod o+rw comment/comment.md
+                        sudo chmod u+rw comment/comment.md
+
+                        printf "[🔥 flamegraph 🔥](%s)" "$(mc share download --no-color --expire=168h --json spearow/reed-solomon-flamegraph/${NAME} | jq -c -M -r .share)" \
+                          > comment/comment.md
+
+                  on_success:
+                    put: git-pr-resource
+                    params:
+                      path: git-pr-resource
+                      comment_file: comment/comment.md
+                      delete_previous_comments: true
+
+            on_failure:
+              put: git-pr-resource
+              params:
+                path: git-pr-resource
+                comment: "Flamegraph could not be created 🐞"
+                delete_previous_comments: true
 
       - try:
           task: format-check
@@ -189,7 +537,7 @@ jobs:
           config:
             platform: linux
             inputs:
-            - name: git-pull-request-resource
+            - name: git-pr-resource
             caches:
             - path: cargo_home
             - path: target
@@ -207,19 +555,19 @@ jobs:
 
                 cargo +stable fmt -- --check
 
-              dir: git-pull-request-resource
+              dir: git-pr-resource
 
           on_success:
-            put: git-pull-request-resource
+            put: git-pr-resource
             params:
-              path: git-pull-request-resource
+              path: git-pr-resource
               context: meta-check
               status: success
 
           on_failure:
-            put: git-pull-request-resource
+            put: git-pr-resource
             params:
-              path: git-pull-request-resource
+              path: git-pr-resource
               context: meta-check
               status: failure
 
@@ -260,7 +608,7 @@ jobs:
               sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
               rustc +stable --version --verbose
 
-              export EXE="${CARGO_TARGET_DIR}/release/rs-ec-perf"
+              export EXE="${CARGO_TARGET_DIR}/release/reed-solomon-novelpoly"
 
               cargo +stable build --release
 
@@ -285,9 +633,12 @@ jobs:
               export CARGO_TARGET_DIR="$(pwd)/../target"
               sudo mkdir -p ${CARGO_HOME} ${CARGO_TARGET_DIR}
               sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
-              rustc +stable --version --verbose
+              
+              rustup target add x86_64-pc-windows-gnu
 
-              cargo build --target x86_64-pc-windows-gnu
+              rustc +stable --target x86_64-pc-windows-gnu --version --verbose
+
+              cargo build --target x86_64-pc-windows-gnu -p reed-solomon-novelpoly
             dir: git-repo
 
       - task: unit-tests-master
