@@ -95,6 +95,7 @@ jobs:
     - task: create-cargo-hongg
       timeout: 20m
       image: env-glibc
+      privileged: true
       config:
         platform: linux
         inputs:
@@ -139,6 +140,7 @@ jobs:
     - task: create-cargo-flamegraph
       timeout: 30m
       image: env-glibc
+      privileged: true
       config:
         platform: linux
         inputs:
@@ -342,8 +344,9 @@ jobs:
 
           - task: pr-fuzz
             timeout: 30m
-            # image: env-glibc
-            tags: [houdini]
+            image: env-glibc
+            # tags: [houdini]
+            privileged: true
             config:
               platform: linux
               inputs:
@@ -418,8 +421,9 @@ jobs:
 
           - task: pr-flamegraph
             timeout: 10m
-            #image: env-glibc
-            tags: [houdini]
+            image: env-glibc
+            #tags: [houdini]
+            privileged: true
             config:
               platform: linux
               inputs:
