@@ -9,7 +9,9 @@ pub use reed_solomon_tester::{BYTES, N_SHARDS, TEST_DATA_CHUNK_SIZE};
 #[cfg(test)]
 mod test {
 
-	use super::*;
+	use novelpoly::f2e16::{encode_sub_faster8, reconstruct_sub};
+
+use super::*;
 
 	#[test]
 	fn novelpoly_roundtrip() -> std::result::Result<(), novelpoly::Error> {

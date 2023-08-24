@@ -202,7 +202,38 @@ mod tests {
 	use super::*;
 
 	#[test]
-	fn identical() {
+	fn identical_copy_in_copy_out() {
+		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
+
+		// setup some data
+		let v = [Additive(2345); 8];
+
+		// load it
+		let mut a = Additive8x::from(v);
+
+		// construct some dummy scratch space
+		let mut scratch = vec![Additive(0xFFFF_u16); 8];
+
+		// copy date to scratch space
+		a.copy_to_slice(&mut scratch);
+
+		assert_eq!(scratch, v);
+
+		// copy in _different_ values , although
+
+		let v = [Additive(1177); 8];
+		a.copy_from_slice(&v);
+
+		let array = Into::<[Additive; Additive8x::LANE]>::into(a);
+		for i in 0..8 {
+			assert_eq!(array[i], Additive(1177));
+		}
+	}
+
+	#[test]
+	fn identical_slice_elements() {
+		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
+
 		let m = Multiplier(12048);
 		let v = [Additive(2345); 8];
 
@@ -220,5 +251,42 @@ mod tests {
 		assert_eq!(a[5], b);
 		assert_eq!(a[6], b);
 		assert_eq!(a[7], b);
+	}
+
+	#[test]
+	fn identical_mul() {
+		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
+
+		let m = Multiplier(7);
+		let faster8 = Additive8x::from([Additive(2345); 8]);
+		let single = Additive(2345);
+
+		let res_faster8 = faster8.mul(m);
+		let res_faster8 = Into::<[Additive; Additive8x::LANE]>::into(res_faster8);
+		let res = single.mul(m);
+
+		for i in 0..Additive8x::LANE {
+			assert_eq!(res_faster8[i], res);
+		}
+	}
+
+	#[test]
+	fn identical_splat_u16x8() {
+		let value = 0xABCD;
+		let eight_values = splat_u16x8(value);
+		let eight_values = unsafe { unpack_u16x8(eight_values) };
+		for i in 0..(eight_values.len()) {
+			assert_eq!(eight_values[i], value);
+		}
+	}
+
+	#[test]
+	fn identical_splat_u32x8() {
+		let value = 0x09ABCDEF;
+		let eight_values = splat_u32x8(value);
+		let eight_values = unsafe { unpack_u32x8(eight_values) };
+		for i in 0..(eight_values.len()) {
+			assert_eq!(eight_values[i], value);
+		}
 	}
 }
