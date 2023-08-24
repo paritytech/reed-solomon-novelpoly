@@ -90,7 +90,39 @@ fn sub_encode_decode() -> Result<()> {
 	let mut data = [0u8; K2];
 	rng.fill_bytes(&mut data[..]);
 
-	let codewords = encode_sub(&data, N, K)?;
+	let codewords = encode_sub_plain(&data, N, K)?;
+	let mut codewords = codewords.into_iter().map(|x| Some(x)).collect::<Vec<_>>();
+	assert_eq!(codewords.len(), N);
+	codewords[0] = None;
+	codewords[1] = None;
+	codewords[2] = None;
+	codewords[N - 3] = None;
+	codewords[N - 2] = None;
+	codewords[N - 1] = None;
+
+	let erasures = codewords.iter().map(|x| x.is_none()).collect::<Vec<bool>>();
+
+	// Evaluate error locator polynomial only once
+	let mut error_poly_in_log = [Multiplier(0); FIELD_SIZE];
+	eval_error_polynomial(&erasures[..], &mut error_poly_in_log[..], FIELD_SIZE);
+
+	let reconstructed = reconstruct_sub(&codewords[..], &erasures[..], N, K, &error_poly_in_log)?;
+	itertools::assert_equal(data.iter(), reconstructed.iter().take(K2));
+	Ok(())
+}
+
+#[test]
+fn sub_encode_faster8_decode_plain() -> Result<()> {
+	let mut rng = rand::rngs::SmallRng::from_seed(SMALL_RNG_SEED);
+
+	const N: usize = 32;
+	const K: usize = 4;
+
+	const K2: usize = K * 2;
+	let mut data = [0u8; K2];
+	rng.fill_bytes(&mut data[..]);
+
+	let codewords = encode_sub_faster8(&data, N, K)?;
 	let mut codewords = codewords.into_iter().map(|x| Some(x)).collect::<Vec<_>>();
 	assert_eq!(codewords.len(), N);
 	codewords[0] = None;
@@ -198,7 +230,7 @@ fn roundtrip_for_large_messages() -> Result<()> {
 
 	let reconstructed_payload = reconstruct::<WrappedShard>(received_shards, N_WANTED_SHARDS).unwrap();
 
-	assert_recovery(payload, &reconstructed_payload, dropped_indices);
+	assert_recovery(payload, &reconstructed_payload, dropped_indices, rs.n, rs.k);
 
 	// verify integrity with criterion tests
 	roundtrip_w_drop_closure::<_, _, _, SmallRng, WrappedShard, _>(
@@ -357,7 +389,7 @@ fn ported_c_test() {
 	for i in 0..K {
 		//Check the correctness of the result
 		if data[i] != codeword[i] {
-			println!("🐍🐍🐍🐍🐍🐍🐍🐍🐍🐍🐍🐍🐍🐍🐍🐍🐍");
+			eprintln!("🐍🐍🐍🐍🐍🐍🐍🐍🐍🐍🐍🐍🐍🐍🐍🐍🐍");
 			panic!("Decoding ERROR! value at [{}] should={:04x} vs is={:04x}", i, data[i].0, codeword[i].0);
 		}
 	}

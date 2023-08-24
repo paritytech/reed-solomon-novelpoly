@@ -11,7 +11,7 @@ mod test {
 
 	use novelpoly::f2e16::{encode_sub_faster8, reconstruct_sub};
 
-use super::*;
+	use super::*;
 
 	#[test]
 	fn novelpoly_roundtrip() -> std::result::Result<(), novelpoly::Error> {

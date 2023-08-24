@@ -18,19 +18,28 @@ pub const N_SHARDS: usize = 123;
 pub const TEST_DATA_CHUNK_SIZE: usize = 1337;
 
 /// Assert the byte ranges derived from the index vec are recovered properly
-pub fn assert_recovery(payload: &[u8], reconstructed_payload: &[u8], dropped_indices: IndexVec) {
-	assert!(reconstructed_payload.len() >= payload.len());
+pub fn assert_recovery(
+	expected_payload: &[u8],
+	reconstructed_payload: &[u8],
+	dropped_indices: IndexVec,
+	target_n: usize,
+	target_k: usize,
+) {
+	assert!(reconstructed_payload.len() >= expected_payload.len());
 
 	dropped_indices.into_iter().for_each(|dropped_idx| {
 		let byteoffset = dropped_idx * 2;
 		let range = byteoffset..(byteoffset + 2);
 		// dropped indices are over `n`, but our data indices are just of length `k * 2`
-		if payload.len() >= range.end {
+		if expected_payload.len() >= range.end {
 			assert_eq!(
-				&payload[range.clone()],
+				&expected_payload[range.clone()],
 				&reconstructed_payload[range.clone()],
-				"Data at bytes {:?} must match:",
-				range
+				"Data at bytes {:?} within 0..{} must match (n={}, k={}):",
+				range,
+				expected_payload.len(),
+				target_n,
+				target_k
 			);
 		}
 	});
@@ -144,6 +153,6 @@ where
 
 	let recovered_payload = reconstruct(received_shards, target_shard_count)?;
 
-	assert_recovery(&payload[..], &recovered_payload[..], dropped_indices);
+	assert_recovery(&payload[..], &recovered_payload[..], dropped_indices, target_shard_count, target_shard_count / 3);
 	Ok(())
 }

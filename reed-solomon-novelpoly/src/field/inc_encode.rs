@@ -275,6 +275,7 @@ pub fn encode_sub_faster8(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additi
 	unsafe {
 		codeword.set_len(codeword.capacity());
 	}
+
 	codeword8x
 		.into_iter()
 		.enumerate()
@@ -297,11 +298,11 @@ mod tests_plain_vs_faster8 {
 	}
 	
 	#[test]
-	fn encode_low_equal_results_plain_vs_faster8() {
+	fn encode_low__output_plain_eq_faster8() {
 		// k must be larger, since the afft is only accelerated by lower values
 		const k: usize = 16;
 		const n: usize = 32;
-		let data = [Additive::zero(); n];
+		let data = [Additive(0x1234); n];
 		
 		let mut parity1 = [Additive::zero(); n];
 		encode_low_plain(&data[..], k, &mut parity1[..], n);
@@ -311,4 +312,19 @@ mod tests_plain_vs_faster8 {
 
 		assert_eq!(parity1, parity2);
 	}
+	
+	
+	#[test]
+	fn encode_sub__output_plain_eq_faster8() {
+		let n = 64;
+		let k = 32; // smallest supported size
+		let bytes = vec![0x2A_u8; 16];
+		let bytes = bytes.as_slice();
+		let fe_plain = encode_sub_plain(bytes, n, k).unwrap();
+		let fe_faster8: Vec<Additive> = encode_sub_faster8(bytes, n, k).unwrap();
+		
+		assert_eq!(fe_plain, fe_faster8);
+		// itertools::assert_equal(fe_plain.iter(), fe_faster8.iter());
+	}
+
 }

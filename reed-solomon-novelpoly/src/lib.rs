@@ -46,6 +46,7 @@ mod test {
 		)
 	}
 
+	/// Showcase the systematic nature of the algorithm.
 	#[test]
 	fn systematic_for_sure() {
 		let bytes = [1_u8, 2, 3, 4];
