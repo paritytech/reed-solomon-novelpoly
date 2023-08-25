@@ -298,7 +298,7 @@ mod tests_plain_vs_faster8 {
 	}
 	
 	#[test]
-	fn encode_low__output_plain_eq_faster8() {
+	fn encode_low_output_plain_eq_faster8() {
 		// k must be larger, since the afft is only accelerated by lower values
 		const k: usize = 16;
 		const n: usize = 32;
@@ -315,7 +315,7 @@ mod tests_plain_vs_faster8 {
 	
 	
 	#[test]
-	fn encode_sub__output_plain_eq_faster8() {
+	fn encode_sub_output_plain_eq_faster8() {
 		let n = 64;
 		let k = 32; // smallest supported size
 		let bytes = vec![0x2A_u8; 16];

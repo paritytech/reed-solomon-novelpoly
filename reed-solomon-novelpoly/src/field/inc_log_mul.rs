@@ -2,7 +2,7 @@ use derive_more::{Add, AddAssign, BitXor, BitXorAssign, Sub, SubAssign};
 
 /// Additive via XOR form of f2e16
 #[repr(transparent)]
-#[derive(Clone, Copy, Debug, BitXor, BitXorAssign, PartialEq, Eq)] // PartialOrd,Ord
+#[derive(Clone, Copy, BitXor, BitXorAssign, PartialEq, Eq)] // PartialOrd,Ord
 pub struct Additive(pub Elt);
 
 impl AsRef<Elt> for Additive {
