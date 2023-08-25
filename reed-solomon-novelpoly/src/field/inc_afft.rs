@@ -210,11 +210,6 @@ impl AdditiveFFT {
     		// somehow this j captures the subscript on \omega_{j 2^{i+1}}.	 (TODO)
     		let mut j = depart_no;
     		while j < size {
-
-
-				if depart_no < 8 {
-    			println!("Round {j} @ depart_no {depart_no}");
-				}
 				// At this point loops over i in (j - depart_no)..j give a bredth
     			// first loop across the recursion branches from lines 3 and 4,
     			// so the i loop corresponds to r in Algorithm 1.  In fact,
@@ -231,14 +226,6 @@ impl AdditiveFFT {
     			// We should understand the rest of this basis story, like (8) too.	 (TODO)
     			let skew = self.skews[j + index - 1];
 
-				let offset = ((j - depart_no)/Additive8x::LANE)*Additive8x::LANE;
-				if depart_no < 8 {
-
-					let intra = (j - depart_no) - offset * Additive8x::LANE;
-					dbg!(intra);
-
-					dbg!(&data[offset..][..Additive8x::LANE]);
-				}
 				// It's reasonale to skip the loop if skew is zero, but doing so with
     			// all bits set requires justification.	 (TODO)
     			if skew.0 != ONEMASK {
@@ -246,14 +233,7 @@ impl AdditiveFFT {
     				for i in (j - depart_no)..j {
     					// Line 6, explained by (28) page 6287, but
     					// adding depart_no acts like the r+2^i superscript.
-						if depart_no < 8 {
-							dbg!(depart_no);
-							dbg!(i);
-    						data[i] ^= dbg!(data[i + depart_no]).mul(skew);
-						} else {
-							data[i] ^= data[i + depart_no].mul(skew);
-
-						}
+						data[i] ^= data[i + depart_no].mul(skew);
     				}
     			}
 
@@ -261,19 +241,8 @@ impl AdditiveFFT {
     			for i in (j - depart_no)..j {
     				// Line 7, explained by (31) page 6287, but
     				// adding depart_no acts like the r+2^i superscript.
-					if depart_no < 8 {
-						dbg!(depart_no);
-						dbg!(i);
-    					data[i + depart_no] ^= dbg!(data[i]);
-					} else {
-						data[i + depart_no] ^= data[i];
-
-					}
+					data[i + depart_no] ^= data[i];
     			}
-
-				if depart_no < 8 {
-					println!("Applied: {:?}", &data[offset..][..Additive8x::LANE]);
-				}
 
     			// Increment by double depart_no in agreement with
     			// our updating 2*depart_no elements at this depth.
@@ -321,34 +290,22 @@ impl AdditiveFFT {
 				let skew = self.skews[j + index - 1];
     			let offset = (j - depart_no)/Additive8x::LANE;
 
-				dbg!(offset * Additive8x::LANE);
-
 				// calculate the remainder offset, which is within the selected `[Additive; 8]` slice
 				let intra = (j - depart_no) - offset * Additive8x::LANE;
-				dbg!(intra);
 
 				let mut local_data = Additive8x::unpack(&data[offset]);
-				dbg!(&local_data);
-				assert!(local_data.len() >= 2*depart_no);
 
 				if skew.0 != ONEMASK {
     				for i in intra..(intra + depart_no) {
-						dbg!(depart_no);
-						dbg!(i);
-    					local_data[i] ^= dbg!(local_data[i + depart_no]).mul(skew);
+    					local_data[i] ^= local_data[i + depart_no].mul(skew);
     				}
     			}
 
 				for i in intra..(intra + depart_no) {
-					dbg!(depart_no);
-					dbg!(i);
-    				local_data[i + depart_no] ^= dbg!(local_data[i]);
+    				local_data[i + depart_no] ^= local_data[i];
     			}
 
-				println!("Update: {local_data:?}");
 				data[offset].override_partial_continuous(intra, &local_data[intra..][..(depart_no * 2)]);
-
-				println!("Applied: {:?}", data[offset].unpack());
 
 				j += depart_no << 1;
     		}
