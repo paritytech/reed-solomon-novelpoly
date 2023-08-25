@@ -346,7 +346,7 @@ impl AdditiveFFT {
     			}
 
 				println!("Update: {local_data:?}");
-				data[offset].override_partial_continuous(0, &local_data[..(depart_no * 2)]);
+				data[offset].override_partial_continuous(intra, &local_data[intra..][..(depart_no * 2)]);
 
 				println!("Applied: {:?}", data[offset].unpack());
 
