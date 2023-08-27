@@ -591,13 +591,14 @@ mod afft_tests {
 	fn tash_mush() {
 		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
 
+		const INDEX_TO_TEST: usize = 1;
 		let mpy = Multiplier(21845);
-		let values = [Additive(0xbecb), Additive(0xdbba), Additive(0xb407), Additive(0xa812), Additive(0xcc8a), Additive(0xe8ad), Additive(0x2c64), Additive(0x92f7)];
+		let values = [Additive(0xe8ad), Additive(0xFFFF), Additive(0x0000), Additive(0x1111), Additive(0xcc8a), Additive(0xe8ad), Additive(0x2c64), Additive(0x92f7)];
 		let values8x = Additive8x::from(values.clone());
 		let res_faster8 = values8x.mul(mpy);
-		let res_plain = values[1].clone().mul(mpy);
-
-		assert_eq!(res_plain, Additive8x::unpack(&res_faster8)[1]);
+		let res_plain = values[INDEX_TO_TEST].clone().mul(mpy);
+		
+		assert_eq!(res_plain, Additive8x::unpack(&res_faster8)[INDEX_TO_TEST]);
 	}
 
 	#[test]
@@ -605,12 +606,12 @@ mod afft_tests {
 		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
 
 		let mpy = Multiplier(21845);
-		let values = [Additive(0xbecb), Additive(0xdbba), Additive(0xb407), Additive(0xa812), Additive(0xcc8a), Additive(0xe8ad), Additive(0x2c64), Additive(0x92f7)];
+		let values = [Additive(0xe8ad), Additive(0x2c64), Additive(0x92f7), Additive(0xa812), Additive(0xcc8a), Additive(0xe8ad), Additive(0x2c64), Additive(0x92f7)];
 		let values8x = Additive8x::from(values.clone());
 		let res_faster8 = values8x.mul(mpy);
 		let res_plain = Vec::from_iter(values.iter().map(|v| v.mul(mpy)));
 
-		assert_plain_eq_faster8(res_plain, &[res_faster8;1][..]);
+		assert_plain_eq_faster8(dbg!(res_plain), &[dbg!(res_faster8);1][..]);
 	}
 
 

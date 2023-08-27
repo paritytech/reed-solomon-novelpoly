@@ -182,7 +182,7 @@ impl Additive8x {
 
 			let logtable = _mm256_cvtepu16_epi32(logtable);
 
-			let log = _mm256_add_epi16(logtable, other);
+			let log = _mm256_add_epi32(logtable, other);
 			dbg!(unpack_u32x8(log));
 
 			// (log & ONEMASK) + (log >> shift)
