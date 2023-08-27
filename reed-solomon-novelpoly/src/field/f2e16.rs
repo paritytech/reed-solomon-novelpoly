@@ -24,13 +24,13 @@ include!("inc_reconstruct.rs");
 
 impl std::fmt::Display for Additive {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.0)
+		write!(f, "{:04x}", self.0)
 	}
 }
 
 impl std::fmt::Debug for Additive {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.0)
+		write!(f, "{:04x}", self.0)
 	}
 }
 
@@ -44,7 +44,7 @@ pub type u16x8 = __m128i;
 pub type u32x8 = __m256i;
 
 #[repr(transparent)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Additive8x(pub u16x8);
 
 impl PartialEq<Self> for Additive8x {
@@ -58,6 +58,17 @@ impl PartialEq<Self> for Additive8x {
 			// if all bits are 0s, things are equal
 			_mm_testz_si128(inverted, mask) == 1
 		}
+	}
+}
+
+impl std::fmt::Debug for Additive8x {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		let unpacked = self.unpack();
+		write!(
+			f,
+			"{}, {}, {}, {}, {}, {}, {}, {}",
+			unpacked[0], unpacked[1], unpacked[2], unpacked[3], unpacked[4], unpacked[5], unpacked[6], unpacked[7]
+		)
 	}
 }
 
@@ -167,24 +178,36 @@ impl Additive8x {
 			let idx = unpack_u16x8(self.0);
 			// load from the table based on the indices
 			let logtable = load_u16x8(LOG_TABLE.as_slice(), idx);
-			unpack_u16x8(logtable);
+			dbg!(unpack_u16x8(logtable));
 
 			let logtable = _mm256_cvtepu16_epi32(logtable);
 
 			let log = _mm256_add_epi16(logtable, other);
-			unpack_u32x8(log);
+			dbg!(unpack_u32x8(log));
 
 			// (log & ONEMASK) + (log >> shift)
 			let onemasks = splat_u32x8(ONEMASK as Wide);
 			let offset_sum_left = _mm256_and_si256(log, onemasks);
+			dbg!(unpack_u32x8(offset_sum_left));
 			let offset_sum_right = _mm256_srli_epi32(log, FIELD_BITS as i32);
+			dbg!(unpack_u32x8(offset_sum_right));
 			let offset = _mm256_add_epi32(offset_sum_left, offset_sum_right);
-
+			dbg!(unpack_u32x8(offset));
 			// lut;
 			// u32 to u16 with 0x0000FFFF mask per element
+
+			// we start with 32 bit elements in an u32x8
+			// which needs to be cast to u16x8
+
+			// offset = [a[0..128] as 64; b[0..128] as 64; a[128..256] as 64; b[128..256] as 64;] casting [0..32] blocks to u16
 			let offset = _mm256_packus_epi32(offset, offset);
+
+			// use `a` as above in the lower and higher 128 bits
+			const PERMUTE: i32 = 0b10_00_10_00;
+			let offset = _mm256_permute4x64_epi64(offset, PERMUTE);
 			let offset = _mm256_castsi256_si128(offset);
 			let offset = unpack_u16x8(offset);
+			dbg!(offset);
 			let res = load_u16x8(EXP_TABLE.as_slice(), offset);
 			Self(res)
 		}
@@ -331,7 +354,7 @@ mod tests {
 	}
 
 	#[test]
-	fn identical_mul() {
+	fn identical_mul_simple() {
 		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
 
 		let m = Multiplier(7);

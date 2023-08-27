@@ -300,14 +300,14 @@ mod tests_plain_vs_faster8 {
 	#[test]
 	fn encode_low_output_plain_eq_faster8() {
 		// k must be larger, since the afft is only accelerated by lower values
-		const k: usize = 16;
-		const n: usize = 32;
-		let data = [Additive(0x1234); n];
+		let n: usize = 32;
+		let k: usize = 16;
+		let data = vec![Additive(0x1234); n];
 		
-		let mut parity1 = [Additive::zero(); n];
+		let mut parity1 = vec![Additive::zero(); n];
 		encode_low_plain(&data[..], k, &mut parity1[..], n);
 
-		let mut parity2 = [Additive::zero(); n];
+		let mut parity2 = vec![Additive::zero(); n];
 		encode_low_faster8_adaptor(&data[..], k, &mut parity2[..], n);
 
 		assert_eq!(parity1, parity2);
