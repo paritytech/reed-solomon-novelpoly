@@ -145,7 +145,7 @@ impl AdditiveFFT {
 				for i in (j - depart_no)..j {
 					// Line 4, justified by (34) page 6288, but
 					// adding depart_no acts like the r+2^i superscript.
-					if depart_no >= 8 {
+					if depart_no >= 8  && false{
 						data[i + depart_no] ^= dbg!(data[dbg!(i)]);
 					} else {
 						data[i + depart_no] ^= data[i];
@@ -156,7 +156,7 @@ impl AdditiveFFT {
 				// by i and \omega_{j 2^{i+1}}, but not by r explicitly.
 				// We further explore this confusion below. (TODO)
 				let skew =
-				if depart_no >= 8 {
+				if depart_no >= 8 && false {
 					dbg!(self.skews[j + index - 1])
 				} else {
 					self.skews[j + index - 1]
@@ -168,7 +168,7 @@ impl AdditiveFFT {
 					for i in (j - depart_no)..j {
 						// Line 5, justified by (35) page 6288, but
 						// adding depart_no acts like the r+2^i superscript.
-						if depart_no >= 8 {
+						if depart_no >= 8 && false{
 							data[i] ^= dbg!(dbg!(data[dbg!(i + depart_no)]).mul(skew));
 						} else {
 							data[i] ^= data[i + depart_no].mul(skew);
@@ -176,7 +176,7 @@ impl AdditiveFFT {
 					}
 				}
 
-				if depart_no >= 8 {
+				if depart_no >= 8 && false{
 					dbg!(&data);
 				}
 
@@ -236,15 +236,15 @@ impl AdditiveFFT {
 				let depart_no_8x = depart_no / Additive8x::LANE;
 
 				for i_8x in (j_8x - depart_no_8x)..j_8x {
-					data[i_8x + depart_no_8x] ^= dbg!(data[dbg!(i_8x)]);
+					data[i_8x + depart_no_8x] ^= data[i_8x];
 				}
-				let skew = dbg!(self.skews[j + index - 1]); // OK
+				let skew = self.skews[j + index - 1];
 				if skew.0 != ONEMASK {
 					for i_8x in (j_8x - depart_no_8x)..j_8x {
-						data[i_8x] ^= dbg!(dbg!(data[dbg!(i_8x + depart_no_8x)]).mul(skew));
+						data[i_8x] ^= data[i_8x + depart_no_8x].mul(skew);
 					}
 				}
-				dbg!(&data);
+				// dbg!(&data);
 				j += depart_no << 1;
 			}
 			depart_no <<= 1;
@@ -480,14 +480,20 @@ mod afft_tests {
 		data
 	}
 
-	fn gen_faster8<R: Rng + SeedableRng<Seed = [u8; 32]>>(size: usize) -> Vec<Additive8x> {
-		let data = gen_plain::<R>(size);
+	fn gen_faster8_from_plain(data: impl AsRef<[Additive]>) -> Vec<Additive8x> {
+		let data = data.as_ref();
+		let size = data.len();
 		let mut dest = Vec::with_capacity((size+Additive8x::LANE-1) / Additive8x::LANE);
 		unsafe {
 			dest.set_len(dest.capacity());
 		}
 		convert_to_faster8(&data, &mut dest);
 		dest
+	}
+
+	fn gen_faster8<R: Rng + SeedableRng<Seed = [u8; 32]>>(size: usize) -> Vec<Additive8x> {
+		let data = gen_plain::<R>(size);
+		gen_faster8_from_plain(data)
 	}
 
 	#[test]
@@ -515,7 +521,7 @@ mod afft_tests {
 
 
 	#[test]
-	fn afft_output_plain_eq_faster8_size_8() {
+	fn afft_output_plain_eq_faster8_size_16() {
 		let index = 0;
 		let size = 16;
 		let mut data_plain = gen_plain::<SmallRng>(size);
@@ -538,6 +544,30 @@ mod afft_tests {
 		let size = 32;
 		let mut data_plain = gen_plain::<SmallRng>(size);
 		let mut data_faster8 = gen_faster8::<SmallRng>(size);
+		println!(">>>>");
+		unsafe { &AFFT }.afft(&mut data_plain, size, index);
+		println!(r#"
+
+		>>>>
+
+		"#);
+		unsafe { &AFFT }.afft_faster8(&mut data_faster8, size, index);
+		println!(">>>>");
+		assert_plain_eq_faster8(data_plain, data_faster8);
+	}
+	
+	
+	#[test]
+	fn afft_output_plain_eq_faster8_impulse_data() {
+		let index = 0;
+		let size = 32;
+
+		let mut data_plain = vec![Additive::zero(); size];
+		data_plain[0] = Additive(0x1234);
+		let mut data_faster8 = gen_faster8_from_plain(&data_plain);
+		
+		assert_plain_eq_faster8(&data_plain, &data_faster8);
+		
 		println!(">>>>");
 		unsafe { &AFFT }.afft(&mut data_plain, size, index);
 		println!(r#"

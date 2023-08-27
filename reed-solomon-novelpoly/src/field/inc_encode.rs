@@ -28,6 +28,7 @@ pub fn encode_low_plain(data: &[Additive], k: usize, codeword: &mut [Additive], 
 
     inverse_afft(codeword_first_k, k, 0);
 
+	dbg!(&codeword_first_k);
 	// the first codeword is now the basis for the remaining transforms
 	// denoted `M_topdash`
 
@@ -35,7 +36,10 @@ pub fn encode_low_plain(data: &[Additive], k: usize, codeword: &mut [Additive], 
 		let codeword_at_shift = &mut codeword_skip_first_k[(shift - k)..shift];
 		// copy `M_topdash` to the position we are currently at, the n transform
 		codeword_at_shift.copy_from_slice(codeword_first_k);
-		afft(codeword_at_shift, k, shift);
+		dbg!(&codeword_at_shift);
+		afft(codeword_at_shift, dbg!(k), dbg!(shift));
+		let post = &codeword_at_shift;
+		dbg!(post);
 	}
 
 	// restore `M` from the derived ones
@@ -43,16 +47,12 @@ pub fn encode_low_plain(data: &[Additive], k: usize, codeword: &mut [Additive], 
 }
 
 pub fn encode_low_faster8_adaptor(data: &[Additive], k: usize, codeword: &mut [Additive], n: usize) {
-    // FIXME redundant
-	let mut codeword8x = Vec::from_iter(data.iter().step_by(Additive8x::LANE).enumerate().map(|(piece_idx, _offset)| {
-		Additive8x::load(&codeword[(piece_idx*Additive8x::LANE)..][..Additive8x::LANE])
-	}));
-	let data = codeword8x.clone();
-	encode_low_faster8(&data[..], k, &mut codeword8x[..], n);
-	
-	for (i, codeword8x) in codeword8x.into_iter().enumerate() {
-		codeword8x.copy_to_slice(&mut codeword[(i*Additive8x::LANE)..][..Additive8x::LANE]);
-	}
+	assert_eq!(n % Additive8x::LANE, 0);
+	let mut codeword8x = vec![Additive8x::zero(); n / Additive8x::LANE];
+	convert_to_faster8(&data[..k], &mut codeword8x[..]);
+	let mut data8x = codeword8x.clone();
+	encode_low_faster8(dbg!(&data8x[..]), k, dbg!(&mut codeword8x[..]), n);
+	convert_from_faster8(&codeword8x[..], &mut codeword[..]);	
 }
 
 pub fn encode_low_faster8(data8x: &[Additive8x], k: usize, codeword8x: &mut [Additive8x], n: usize) {
@@ -69,25 +69,36 @@ pub fn encode_low_faster8(data8x: &[Additive8x], k: usize, codeword8x: &mut [Add
 	// k | n is guaranteed
 	assert_eq!((n / k) * k, n);
 
+	
+	let k_8x = k / Additive8x::LANE;
+	let n_8x = n / Additive8x::LANE;
+	
 	// move the data to the codeword
 	// split after the first k
-	let (codeword8x_first_k, codeword8x_skip_first_k) = codeword8x.split_at_mut(k/Additive8x::LANE);
+	let (codeword8x_first_k, codeword8x_skip_first_k) = codeword8x.split_at_mut(k_8x);
 
 	assert!((k >> 1) >= Additive8x::LANE);
     inverse_afft_faster8(codeword8x_first_k, k, 0);
 
+	dbg!(&codeword8x_first_k);
+
 	// the first codeword is now the basis for the remaining transforms
 	// denoted `M_topdash`
 
-	for shift in (k..n).into_iter().step_by(k) {
-		let codeword8x_at_shift = &mut codeword8x_skip_first_k[(shift/Additive8x::LANE - k/Additive8x::LANE)..][..(k/Additive8x::LANE)];
+	
+	for shift_8x in (k_8x..n_8x).into_iter().step_by(k_8x) {
+		let codeword8x_at_shift = &mut codeword8x_skip_first_k[(shift_8x - k_8x)..][..k_8x];
 		// copy `M_topdash` to the position we are currently at, the n transform
 		codeword8x_at_shift.copy_from_slice(codeword8x_first_k);
-		afft_faster8(codeword8x_at_shift, k, shift);
+		dbg!(&codeword8x_at_shift);
+		afft_faster8(codeword8x_at_shift, dbg!(k), dbg!(shift_8x * Additive8x::LANE));
+		let post = &codeword8x_at_shift;
+		dbg!(post);
+
 	}
 
 	// restore `M` from the derived ones
-	(&mut codeword8x[0..k/Additive8x::LANE]).copy_from_slice(&data8x[0..k/Additive8x::LANE]);
+	(&mut codeword8x[0..k_8x]).copy_from_slice(&data8x[0..k_8x]);
 }
 
 
@@ -290,25 +301,19 @@ pub fn encode_sub_faster8(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additi
 mod tests_plain_vs_faster8 {
 	use super::*;
 	
-	#[ignore]
-	#[test]
-	fn encode_high_equal_results_plain_vs_faster8() {
-		// encode_high_faster8()
-		// encode_high_plain()
-	}
-	
 	#[test]
 	fn encode_low_output_plain_eq_faster8() {
 		// k must be larger, since the afft is only accelerated by lower values
 		let n: usize = 32;
 		let k: usize = 16;
-		let data = vec![Additive(0x1234); n];
+		let data1 = vec![Additive(0x1234); n];
+		let data2 = data1.clone();
 		
 		let mut parity1 = vec![Additive::zero(); n];
-		encode_low_plain(&data[..], k, &mut parity1[..], n);
+		encode_low_plain(&data1[..], k, &mut parity1[..], n);
 
 		let mut parity2 = vec![Additive::zero(); n];
-		encode_low_faster8_adaptor(&data[..], k, &mut parity2[..], n);
+		encode_low_faster8_adaptor(&data2[..], k, &mut parity2[..], n);
 
 		assert_eq!(parity1, parity2);
 	}

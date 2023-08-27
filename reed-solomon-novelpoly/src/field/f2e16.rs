@@ -172,27 +172,27 @@ impl Additive8x {
 		unsafe {
 			// spread the multiplier
 			let other = splat_u32x8(other.0 as Wide);
-			unpack_u32x8(other);
+			// unpack_u32x8(other);
 
 			// get the indices
 			let idx = unpack_u16x8(self.0);
 			// load from the table based on the indices
 			let logtable = load_u16x8(LOG_TABLE.as_slice(), idx);
-			dbg!(unpack_u16x8(logtable));
+			// dbg!(unpack_u16x8(logtable));
 
 			let logtable = _mm256_cvtepu16_epi32(logtable);
 
 			let log = _mm256_add_epi32(logtable, other);
-			dbg!(unpack_u32x8(log));
+			// dbg!(unpack_u32x8(log));
 
 			// (log & ONEMASK) + (log >> shift)
 			let onemasks = splat_u32x8(ONEMASK as Wide);
 			let offset_sum_left = _mm256_and_si256(log, onemasks);
-			dbg!(unpack_u32x8(offset_sum_left));
+			// dbg!(unpack_u32x8(offset_sum_left));
 			let offset_sum_right = _mm256_srli_epi32(log, FIELD_BITS as i32);
-			dbg!(unpack_u32x8(offset_sum_right));
+			// dbg!(unpack_u32x8(offset_sum_right));
 			let offset = _mm256_add_epi32(offset_sum_left, offset_sum_right);
-			dbg!(unpack_u32x8(offset));
+			// dbg!(unpack_u32x8(offset));
 			// lut;
 			// u32 to u16 with 0x0000FFFF mask per element
 
@@ -207,7 +207,7 @@ impl Additive8x {
 			let offset = _mm256_permute4x64_epi64(offset, PERMUTE);
 			let offset = _mm256_castsi256_si128(offset);
 			let offset = unpack_u16x8(offset);
-			dbg!(offset);
+			// dbg!(offset);
 			let res = load_u16x8(EXP_TABLE.as_slice(), offset);
 			Self(res)
 		}
@@ -357,9 +357,9 @@ mod tests {
 	fn identical_mul_simple() {
 		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
 
-		let m = Multiplier(7);
-		let faster8 = Additive8x::from([Additive(2345); 8]);
-		let single = Additive(2345);
+		let m = Multiplier(63493);
+		let single = Additive(0xFA1C);
+		let faster8 = Additive8x::from([single; 8]);
 
 		let res_faster8 = faster8.mul(m);
 		let res_faster8 = Into::<[Additive; Additive8x::LANE]>::into(res_faster8);
