@@ -4,7 +4,9 @@ pub use reed_solomon_novelpoly as novelpoly;
 #[cfg(feature = "naive")]
 pub mod naive;
 
-pub use reed_solomon_tester::{BYTES, N_SHARDS, TEST_DATA_CHUNK_SIZE, N_SHARDS_JUST_ENOUGH, TEST_DATA_CHUNK_SIZE_JUST_ENOUGH};
+pub use reed_solomon_tester::{
+	BYTES, N_SHARDS, TEST_DATA_CHUNK_SIZE, N_SHARDS_JUST_ENOUGH, TEST_DATA_CHUNK_SIZE_JUST_ENOUGH,
+};
 
 #[cfg(test)]
 mod test {

@@ -253,7 +253,7 @@ fn walsh_output_plain_eq_faster8() {
 	use reed_solomon_tester::*;
 	use rand::prelude::*;
 	
-	const SZ: usize = 16;
+	const SZ: usize = 128;
 	
 	let mut rng = rand::rngs::SmallRng::from_seed(SMALL_RNG_SEED);
 	let mut data = [Multiplier(0_u16); SZ];
