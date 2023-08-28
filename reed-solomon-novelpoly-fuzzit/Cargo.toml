@@ -9,7 +9,9 @@ publish = false
 honggfuzz = "=0.5.55"
 arbitrary = { version = "1", features = ["derive"] }
 rstester = { path = "../reed-solomon-tester", package = "reed-solomon-tester" }
-novelpoly = { path = "../reed-solomon-novelpoly", package = "reed-solomon-novelpoly", features = ["mock"] }
+novelpoly = { path = "../reed-solomon-novelpoly", package = "reed-solomon-novelpoly", features = [
+  "mock",
+] }
 rand_chacha = "0.3.0"
 rand = "0.8.3"
 

@@ -43,4 +43,4 @@ assert_matches = "1.5.0"
 default = []
 with-alt-cxx-impl = ["cc", "bindgen"]
 naive = ["reed-solomon-erasure"]
-mock = ["rand","reed-solomon-tester"]
+mock = ["rand", "reed-solomon-tester"]

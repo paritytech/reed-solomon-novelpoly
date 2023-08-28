@@ -28,7 +28,7 @@ pub fn encode_low_plain(data: &[Additive], k: usize, codeword: &mut [Additive], 
 
     inverse_afft(codeword_first_k, k, 0);
 
-	dbg!(&codeword_first_k);
+	// dbg!(&codeword_first_k);
 	// the first codeword is now the basis for the remaining transforms
 	// denoted `M_topdash`
 
@@ -36,10 +36,10 @@ pub fn encode_low_plain(data: &[Additive], k: usize, codeword: &mut [Additive], 
 		let codeword_at_shift = &mut codeword_skip_first_k[(shift - k)..shift];
 		// copy `M_topdash` to the position we are currently at, the n transform
 		codeword_at_shift.copy_from_slice(codeword_first_k);
-		dbg!(&codeword_at_shift);
+		// dbg!(&codeword_at_shift);
 		afft(codeword_at_shift, dbg!(k), dbg!(shift));
-		let post = &codeword_at_shift;
-		dbg!(post);
+		// let post = &codeword_at_shift;
+		// dbg!(post);
 	}
 
 	// restore `M` from the derived ones
@@ -51,7 +51,7 @@ pub fn encode_low_faster8_adaptor(data: &[Additive], k: usize, codeword: &mut [A
 	let mut codeword8x = vec![Additive8x::zero(); n / Additive8x::LANE];
 	convert_to_faster8(&data[..k], &mut codeword8x[..]);
 	let data8x = codeword8x.clone();
-	encode_low_faster8(dbg!(&data8x[..]), k, dbg!(&mut codeword8x[..]), n);
+	encode_low_faster8(&data8x[..], k, &mut codeword8x[..], n);
 	convert_from_faster8(&codeword8x[..], &mut codeword[..]);	
 }
 
@@ -80,7 +80,7 @@ pub fn encode_low_faster8(data8x: &[Additive8x], k: usize, codeword8x: &mut [Add
 	assert!((k >> 1) >= Additive8x::LANE);
     inverse_afft_faster8(codeword8x_first_k, k, 0);
 
-	dbg!(&codeword8x_first_k);
+	// dbg!(&codeword8x_first_k);
 
 	// the first codeword is now the basis for the remaining transforms
 	// denoted `M_topdash`
@@ -90,11 +90,10 @@ pub fn encode_low_faster8(data8x: &[Additive8x], k: usize, codeword8x: &mut [Add
 		let codeword8x_at_shift = &mut codeword8x_skip_first_k[(shift_8x - k_8x)..][..k_8x];
 		// copy `M_topdash` to the position we are currently at, the n transform
 		codeword8x_at_shift.copy_from_slice(codeword8x_first_k);
-		dbg!(&codeword8x_at_shift);
-		afft_faster8(codeword8x_at_shift, dbg!(k), dbg!(shift_8x * Additive8x::LANE));
-		let post = &codeword8x_at_shift;
-		dbg!(post);
-
+		// dbg!(&codeword8x_at_shift);
+		afft_faster8(codeword8x_at_shift, dbg!(k), shift_8x * Additive8x::LANE);
+		// let post = &codeword8x_at_shift;
+		// dbg!(post);
 	}
 
 	// restore `M` from the derived ones

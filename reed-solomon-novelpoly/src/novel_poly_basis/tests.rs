@@ -220,12 +220,19 @@ fn roundtrip_for_large_messages() -> Result<()> {
 	let required_payload_size = K2 * shard_length;
 	let payload = &BYTES[K2..][..required_payload_size];
 	// let payload = &BYTES[..];
-	
+
 	let mut shards = encode::<WrappedShard>(payload, N_WANTED_SHARDS).expect("Const test parameters are ok. qed");
 
 	for (idx, shard) in shards.iter().enumerate() {
 		let raw_shard = AsRef::<[[u8; 2]]>::as_ref(&shard);
-		assert_eq!(shard_length, raw_shard.len(), "Shard #{} has an unxpected length {} (expected: {})", idx, raw_shard.len(), shard_length);
+		assert_eq!(
+			shard_length,
+			raw_shard.len(),
+			"Shard #{} has an unxpected length {} (expected: {})",
+			idx,
+			raw_shard.len(),
+			shard_length
+		);
 	}
 
 	let (received_shards, dropped_indices) = deterministic_drop_shards_clone(&mut shards, rs.n, rs.k);

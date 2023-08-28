@@ -167,7 +167,7 @@ impl Additive8x {
 	#[cfg(table_bootstrap_complete)]
 	pub fn mul(&self, other: Multiplier) -> Self {
 		if *self == Self::zero() {
-			return Self::zero()
+			return Self::zero();
 		}
 		// let log = (LOG_TABLE[self.0 as usize] as Wide) + other.0 as Wide;
 		// let offset = (log & ONEMASK as Wide) + (log >> FIELD_BITS);
@@ -357,11 +357,10 @@ mod tests {
 		assert_eq!(a[7], b);
 	}
 
-	
 	fn test_mul(additive: Additive, mpy: Multiplier) {
 		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
 
-		println!("0x{additive:?} .mul( {mpy:?} ) ...", );
+		println!("0x{additive:?} .mul( {mpy:?} ) ...",);
 		let single = additive;
 		let faster8 = Additive8x::from([single; 8]);
 
@@ -373,7 +372,7 @@ mod tests {
 			assert_eq!(res_faster8[i], res, " @ [{i}]");
 		}
 	}
-	
+
 	#[test]
 	fn identical_mul_regressions() {
 		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
@@ -386,7 +385,7 @@ mod tests {
 		test_mul(Additive(1), Multiplier(0));
 
 		test_mul(Additive(0x16e7), Multiplier(18124));
-		
+
 		test_mul(Additive(0x3d3d), Multiplier(15677));
 	}
 

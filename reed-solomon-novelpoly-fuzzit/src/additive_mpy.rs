@@ -11,7 +11,7 @@ use rand::prelude::*;
 struct FieldMpyParams {
 	additive: Additive,
 	mpy: Multiplier,
-    idx_to_test: usize,
+	idx_to_test: usize,
 }
 
 impl<'a> Arbitrary<'a> for FieldMpyParams {
@@ -34,13 +34,12 @@ fn main() {
 		// `&[u8]` when possible.
 		// Here, this slice will contain a "random" quantity of "random" data.
 		fuzz!(|params: FieldMpyParams| {
-            let FieldMpyParams { idx_to_test, additive, mpy } = dbg!(params);
-            let values = [additive; 8];
-            let values8x = Additive8x::from(values.clone());
-            let res_faster8 = values8x.mul(mpy);
-            let res_plain = values[idx_to_test].clone().mul(mpy);
-            assert_eq!(res_plain, Additive8x::unpack(&res_faster8)[idx_to_test]);
-
+			let FieldMpyParams { idx_to_test, additive, mpy } = dbg!(params);
+			let values = [additive; 8];
+			let values8x = Additive8x::from(values.clone());
+			let res_faster8 = values8x.mul(mpy);
+			let res_plain = values[idx_to_test].clone().mul(mpy);
+			assert_eq!(res_plain, Additive8x::unpack(&res_faster8)[idx_to_test]);
 		});
 	}
 }

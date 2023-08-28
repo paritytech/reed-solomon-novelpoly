@@ -125,10 +125,11 @@ impl AdditiveFFT {
 		let mut depart_no = 1_usize;
 		while depart_no < size {
 
-			if depart_no >= 8 {
-				println!("\n\n\nplain/Round depart_no={depart_no}");
-				dbg!(&data);
-			}
+			// if depart_no >= 8 {
+			// 	println!("\n\n\nplain/Round depart_no={depart_no}");
+			// 	dbg!(&data);
+			// }
+
 			// Agrees with for loop (j of Algorithm 2) in (0..2^{k-i-1}) from line 3,
 			// except we've j in (depart_no..size).step_by(2*depart_no), meaning
 			// the doubled step compensated for the halve size exponent, and
@@ -145,22 +146,24 @@ impl AdditiveFFT {
 				for i in (j - depart_no)..j {
 					// Line 4, justified by (34) page 6288, but
 					// adding depart_no acts like the r+2^i superscript.
-					if depart_no >= 8  && false{
-						data[i + depart_no] ^= dbg!(data[dbg!(i)]);
-					} else {
+
+					// if depart_no >= 8  && false{
+						// data[i + depart_no] ^= dbg!(data[dbg!(i)]);
+					// } else {
 						data[i + depart_no] ^= data[i];
-					}
+					// }
 				}
 
 				// Algorithm 2 indexs the skew factor in line 5 page 6288
 				// by i and \omega_{j 2^{i+1}}, but not by r explicitly.
 				// We further explore this confusion below. (TODO)
 				let skew =
-				if depart_no >= 8 && false {
-					dbg!(self.skews[j + index - 1])
-				} else {
+				// if depart_no >= 8 && false {
+				// 	dbg!(self.skews[j + index - 1])
+				// } else {
 					self.skews[j + index - 1]
-				};
+				// }
+				;
 				// It's reasonale to skip the loop if skew is zero, but doing so with
 				// all bits set requires justification.	 (TODO)
 				if skew.0 != ONEMASK {
@@ -168,17 +171,17 @@ impl AdditiveFFT {
 					for i in (j - depart_no)..j {
 						// Line 5, justified by (35) page 6288, but
 						// adding depart_no acts like the r+2^i superscript.
-						if depart_no >= 8 && false{
-							data[i] ^= dbg!(dbg!(data[dbg!(i + depart_no)]).mul(skew));
-						} else {
+						// if depart_no >= 8 && false{
+						// 	data[i] ^= dbg!(dbg!(data[dbg!(i + depart_no)]).mul(skew));
+						// } else {
 							data[i] ^= data[i + depart_no].mul(skew);
-						}
+						// }
 					}
 				}
 
-				if depart_no >= 8 && false{
-					dbg!(&data);
-				}
+				// if depart_no >= 8 && false{
+				// 	dbg!(&data);
+				// }
 
 				// Increment by double depart_no in agreement with
 				// our updating 2*depart_no elements at this depth.
@@ -223,13 +226,12 @@ impl AdditiveFFT {
 			depart_no <<= 1;
 		}
 
-		// OK UNTIL HERE
 		assert!(depart_no >= Additive8x::LANE);
 
 		while depart_no < size {
 			let mut j = depart_no;
-			println!("\n\n\nfaster8/Round depart_no={depart_no}");
-			dbg!(&data);
+			// println!("\n\n\nfaster8/Round depart_no={depart_no}");
+			// dbg!(&data);
 
 			while j < size {
 				let j_8x = j / Additive8x::LANE;
