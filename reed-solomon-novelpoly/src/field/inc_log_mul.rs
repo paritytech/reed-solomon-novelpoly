@@ -135,7 +135,7 @@ pub fn walsh_faster8(data: &mut [Multiplier], size: usize) {
 	}
 	
 	use core::arch::x86_64::*;
-	use crate::f2e16::{splat_u16x8, splat_u32x8, clipping_cast, expand_cast, unpack_u16x8, unpack_u32x8};
+	use crate::f2e16::{u16x8, u32x8, splat_u16x8, splat_u32x8, clipping_cast, expand_cast, unpack_u16x8, unpack_u32x8};
 
 	// let mask = ONEMASK as Wide;
 	let mask = splat_u32x8(ONEMASK as _);
@@ -149,10 +149,10 @@ pub fn walsh_faster8(data: &mut [Multiplier], size: usize) {
 				//			 data[i] := data[i] / data[i+depart_no]
 				// data[i+depart_no] := data[i] * data[i+depart_no]
 				unsafe {
-					let data0 = _mm_loadu_si128(core::intrinsics::transmute(&data[i..][..LANE]).as_ptr());
+					let data0 = _mm_loadu_si128(core::intrinsics::transmute::<_, *const u16x8>((&data[i..][..LANE]).as_ptr()));
 					// dbg!(unpack_u16x8(data0));
 
-					let data1 = _mm_loadu_si128(core::intrinsics::transmute(&data[(i+depart_no)..][..LANE]).as_ptr());
+					let data1 = _mm_loadu_si128(core::intrinsics::transmute::<_, *const u16x8>((&data[(i+depart_no)..][..LANE]).as_ptr()));
 					// dbg!(unpack_u16x8(data1));
 					
 					let data0 = expand_cast(data0);
