@@ -32,7 +32,7 @@ pub fn encode_low_plain(data: &[Additive], k: usize, codeword: &mut [Additive], 
 	// the first codeword is now the basis for the remaining transforms
 	// denoted `M_topdash`
 
-	for shift in (k..n).into_iter().step_by(k) {
+	for shift in (k..n).step_by(k) {
 		let codeword_at_shift = &mut codeword_skip_first_k[(shift - k)..shift];
 		// copy `M_topdash` to the position we are currently at, the n transform
 		codeword_at_shift.copy_from_slice(codeword_first_k);
@@ -43,7 +43,7 @@ pub fn encode_low_plain(data: &[Additive], k: usize, codeword: &mut [Additive], 
 	}
 
 	// restore `M` from the derived ones
-	(&mut codeword[0..k]).copy_from_slice(&data[0..k]);
+	codeword[0..k].copy_from_slice(&data[0..k]);
 }
 
 pub fn encode_low_faster8_adaptor(data: &[Additive], k: usize, codeword: &mut [Additive], n: usize) {
@@ -86,7 +86,7 @@ pub fn encode_low_faster8(data8x: &[Additive8x], k: usize, codeword8x: &mut [Add
 	// denoted `M_topdash`
 
 	
-	for shift_8x in (k_8x..n_8x).into_iter().step_by(k_8x) {
+	for shift_8x in (k_8x..n_8x).step_by(k_8x) {
 		let codeword8x_at_shift = &mut codeword8x_skip_first_k[(shift_8x - k_8x)..][..k_8x];
 		// copy `M_topdash` to the position we are currently at, the n transform
 		codeword8x_at_shift.copy_from_slice(codeword8x_first_k);
@@ -97,7 +97,7 @@ pub fn encode_low_faster8(data8x: &[Additive8x], k: usize, codeword8x: &mut [Add
 	}
 
 	// restore `M` from the derived ones
-	(&mut codeword8x[0..k_8x]).copy_from_slice(&data8x[0..k_8x]);
+	codeword8x[0..k_8x].copy_from_slice(&data8x[0..k_8x]);
 }
 
 
@@ -125,7 +125,7 @@ pub fn encode_high_plain(data: &[Additive], k: usize, parity: &mut [Additive], m
 
 	let mut i = t;
 	while i < n {
-		(&mut mem[..t]).copy_from_slice(&data[(i - t)..t]);
+		mem[..t].copy_from_slice(&data[(i - t)..t]);
 
 		inverse_afft(mem, t, i);
 		for j in 0..t {
@@ -165,7 +165,7 @@ pub fn encode_high_faster8(data: &[Additive8x], k: usize, parity: &mut [Additive
 
 	let mut i = t8s;
 	while i < n {
-		(&mut mem[..t8s]).copy_from_slice(&data[(i - t8s)..t]);
+		mem[..t8s].copy_from_slice(&data[(i - t8s)..t]);
 
 		inverse_afft_faster8(mem, t8s, i);
 		for j in 0..t8s {
@@ -198,8 +198,8 @@ pub fn encode_sub_plain(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additive
 	} else {
 		let loglen = log2(bytes_len);
 		let upper_len = 1 << loglen;
-		let upper_len = if upper_len >= bytes_len { upper_len } else { upper_len << 1 };
-		upper_len
+		
+		if upper_len >= bytes_len { upper_len } else { upper_len << 1 }
 	};
 	assert!(is_power_of_2(upper_len));
 	assert!(upper_len >= bytes_len);
@@ -211,7 +211,7 @@ pub fn encode_sub_plain(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additive
 	// so we get a buffer of size `N` in `GF` symbols
 	let zero_bytes_to_add = n * 2 - bytes_len;
 	let elm_data = Vec::<Additive>::from_iter(bytes
-		.into_iter()
+		.iter()
 		.copied()
 		.chain(std::iter::repeat(0u8).take(zero_bytes_to_add))
 		.tuple_windows()
@@ -248,8 +248,8 @@ pub fn encode_sub_faster8(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additi
 	} else {
 		let loglen = log2(std::cmp::max(Additive8x::LANE, bytes_len));
 		let upper_len = 1 << loglen;
-		let upper_len = if upper_len >= bytes_len { upper_len } else { upper_len << 1 };
-		upper_len
+		
+		if upper_len >= bytes_len { upper_len } else { upper_len << 1 }
 	};
 	assert!(is_power_of_2(upper_len));
 	assert!(upper_len >= bytes_len);
@@ -262,14 +262,14 @@ pub fn encode_sub_faster8(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additi
 	let zero_bytes_to_add = n * 2 - bytes_len;
 	let data = Vec::<Additive>::from_iter(
 		bytes
-		.into_iter()
+		.iter()
 		.copied()
 		.chain(std::iter::repeat(0u8).take(zero_bytes_to_add))
 		.tuple_windows()
 		.step_by(2)
 		.map(|(a,b)| Additive(Elt::from_be_bytes([a, b])))
 	);
-	let data8x = Vec::<Additive8x>::from_iter(data.chunks(Additive8x::LANE).map(|sliced| Additive8x::load(sliced)));
+	let data8x = Vec::<Additive8x>::from_iter(data.chunks(Additive8x::LANE).map(Additive8x::load));
 
 	// update new data bytes with zero padded bytes
 	// `l` is now `GF(2^16)` symbols

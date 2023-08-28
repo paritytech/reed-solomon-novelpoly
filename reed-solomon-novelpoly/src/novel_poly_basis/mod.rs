@@ -54,7 +54,7 @@ impl CodeParams {
 		// which is true by definition
 		assert!(n * k_po2 <= n_po2 * k);
 
-		if n_po2 > FIELD_SIZE as usize {
+		if n_po2 > FIELD_SIZE {
 			return Err(Error::WantedShardCountTooHigh(n));
 		}
 		Ok(Self { n: n_po2, k: k_po2, wanted_n: n })
@@ -132,7 +132,7 @@ impl ReedSolomon {
 			validator_count
 		];
 
-		for (chunk_idx, i) in (0..bytes.len()).into_iter().step_by(k2).enumerate() {
+		for (chunk_idx, i) in (0..bytes.len()).step_by(k2).enumerate() {
 			let end = std::cmp::min(i + k2, bytes.len());
 			assert_ne!(i, end);
 			let data_piece = &bytes[i..end];

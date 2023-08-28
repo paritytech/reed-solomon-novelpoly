@@ -26,11 +26,11 @@ fn write_field_tables<W: io::Write>(mut w: W) -> io::Result<()> {
 	let mut log_table: [Elt; FIELD_SIZE] = [0; FIELD_SIZE];
 	let mut exp_table: [Elt; FIELD_SIZE] = [0; FIELD_SIZE];
 
-	let mas: Elt = (1 << FIELD_BITS - 1) - 1;
+	let mas: Elt = (1 << (FIELD_BITS - 1)) - 1;
 	let mut state: usize = 1;
 	for i in 0_usize..(ONEMASK as usize) {
 		exp_table[state] = i as Elt;
-		if (state >> FIELD_BITS - 1) != 0 {
+		if (state >> (FIELD_BITS - 1)) != 0 {
 			state &= mas as usize;
 			state = state << 1_usize ^ GENERATOR as usize;
 		} else {
@@ -58,7 +58,7 @@ fn write_field_tables<W: io::Write>(mut w: W) -> io::Result<()> {
 	write_const(&mut w, "EXP_TABLE", &exp_table, "[Elt; FIELD_SIZE]")?;
 
 	// mem_cpy(&mut log_walsh[..], &log_table[..]);
-	let log_walsh = log_table.clone();
+	let log_walsh = log_table;
 	let mut log_walsh = unsafe { core::mem::transmute::<_, [Multiplier; FIELD_SIZE]>(log_walsh) };
 	log_walsh[0] = Multiplier(0);
 	walsh(&mut log_walsh[..], FIELD_SIZE);

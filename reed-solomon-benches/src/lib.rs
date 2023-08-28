@@ -11,8 +11,6 @@ pub use reed_solomon_tester::{
 #[cfg(test)]
 mod test {
 
-	use novelpoly::f2e16::{encode_sub_faster8, reconstruct_sub};
-
 	use super::*;
 
 	#[test]

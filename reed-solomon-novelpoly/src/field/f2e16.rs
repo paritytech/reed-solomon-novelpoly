@@ -168,8 +168,8 @@ pub(crate) fn clipping_cast(data: u32x8) -> u16x8 {
 		// use `a` as above in the lower and higher 128 bits
 		const PERMUTE: i32 = 0b11_01_10_00;
 		let data = _mm256_permute4x64_epi64(packed, PERMUTE);
-		let data = _mm256_castsi256_si128(data);
-		data
+
+		_mm256_castsi256_si128(data)
 	}
 }
 
@@ -292,9 +292,9 @@ impl From<[Additive; Additive8x::LANE]> for Additive8x {
 		Self::load(&a[..])
 	}
 }
-impl Into<[Additive; Additive8x::LANE]> for Additive8x {
-	fn into(self) -> [Additive; Additive8x::LANE] {
-		unsafe { std::intrinsics::transmute(unpack_u16x8(self.0)) }
+impl From<Additive8x> for [Additive; Additive8x::LANE] {
+	fn from(val: Additive8x) -> Self {
+		unsafe { std::intrinsics::transmute(unpack_u16x8(val.0)) }
 	}
 }
 
@@ -302,7 +302,6 @@ pub fn convert_to_faster8(data: &[Additive], dest: &mut [Additive8x]) {
 	assert_eq!(data.len() % Additive8x::LANE, 0);
 	assert!(data.len() <= dest.len() * Additive8x::LANE);
 	(0..(data.len() + Additive8x::LANE - 1) / Additive8x::LANE)
-		.into_iter()
 		.for_each(|i| dest[i] = Additive8x::load(&data[(i * Additive8x::LANE)..][..Additive8x::LANE]));
 }
 
@@ -352,7 +351,7 @@ mod tests {
 		let m = Multiplier(12048);
 		let v = [Additive(2345); 8];
 
-		let b = v[0].clone();
+		let b = v[0];
 		let b = b.mul(m);
 
 		let a = Additive8x::from(v);
@@ -446,6 +445,6 @@ mod tests {
 		assert_eq!(unpack_u16x8(splat_u16x8(0xAA_BB)), unpack_u16x8(x));
 
 		let y = expand_cast(x);
-		assert_eq!(unpack_u32x8(splat_u32x8(0x0000_AA_BB)), unpack_u32x8(y));
+		assert_eq!(unpack_u32x8(splat_u32x8(0x0000_AABB)), unpack_u32x8(y));
 	}
 }

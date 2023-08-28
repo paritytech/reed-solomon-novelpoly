@@ -1,6 +1,5 @@
 use honggfuzz::fuzz;
 
-use novelpoly::*;
 use novelpoly::f2e16::*;
 
 use arbitrary::*;

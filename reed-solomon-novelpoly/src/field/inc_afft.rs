@@ -477,8 +477,8 @@ pub mod test_utils {
 	pub fn gen_plain<R: Rng + SeedableRng<Seed = [u8; 32]>>(size: usize) -> Vec<Additive> {
 		let rng = <R as SeedableRng>::from_seed(reed_solomon_tester::SMALL_RNG_SEED);
 		let dist = rand::distributions::Uniform::new_inclusive(u16::MIN, u16::MAX);
-		let data = Vec::from_iter(rng.sample_iter::<u16, _>(dist.clone()).take(size).map(Additive));
-		data
+		
+		Vec::from_iter(rng.sample_iter::<u16, _>(dist).take(size).map(Additive))
 	}
 
 	pub fn gen_faster8_from_plain(data: impl AsRef<[Additive]>) -> Vec<Additive8x> {
@@ -488,7 +488,7 @@ pub mod test_utils {
 		unsafe {
 			dest.set_len(dest.capacity());
 		}
-		convert_to_faster8(&data, &mut dest);
+		convert_to_faster8(data, &mut dest);
 		dest
 	}
 
@@ -633,9 +633,9 @@ mod afft_tests {
 		const INDEX_TO_TEST: usize = 1;
 		let mpy = Multiplier(21845);
 		let values = [Additive(0xe8ad), Additive(0xFFFF), Additive(0x0000), Additive(0x1111), Additive(0xcc8a), Additive(0xe8ad), Additive(0x2c64), Additive(0x92f7)];
-		let values8x = Additive8x::from(values.clone());
+		let values8x = Additive8x::from(values);
 		let res_faster8 = values8x.mul(mpy);
-		let res_plain = values[INDEX_TO_TEST].clone().mul(mpy);
+		let res_plain = values[INDEX_TO_TEST].mul(mpy);
 		
 		assert_eq!(res_plain, Additive8x::unpack(&res_faster8)[INDEX_TO_TEST]);
 	}
@@ -646,7 +646,7 @@ mod afft_tests {
 
 		let mpy = Multiplier(21845);
 		let values = [Additive(0xe8ad), Additive(0x2c64), Additive(0x92f7), Additive(0xa812), Additive(0xcc8a), Additive(0xe8ad), Additive(0x2c64), Additive(0x92f7)];
-		let values8x = Additive8x::from(values.clone());
+		let values8x = Additive8x::from(values);
 		let res_faster8 = values8x.mul(mpy);
 		let res_plain = Vec::from_iter(values.iter().map(|v| v.mul(mpy)));
 

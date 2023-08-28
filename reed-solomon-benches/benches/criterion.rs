@@ -231,7 +231,7 @@ pub mod parameterized {
 		k: usize,
 		rng: &mut SmallRng,
 	) {
-		use reed_solomon_novelpoly::f2e16::{Additive8x, Additive, encode_sub_faster8, encode_sub_plain};
+		use reed_solomon_novelpoly::f2e16::{Additive};
 		use rand::Rng;
 		{
 			group.bench_with_input(
@@ -239,7 +239,7 @@ pub mod parameterized {
 				&(),
 				|b, _| {
 					let dist = rand::distributions::Uniform::new_inclusive(u16::MIN, u16::MAX);
-					let data = Vec::from_iter(rng.sample_iter::<u16, _>(dist.clone()).take(n).map(Additive));
+					let data = Vec::from_iter(rng.sample_iter::<u16, _>(dist).take(n).map(Additive));
 					let mut codeword = vec![Additive::zero(); n];
 					b.iter(|| {
 						reed_solomon_novelpoly::f2e16::encode_low_faster8_adaptor(
@@ -255,7 +255,7 @@ pub mod parameterized {
 		{
 			group.bench_with_input(BenchmarkId::new("novel-poly-guts-encode-plain", param.to_string()), &(), |b, _| {
 				let dist = rand::distributions::Uniform::new_inclusive(u16::MIN, u16::MAX);
-				let data = Vec::from_iter(rng.sample_iter::<u16, _>(dist.clone()).take(n).map(Additive));
+				let data = Vec::from_iter(rng.sample_iter::<u16, _>(dist).take(n).map(Additive));
 				let mut codeword = vec![Additive::zero(); n];
 				b.iter(|| {
 					reed_solomon_novelpoly::f2e16::encode_low_plain(
@@ -273,7 +273,7 @@ pub mod parameterized {
 				&(),
 				|b, _| {
 					let dist = rand::distributions::Uniform::new_inclusive(u8::MIN, u8::MAX);
-					let data = Vec::from_iter(rng.sample_iter::<u8, _>(dist.clone()).take(k * 2));
+					let data = Vec::from_iter(rng.sample_iter::<u8, _>(dist).take(k * 2));
 					b.iter(|| {
 						reed_solomon_novelpoly::f2e16::encode_sub_faster8(black_box(&data), black_box(n), black_box(k));
 					})
@@ -283,7 +283,7 @@ pub mod parameterized {
 		{
 			group.bench_with_input(BenchmarkId::new("novel-poly-encode-sub-plain", param.to_string()), &(), |b, _| {
 				let dist = rand::distributions::Uniform::new_inclusive(u8::MIN, u8::MAX);
-				let data = Vec::from_iter(rng.sample_iter::<u8, _>(dist.clone()).take(k * 2));
+				let data = Vec::from_iter(rng.sample_iter::<u8, _>(dist).take(k * 2));
 				b.iter(|| {
 					reed_solomon_novelpoly::f2e16::encode_sub_plain(black_box(&data), black_box(n), black_box(k));
 				})
@@ -293,7 +293,7 @@ pub mod parameterized {
 
 	pub fn bench_encode_guts(crit: &mut Criterion) {
 		let mut rng = SmallRng::from_seed(SMALL_RNG_SEED);
-		use reed_solomon_novelpoly::f2e16::{Additive8x, Additive};
+		use reed_solomon_novelpoly::f2e16::{Additive8x};
 
 		// factors of 1/2..1/8 are reasonable
 		for f_exp in 1..3 {
@@ -314,8 +314,7 @@ pub mod parameterized {
 }
 
 fn parameterized_criterion() -> Criterion {
-	let crit = Criterion::default().sample_size(10).warm_up_time(Duration::from_millis(100));
-	crit
+	Criterion::default().sample_size(10).warm_up_time(Duration::from_millis(100))
 }
 
 criterion_group!(

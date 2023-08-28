@@ -66,7 +66,7 @@ fn k_n_construction() {
 fn flt_back_and_forth() {
 	const N: usize = 128;
 
-	let mut data = (0..N).into_iter().map(|_x| rand_gf_element()).collect::<Vec<Additive>>();
+	let mut data = (0..N).map(|_x| rand_gf_element()).collect::<Vec<Additive>>();
 	let expected = data.clone();
 
 	afft(&mut data, N, N / 4);
@@ -91,7 +91,7 @@ fn sub_encode_decode() -> Result<()> {
 	rng.fill_bytes(&mut data[..]);
 
 	let codewords = encode_sub_plain(&data, N, K)?;
-	let mut codewords = codewords.into_iter().map(|x| Some(x)).collect::<Vec<_>>();
+	let mut codewords = codewords.into_iter().map(Some).collect::<Vec<_>>();
 	assert_eq!(codewords.len(), N);
 	codewords[0] = None;
 	codewords[1] = None;
@@ -123,7 +123,7 @@ fn sub_encode_faster8_decode_plain() -> Result<()> {
 	rng.fill_bytes(&mut data[..K2]);
 
 	let codewords = encode_sub_faster8(&data, N, K)?;
-	let mut codewords = codewords.into_iter().map(|x| Some(x)).collect::<Vec<_>>();
+	let mut codewords = codewords.into_iter().map(Some).collect::<Vec<_>>();
 	assert_eq!(codewords.len(), N);
 	codewords[0] = None;
 	codewords[1] = None;
@@ -303,7 +303,7 @@ fn flt_roundtrip_small() {
 	const EXPECTED: [Additive; N] =
 		unsafe { std::mem::transmute([1_u16, 2, 3, 5, 8, 13, 21, 44, 65, 0, 0xFFFF, 2, 3, 5, 7, 11]) };
 
-	let mut data = EXPECTED.clone();
+	let mut data = EXPECTED;
 
 	f2e16::afft(&mut data, N, N / 4);
 
@@ -311,7 +311,7 @@ fn flt_roundtrip_small() {
 	data.iter().for_each(|sym| {
 		print!(" {:04X}", sym.0);
 	});
-	println!("");
+	println!();
 
 	f2e16::inverse_afft(&mut data, N, N / 4);
 	itertools::assert_equal(data.iter(), EXPECTED.iter());
@@ -338,7 +338,7 @@ fn ported_c_test() {
 	for i in 0..K {
 		print!("{:04x} ", data[i].0);
 	}
-	println!("");
+	println!();
 
 	//---------encoding----------
 	let mut codeword = [Additive(0); N];
@@ -368,7 +368,7 @@ fn ported_c_test() {
 
 		erasures_iv
 	} else {
-		IndexVec::from((0..(N - K)).into_iter().collect::<Vec<usize>>())
+		IndexVec::from((0..(N - K)).collect::<Vec<usize>>())
 	};
 	assert_eq!(erasures_iv.len(), N - K);
 
@@ -393,7 +393,7 @@ fn ported_c_test() {
 		// the data word plus a few more
 		print!("{:04x} ", codeword[i].0);
 	}
-	println!("");
+	println!();
 
 	for i in 0..K {
 		//Check the correctness of the result
