@@ -20,6 +20,10 @@ pub const N_SHARDS: usize = 123;
 /// Shared target number of payload size for simple, quirk turnaround tests:
 pub const TEST_DATA_CHUNK_SIZE: usize = 1337;
 
+// Just enough to trigger the avx2 code path with size 1 field elements shards. 
+pub const N_SHARDS_JUST_ENOUGH: usize = 32;
+pub const TEST_DATA_CHUNK_SIZE_JUST_ENOUGH: usize = 64;
+
 /// Assert the byte ranges derived from the index vec are recovered properly
 pub fn assert_recovery(
 	expected_payload: &[u8],

@@ -91,12 +91,12 @@ impl BitXorAssign for Additive8x {
 }
 
 #[inline(always)]
-fn splat_u16x8(v: u16) -> u16x8 {
+pub(crate) fn splat_u16x8(v: u16) -> u16x8 {
 	unsafe { _mm_set1_epi16(v as i16) }
 }
 
 #[inline(always)]
-fn splat_u32x8(v: u32) -> u32x8 {
+pub(crate) fn splat_u32x8(v: u32) -> u32x8 {
 	unsafe { _mm256_set1_epi32(v as i32) }
 }
 
@@ -156,6 +156,30 @@ fn load_u16x8(src: &[u16], idx: [u16; 8]) -> u16x8 {
 	}
 }
 
+#[inline(always)]
+pub(crate) fn clipping_cast(data: u32x8) -> u16x8 {
+	unsafe {
+		let mask = splat_u32x8(0x0000_FFFF);
+		// need 
+		let data = _mm256_and_si256(data, mask);
+		// data_lo zero_lo data_hi zero_hi
+		let packed = _mm256_packus_epi32(data, data);
+		
+		// use `a` as above in the lower and higher 128 bits
+		const PERMUTE: i32 = 0b11_01_10_00;
+		let data = _mm256_permute4x64_epi64(packed, PERMUTE);
+		let data = _mm256_castsi256_si128(data);
+		data
+	}
+}
+
+#[inline(always)]
+pub(crate) fn expand_cast(data: u16x8) -> u32x8 {
+	unsafe {
+		_mm256_cvtepu16_epi32 (data)
+	}
+}
+
 impl Additive8x {
 	pub const LANE: usize = 8;
 
@@ -197,19 +221,8 @@ impl Additive8x {
 			// dbg!(unpack_u32x8(offset_sum_right));
 			let offset = _mm256_add_epi32(offset_sum_left, offset_sum_right);
 			// dbg!(unpack_u32x8(offset));
-			// lut;
-			// u32 to u16 with 0x0000FFFF mask per element
 
-			// we start with 32 bit elements in an u32x8
-			// which needs to be cast to u16x8
-
-			// offset = [a[0..128] as 64; b[0..128] as 64; a[128..256] as 64; b[128..256] as 64;] casting [0..32] blocks to u16
-			let offset = _mm256_packus_epi32(offset, offset);
-
-			// use `a` as above in the lower and higher 128 bits
-			const PERMUTE: i32 = 0b10_00_10_00;
-			let offset = _mm256_permute4x64_epi64(offset, PERMUTE);
-			let offset = _mm256_castsi256_si128(offset);
+			let offset = clipping_cast(offset);
 			let offset = unpack_u16x8(offset);
 			// dbg!(offset);
 			let res = load_u16x8(EXP_TABLE.as_slice(), offset);
@@ -424,5 +437,17 @@ mod tests {
 		assert_eq!(unpacked[5], Additive(42));
 		assert_eq!(unpacked[6], Additive(42));
 		assert_eq!(unpacked[7], Additive(42));
+	}
+	
+	#[test]
+	fn expand_and_clip_cast() {
+		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
+
+		let v = dbg!(splat_u32x8(0xFF11_AABB));
+		let x = dbg!(clipping_cast(v));
+		assert_eq!(unpack_u16x8(splat_u16x8(0xAA_BB)), unpack_u16x8(x));
+
+		let y = expand_cast(x);
+		assert_eq!(unpack_u32x8(splat_u32x8(0x0000_AA_BB)), unpack_u32x8(y));
 	}
 }
