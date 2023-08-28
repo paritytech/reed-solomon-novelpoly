@@ -58,7 +58,7 @@ impl Additive {
 
 
 /// Multiplicaiton friendly LOG form of f2e16
-#[derive(Clone, Copy, Debug, Add, AddAssign, Sub, SubAssign, PartialEq, Eq)] // Default, PartialOrd,Ord
+#[derive(Clone, Debug, Copy, Add, AddAssign, Sub, SubAssign, PartialEq, Eq)] // Default, PartialOrd,Ord
 pub struct Multiplier(pub Elt);
 
 impl Multiplier {
@@ -72,13 +72,60 @@ impl Multiplier {
 	}
 }
 
+impl std::fmt::Display for Multiplier {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "_{:04x}", self.0)
+	}
+}
+
 
 /// Fast Walsh–Hadamard transform over modulo `ONEMASK`
+#[inline(always)]
 pub fn walsh(data: &mut [Multiplier], size: usize) {
+	#[cfg(target_feature = "avx2")]
+	walsh_faster8(data, size);
+	#[cfg(not(target_feature = "avx2"))]
+	walsh_plain(data, size);
+}
+
+pub fn walsh_plain(data: &mut [Multiplier], size: usize) {
+	let mask = ONEMASK as Wide;
 	let mut depart_no = 1_usize;
 	while depart_no < size {
 		let mut j = 0;
-		let depart_no_next = depart_no << 1;
+		while j < size {
+			for i in j..(j+depart_no) {
+				// We deal with data in log form here, but field form looks like:
+				//			 data[i] := data[i] / data[i+depart_no]
+				// data[i+depart_no] := data[i] * data[i+depart_no]
+
+				let tmp2: Wide = data[i].to_wide() + mask - data[i + depart_no].to_wide();
+				let tmp1: Wide = data[i].to_wide() + data[i + depart_no].to_wide();
+				if depart_no >= 8 {
+					if i & 0x7 == 0 {
+						dbg!(&data[dbg!(i)..][..8]);
+						dbg!(&data[dbg!(i+depart_no)..][..8]);
+					}
+					dbg!(&tmp2);
+					dbg!(&tmp1);
+				}		
+				data[i] = Multiplier(((tmp1 & mask) + (tmp1 >> FIELD_BITS)) as Elt);
+				data[i + depart_no] = Multiplier(((tmp2 & mask) + (tmp2 >> FIELD_BITS)) as Elt);
+			}
+			j += depart_no << 1;
+		}
+		depart_no <<= 1;
+	}
+}
+
+#[cfg(target_feature = "avx2")]
+pub fn walsh_faster8(data: &mut [Multiplier], size: usize) {
+	const LANE: usize = 8;
+	
+	let mut depart_no = 1_usize;
+	
+	while depart_no < LANE {
+		let mut j = 0;
 		while j < size {
 			for i in j..(j+depart_no) {
 				// We deal with data in log form here, but field form looks like:
@@ -90,9 +137,76 @@ pub fn walsh(data: &mut [Multiplier], size: usize) {
 				data[i] = Multiplier(((tmp1 & mask) + (tmp1 >> FIELD_BITS)) as Elt);
 				data[i + depart_no] = Multiplier(((tmp2 & mask) + (tmp2 >> FIELD_BITS)) as Elt);
 			}
-			j += depart_no_next;
+			j += depart_no << 1;
 		}
-		depart_no = depart_no_next;
+		depart_no <<= 1;
+	}
+	
+	use core::arch::x86_64::*;
+	use crate::f2e16::{splat_u16x8, splat_u32x8, clipping_cast, expand_cast, unpack_u16x8, unpack_u32x8};
+
+	// let mask = ONEMASK as Wide;
+	let mask = splat_u32x8(ONEMASK as _);
+	
+	while depart_no < size {
+		let mut j = 0;
+		while j < size {
+
+			for i in (j..(j+depart_no)).step_by(LANE) {
+				// We deal with data in log form here, but field form looks like:
+				//			 data[i] := data[i] / data[i+depart_no]
+				// data[i+depart_no] := data[i] * data[i+depart_no]
+				unsafe {
+					let data0 = _mm_loadu_si128(core::intrinsics::transmute(dbg!(&data[dbg!(i)..][..LANE]).as_ptr()));
+					dbg!(unpack_u16x8(data0));
+
+					let data1 = _mm_loadu_si128(core::intrinsics::transmute(dbg!(&data[dbg!(i+depart_no)..][..LANE]).as_ptr()));
+					dbg!(unpack_u16x8(data1));
+					
+					let data0 = expand_cast(data0);
+					dbg!(unpack_u32x8(data0));
+					
+					let data1 = expand_cast(data1);
+					dbg!(unpack_u32x8(data1));
+
+					// let tmp2: Wide = data[i].to_wide() + mask - data[i + depart_no].to_wide();
+					let tmp2 = _mm256_sub_epi32(_mm256_add_epi32(data0, mask), data1);
+					dbg!(unpack_u32x8(tmp2));
+					
+					// let tmp1: Wide = data[i].to_wide() + data[i + depart_no].to_wide();
+					let tmp1 = _mm256_add_epi32(data0, data1);
+					dbg!(unpack_u32x8(tmp1));
+					
+					{
+						// data[i] = Multiplier(((tmp1 & mask) + (tmp1 >> FIELD_BITS)) as Elt);
+						let i_a = _mm256_and_si256(tmp1, mask);
+						let i_b = _mm256_srli_epi32(tmp1, FIELD_BITS as _);
+						let res0 = _mm256_add_epi32(i_a,i_b);
+						dbg!(unpack_u32x8(res0));
+						let res0 = clipping_cast(res0);
+						dbg!(unpack_u16x8(res0));
+					
+						// store to &mut data[i..][..8]
+						_mm_storeu_si128(core::intrinsics::transmute(data[i..][..LANE].as_ptr()), res0);
+					}
+					
+					{
+						// data[i + depart_no] = Multiplier(((tmp2 & mask) + (tmp2 >> FIELD_BITS)) as Elt);
+						let i_c = _mm256_and_si256(tmp2, mask);
+						let i_d = _mm256_srli_epi32(tmp2, FIELD_BITS as _);
+						let res1 = _mm256_add_epi32(i_c,i_d);
+						dbg!(unpack_u32x8(res1));
+						let res1 = clipping_cast(res1);
+						dbg!(unpack_u16x8(res1));
+
+						// store to &mut data[(i+depart_no)..][..8]
+						_mm_storeu_si128(core::intrinsics::transmute(data[(i+depart_no)..][..LANE].as_ptr()), res1);
+					}
+				}
+			}
+			j += depart_no << 1;
+		}
+		depart_no <<= 1;
 	}
 }
 
@@ -131,4 +245,30 @@ fn cantor_basis() {
         // println!("{:#b} {} {:#b}\n", a, eq, square ^ b);
         assert_eq!(a, square ^ b);
     }
+}
+
+
+#[test]
+fn walsh_output_plain_eq_faster8() {
+	use reed_solomon_tester::*;
+	use rand::prelude::*;
+	
+	const SZ: usize = 16;
+	
+	let mut rng = rand::rngs::SmallRng::from_seed(SMALL_RNG_SEED);
+	let mut data = [Multiplier(0_u16); SZ];
+	{
+		let data = unsafe {
+			core::mem::transmute::<_, &mut [u16;SZ]>(&mut data)
+		};
+		rng.fill(data);
+	}
+	let mut d0 = data.clone();
+	let mut d1 = data.clone();
+
+	walsh_plain(&mut d0, SZ);
+	eprintln!("\n\n\n\n <<<<<<<<<<<<<<<<<<<<< >>>>>>>>>>>>>>>>>>>\n\n\n\n");
+	walsh_faster8(&mut d1, SZ);
+
+	assert_eq!(d0, d1);
 }

@@ -22,7 +22,7 @@ mod test {
 			N_SHARDS_JUST_ENOUGH,
 		)
 	}
-	
+
 	#[test]
 	fn novelpoly_roundtrip() -> std::result::Result<(), novelpoly::Error> {
 		reed_solomon_tester::roundtrip(
