@@ -158,33 +158,33 @@ pub fn walsh_faster8(data: &mut [Multiplier], size: usize) {
 				// data[i+depart_no] := data[i] * data[i+depart_no]
 				unsafe {
 					let data0 = _mm_loadu_si128(core::intrinsics::transmute(dbg!(&data[dbg!(i)..][..LANE]).as_ptr()));
-					dbg!(unpack_u16x8(data0));
+					// dbg!(unpack_u16x8(data0));
 
 					let data1 = _mm_loadu_si128(core::intrinsics::transmute(dbg!(&data[dbg!(i+depart_no)..][..LANE]).as_ptr()));
-					dbg!(unpack_u16x8(data1));
+					// dbg!(unpack_u16x8(data1));
 					
 					let data0 = expand_cast(data0);
-					dbg!(unpack_u32x8(data0));
+					// dbg!(unpack_u32x8(data0));
 					
 					let data1 = expand_cast(data1);
-					dbg!(unpack_u32x8(data1));
+					// dbg!(unpack_u32x8(data1));
 
 					// let tmp2: Wide = data[i].to_wide() + mask - data[i + depart_no].to_wide();
 					let tmp2 = _mm256_sub_epi32(_mm256_add_epi32(data0, mask), data1);
-					dbg!(unpack_u32x8(tmp2));
+					// dbg!(unpack_u32x8(tmp2));
 					
 					// let tmp1: Wide = data[i].to_wide() + data[i + depart_no].to_wide();
 					let tmp1 = _mm256_add_epi32(data0, data1);
-					dbg!(unpack_u32x8(tmp1));
+					// dbg!(unpack_u32x8(tmp1));
 					
 					{
 						// data[i] = Multiplier(((tmp1 & mask) + (tmp1 >> FIELD_BITS)) as Elt);
 						let i_a = _mm256_and_si256(tmp1, mask);
 						let i_b = _mm256_srli_epi32(tmp1, FIELD_BITS as _);
 						let res0 = _mm256_add_epi32(i_a,i_b);
-						dbg!(unpack_u32x8(res0));
+						// dbg!(unpack_u32x8(res0));
 						let res0 = clipping_cast(res0);
-						dbg!(unpack_u16x8(res0));
+						// dbg!(unpack_u16x8(res0));
 					
 						// store to &mut data[i..][..8]
 						_mm_storeu_si128(core::intrinsics::transmute(data[i..][..LANE].as_ptr()), res0);
@@ -195,9 +195,9 @@ pub fn walsh_faster8(data: &mut [Multiplier], size: usize) {
 						let i_c = _mm256_and_si256(tmp2, mask);
 						let i_d = _mm256_srli_epi32(tmp2, FIELD_BITS as _);
 						let res1 = _mm256_add_epi32(i_c,i_d);
-						dbg!(unpack_u32x8(res1));
+						// dbg!(unpack_u32x8(res1));
 						let res1 = clipping_cast(res1);
-						dbg!(unpack_u16x8(res1));
+						// dbg!(unpack_u16x8(res1));
 
 						// store to &mut data[(i+depart_no)..][..8]
 						_mm_storeu_si128(core::intrinsics::transmute(data[(i+depart_no)..][..LANE].as_ptr()), res1);
@@ -253,7 +253,7 @@ fn walsh_output_plain_eq_faster8() {
 	use reed_solomon_tester::*;
 	use rand::prelude::*;
 	
-	const SZ: usize = 128;
+	const SZ: usize = FIELD_SIZE/2;
 	
 	let mut rng = rand::rngs::SmallRng::from_seed(SMALL_RNG_SEED);
 	let mut data = [Multiplier(0_u16); SZ];
@@ -261,7 +261,7 @@ fn walsh_output_plain_eq_faster8() {
 		let data = unsafe {
 			core::mem::transmute::<_, &mut [u16;SZ]>(&mut data)
 		};
-		rng.fill(data);
+		rng.fill(&mut data[..]);
 	}
 	let mut d0 = data.clone();
 	let mut d1 = data.clone();
