@@ -42,8 +42,8 @@ impl Additive {
 		if self == Self::ZERO {
 			return Self::ZERO;
 		}
-		let log = LOG_TABLE[self.0 as usize] as Wide + other.0 as Wide;
-		let offset = log & ONEMASK as Wide + log >> FIELD_BITS;
+		let log = (LOG_TABLE[self.0 as usize] as Wide) + other.0 as Wide;
+		let offset = (log & ONEMASK as Wide) + (log >> FIELD_BITS);
 		Additive(EXP_TABLE[offset as usize])
 	}
 

@@ -100,6 +100,7 @@ fn splat_u32x8(v: u32) -> u32x8 {
 	unsafe { _mm256_set1_epi32(v as i32) }
 }
 
+#[allow(dead_code)]
 #[inline(always)]
 fn unpack_u32x8(v: u32x8) -> [u32; 8] {
 	#[repr(C, align(32))]
@@ -165,6 +166,9 @@ impl Additive8x {
 
 	#[cfg(table_bootstrap_complete)]
 	pub fn mul(&self, other: Multiplier) -> Self {
+		if *self == Self::zero() {
+			return Self::zero()
+		}
 		// let log = (LOG_TABLE[self.0 as usize] as Wide) + other.0 as Wide;
 		// let offset = (log & ONEMASK as Wide) + (log >> FIELD_BITS);
 		// Additive(EXP_TABLE[offset as usize])
@@ -353,21 +357,37 @@ mod tests {
 		assert_eq!(a[7], b);
 	}
 
-	#[test]
-	fn identical_mul_simple() {
+	
+	fn test_mul(additive: Additive, mpy: Multiplier) {
 		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
 
-		let m = Multiplier(63493);
-		let single = Additive(0xFA1C);
+		println!("0x{additive:?} .mul( {mpy:?} ) ...", );
+		let single = additive;
 		let faster8 = Additive8x::from([single; 8]);
 
-		let res_faster8 = faster8.mul(m);
+		let res_faster8 = faster8.mul(mpy);
 		let res_faster8 = Into::<[Additive; Additive8x::LANE]>::into(res_faster8);
-		let res = single.mul(m);
+		let res = single.mul(mpy);
 
 		for i in 0..Additive8x::LANE {
-			assert_eq!(res_faster8[i], res);
+			assert_eq!(res_faster8[i], res, " @ [{i}]");
 		}
+	}
+	
+	#[test]
+	fn identical_mul_regressions() {
+		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
+		test_mul(Additive(0x0003), Multiplier(20182));
+
+		test_mul(Additive(0xFA1C), Multiplier(63493));
+
+		test_mul(Additive(0), Multiplier(1));
+
+		test_mul(Additive(1), Multiplier(0));
+
+		test_mul(Additive(0x16e7), Multiplier(18124));
+		
+		test_mul(Additive(0x3d3d), Multiplier(15677));
 	}
 
 	#[test]
@@ -395,7 +415,7 @@ mod tests {
 	#[test]
 	fn partial_works() {
 		let mut base = Additive8x::splat(Additive(42));
-		let updated = base.override_partial_continuous(3, &[Additive(7), Additive(6)]);
+		base.override_partial_continuous(3, &[Additive(7), Additive(6)]);
 		let unpacked = base.unpack();
 		assert_eq!(unpacked[0], Additive(42));
 		assert_eq!(unpacked[1], Additive(42));

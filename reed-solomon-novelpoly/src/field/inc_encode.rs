@@ -1,6 +1,6 @@
 #[inline(always)]
 pub fn encode_low(data: &[Additive], k: usize, codeword: &mut [Additive], n: usize) {
-	if k % 8 == 0 && n % 8 == 0 && (n-k) % 8 == 0 {
+	if k >= 16 && k % 8 == 0 && n % 8 == 0 && (n-k) % 8 == 0 {
 		encode_low_faster8_adaptor(data, k, codeword, n);		
 	} else {
 		encode_low_plain(data, k, codeword, n);
@@ -50,7 +50,7 @@ pub fn encode_low_faster8_adaptor(data: &[Additive], k: usize, codeword: &mut [A
 	assert_eq!(n % Additive8x::LANE, 0);
 	let mut codeword8x = vec![Additive8x::zero(); n / Additive8x::LANE];
 	convert_to_faster8(&data[..k], &mut codeword8x[..]);
-	let mut data8x = codeword8x.clone();
+	let data8x = codeword8x.clone();
 	encode_low_faster8(dbg!(&data8x[..]), k, dbg!(&mut codeword8x[..]), n);
 	convert_from_faster8(&codeword8x[..], &mut codeword[..]);	
 }
@@ -323,13 +323,12 @@ mod tests_plain_vs_faster8 {
 	fn encode_sub_output_plain_eq_faster8() {
 		let n = 64;
 		let k = 32; // smallest supported size
-		let bytes = vec![0x2A_u8; 16];
+		let bytes = vec![0x2A_u8; 64];
 		let bytes = bytes.as_slice();
 		let fe_plain = encode_sub_plain(bytes, n, k).unwrap();
 		let fe_faster8: Vec<Additive> = encode_sub_faster8(bytes, n, k).unwrap();
 		
 		assert_eq!(fe_plain, fe_faster8);
-		// itertools::assert_equal(fe_plain.iter(), fe_faster8.iter());
 	}
 
 }

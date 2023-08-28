@@ -115,12 +115,12 @@ fn sub_encode_decode() -> Result<()> {
 fn sub_encode_faster8_decode_plain() -> Result<()> {
 	let mut rng = rand::rngs::SmallRng::from_seed(SMALL_RNG_SEED);
 
-	const N: usize = 32;
-	const K: usize = 4;
+	const N: usize = 64;
+	const K: usize = 16;
 
 	const K2: usize = K * 2;
 	let mut data = [0u8; K2];
-	rng.fill_bytes(&mut data[..]);
+	rng.fill_bytes(&mut data[..K2]);
 
 	let codewords = encode_sub_faster8(&data, N, K)?;
 	let mut codewords = codewords.into_iter().map(|x| Some(x)).collect::<Vec<_>>();
@@ -200,9 +200,9 @@ fn sub_eq_big_for_small_messages() {
 
 #[test]
 fn roundtrip_for_large_messages() -> Result<()> {
-	const N_WANTED_SHARDS: usize = 2000;
-	const N: usize = 2048;
-	const K: usize = 512;
+	const N: usize = 1024;
+	const K: usize = 256;
+	const N_WANTED_SHARDS: usize = K * 3 + 2; // construct a number that works for deriving parmeters
 
 	const K2: usize = K * 2;
 
@@ -215,17 +215,19 @@ fn roundtrip_for_large_messages() -> Result<()> {
 	// make sure each shard is more than one byte to
 	// test the shard size
 	// in GF symbols
-	let shard_length: usize = 23;
+	let shard_length: usize = 10;
 
-	let payload = &BYTES[0..K2 * shard_length];
+	let required_payload_size = K2 * shard_length;
+	let payload = &BYTES[K2..][..required_payload_size];
 	// let payload = &BYTES[..];
-
+	
 	let mut shards = encode::<WrappedShard>(payload, N_WANTED_SHARDS).expect("Const test parameters are ok. qed");
 
-	// for (idx, shard) in shards.iter().enumerate() {
-	//	let sl = AsRef::<[[u8; 2]]>::as_ref(&shard).len();
-	//	assert_eq!(shard_length, sl, "Shard #{} has an unxpected length {} (expected: {})", idx, sl, shard_length);
-	// }
+	for (idx, shard) in shards.iter().enumerate() {
+		let raw_shard = AsRef::<[[u8; 2]]>::as_ref(&shard);
+		assert_eq!(shard_length, raw_shard.len(), "Shard #{} has an unxpected length {} (expected: {})", idx, raw_shard.len(), shard_length);
+	}
+
 	let (received_shards, dropped_indices) = deterministic_drop_shards_clone(&mut shards, rs.n, rs.k);
 
 	let reconstructed_payload = reconstruct::<WrappedShard>(received_shards, N_WANTED_SHARDS).unwrap();
@@ -395,7 +397,7 @@ fn ported_c_test() {
 	}
 	println!(
 		r#">>>>>>>>> 🎉🎉🎉🎉
->>>>>>>>> > Decoding is **SUCCESS** ful! 🎈
+>>>>>>>>> > Decoding is **SUCCESS**ful! 🎈
 >>>>>>>>>"#
 	);
 }

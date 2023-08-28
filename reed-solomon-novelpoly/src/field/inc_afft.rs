@@ -251,7 +251,6 @@ impl AdditiveFFT {
 		}
 	}
 
-
 	/// Additive FFT in the "novel polynomial basis"
 	pub fn afft(&self, data: &mut [Additive], size: usize, index: usize) {
 		// All line references to Algorithm 1 page 6287 of
@@ -322,7 +321,7 @@ impl AdditiveFFT {
 			while j < size {
 				let skew = self.skews[j + index - 1];
 				// correct as long as `depart_no` is equal or larger to `Additive8x::LANE`
-				let j_8x = j/Additive8x::LANE;
+				let j_8x = j / Additive8x::LANE;
 				let depart_no_8x = depart_no / Additive8x::LANE;
 
 				if skew.0 != ONEMASK {
@@ -339,15 +338,15 @@ impl AdditiveFFT {
 			}
 			depart_no >>= 1;
 		}
-		// the above is correct, the mistake is here:
-
+		
+		assert!(depart_no < Additive8x::LANE);
 		// do the regular for the smaller ones, but inline it so we don't need to allocate anything
 		// and load the values from the avx registers as needed
 		while depart_no > 0 {
 			let mut j = depart_no;
 			while j < size {
 				let skew = self.skews[j + index - 1];
-				let offset = (j - depart_no)/Additive8x::LANE;
+				let offset = (j - depart_no) / Additive8x::LANE;
 
 				// calculate the remainder offset, which is within the selected `[Additive; 8]` slice
 				let intra = (j - depart_no) - offset * Additive8x::LANE;
@@ -364,7 +363,8 @@ impl AdditiveFFT {
 					local_data[i + depart_no] ^= local_data[i];
 				}
 
-				data[offset].override_partial_continuous(intra, &local_data[intra..][..(depart_no * 2)]);
+				data[offset] = Additive8x::from(local_data);
+				// .override_partial_continuous(intra, &local_data[intra..][..(depart_no * 2)]);
 
 				j += depart_no << 1;
 			}
@@ -467,20 +467,19 @@ impl AdditiveFFT {
 
 }
 
-#[cfg(test)]
-mod afft_tests {
+#[cfg(feature = "mock")]
+pub mod test_utils {
 	use super::*;
 	use rand::{Rng,SeedableRng};
-	use rand::rngs::SmallRng;
 
-	fn gen_plain<R: Rng + SeedableRng<Seed = [u8; 32]>>(size: usize) -> Vec<Additive> {
-		let mut rng = <R as SeedableRng>::from_seed(reed_solomon_tester::SMALL_RNG_SEED);
+	pub fn gen_plain<R: Rng + SeedableRng<Seed = [u8; 32]>>(size: usize) -> Vec<Additive> {
+		let rng = <R as SeedableRng>::from_seed(reed_solomon_tester::SMALL_RNG_SEED);
 		let dist = rand::distributions::Uniform::new_inclusive(u16::MIN, u16::MAX);
 		let data = Vec::from_iter(rng.sample_iter::<u16, _>(dist.clone()).take(size).map(Additive));
 		data
 	}
 
-	fn gen_faster8_from_plain(data: impl AsRef<[Additive]>) -> Vec<Additive8x> {
+	pub fn gen_faster8_from_plain(data: impl AsRef<[Additive]>) -> Vec<Additive8x> {
 		let data = data.as_ref();
 		let size = data.len();
 		let mut dest = Vec::with_capacity((size+Additive8x::LANE-1) / Additive8x::LANE);
@@ -491,11 +490,27 @@ mod afft_tests {
 		dest
 	}
 
-	fn gen_faster8<R: Rng + SeedableRng<Seed = [u8; 32]>>(size: usize) -> Vec<Additive8x> {
+	pub fn gen_faster8<R: Rng + SeedableRng<Seed = [u8; 32]>>(size: usize) -> Vec<Additive8x> {
 		let data = gen_plain::<R>(size);
 		gen_faster8_from_plain(data)
 	}
+	
+	pub fn assert_plain_eq_faster8(plain: impl AsRef<[Additive]>, faster8: impl AsRef<[Additive8x]>) {
+		let plain = plain.as_ref();
+		let faster8 = faster8.as_ref();
 
+		let mut faster8_flattened = vec![Additive::zero(); faster8.len() * Additive8x::LANE];
+		convert_from_faster8(faster8, &mut faster8_flattened);
+		itertools::assert_equal(plain, faster8_flattened.iter());
+	}
+
+}
+
+#[cfg(test)]
+mod afft_tests {
+	use super::*;
+	use super::test_utils::*;
+	use rand::rngs::SmallRng;
 	#[test]
 	fn conversions_work() {
 		let data = gen_plain::<SmallRng>(256);
@@ -509,16 +524,6 @@ mod afft_tests {
 
 		assert_plain_eq_faster8(data, faster8.as_slice());
 	}
-
-	fn assert_plain_eq_faster8(plain: impl AsRef<[Additive]>, faster8: impl AsRef<[Additive8x]>) {
-		let plain = plain.as_ref();
-		let faster8 = faster8.as_ref();
-
-		let mut faster8_flattened = vec![Additive::zero(); faster8.len() * Additive8x::LANE];
-		convert_from_faster8(faster8, &mut faster8_flattened);
-		itertools::assert_equal(plain, faster8_flattened.iter());
-	}
-
 
 	#[test]
 	fn afft_output_plain_eq_faster8_size_16() {
@@ -586,6 +591,8 @@ mod afft_tests {
 		let size = 8;
 		let mut data_plain = gen_plain::<SmallRng>(size);
 		let mut data_faster8 = gen_faster8::<SmallRng>(size);
+		assert_plain_eq_faster8(&data_plain, &data_faster8);
+
 		println!(">>>>");
 		unsafe { &AFFT }.inverse_afft(&mut data_plain, size, index);
 		println!(r#"
@@ -643,7 +650,6 @@ mod afft_tests {
 
 		assert_plain_eq_faster8(dbg!(res_plain), &[dbg!(res_faster8);1][..]);
 	}
-
 
 	#[cfg(b_is_not_one)]
 	#[test]
