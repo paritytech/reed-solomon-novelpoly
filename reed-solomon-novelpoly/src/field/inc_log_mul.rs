@@ -101,14 +101,6 @@ pub fn walsh_plain(data: &mut [Multiplier], size: usize) {
 
 				let tmp2: Wide = data[i].to_wide() + mask - data[i + depart_no].to_wide();
 				let tmp1: Wide = data[i].to_wide() + data[i + depart_no].to_wide();
-				if depart_no >= 8 {
-					if i & 0x7 == 0 {
-						dbg!(&data[dbg!(i)..][..8]);
-						dbg!(&data[dbg!(i+depart_no)..][..8]);
-					}
-					dbg!(&tmp2);
-					dbg!(&tmp1);
-				}		
 				data[i] = Multiplier(((tmp1 & mask) + (tmp1 >> FIELD_BITS)) as Elt);
 				data[i + depart_no] = Multiplier(((tmp2 & mask) + (tmp2 >> FIELD_BITS)) as Elt);
 			}
@@ -157,10 +149,10 @@ pub fn walsh_faster8(data: &mut [Multiplier], size: usize) {
 				//			 data[i] := data[i] / data[i+depart_no]
 				// data[i+depart_no] := data[i] * data[i+depart_no]
 				unsafe {
-					let data0 = _mm_loadu_si128(core::intrinsics::transmute(dbg!(&data[dbg!(i)..][..LANE]).as_ptr()));
+					let data0 = _mm_loadu_si128(core::intrinsics::transmute(&data[i..][..LANE]).as_ptr());
 					// dbg!(unpack_u16x8(data0));
 
-					let data1 = _mm_loadu_si128(core::intrinsics::transmute(dbg!(&data[dbg!(i+depart_no)..][..LANE]).as_ptr()));
+					let data1 = _mm_loadu_si128(core::intrinsics::transmute(&data[(i+depart_no)..][..LANE]).as_ptr());
 					// dbg!(unpack_u16x8(data1));
 					
 					let data0 = expand_cast(data0);

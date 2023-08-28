@@ -37,7 +37,7 @@ pub fn encode_low_plain(data: &[Additive], k: usize, codeword: &mut [Additive], 
 		// copy `M_topdash` to the position we are currently at, the n transform
 		codeword_at_shift.copy_from_slice(codeword_first_k);
 		// dbg!(&codeword_at_shift);
-		afft(codeword_at_shift, dbg!(k), dbg!(shift));
+		afft(codeword_at_shift, k, shift);
 		// let post = &codeword_at_shift;
 		// dbg!(post);
 	}
@@ -91,7 +91,7 @@ pub fn encode_low_faster8(data8x: &[Additive8x], k: usize, codeword8x: &mut [Add
 		// copy `M_topdash` to the position we are currently at, the n transform
 		codeword8x_at_shift.copy_from_slice(codeword8x_first_k);
 		// dbg!(&codeword8x_at_shift);
-		afft_faster8(codeword8x_at_shift, dbg!(k), shift_8x * Additive8x::LANE);
+		afft_faster8(codeword8x_at_shift, k, shift_8x * Additive8x::LANE);
 		// let post = &codeword8x_at_shift;
 		// dbg!(post);
 	}
