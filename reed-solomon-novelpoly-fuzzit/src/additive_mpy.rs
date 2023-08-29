@@ -31,7 +31,7 @@ fn main() {
 		// `&[u8]` when possible.
 		// Here, this slice will contain a "random" quantity of "random" data.
 		fuzz!(|params: FieldMpyParams| {
-			let FieldMpyParams { idx_to_test, additive, mpy } = dbg!(params);
+			let FieldMpyParams { idx_to_test, additive, mpy } = params;
 			let values = [additive; 8];
 			let values8x = Additive8x::from(values);
 			let res_faster8 = values8x.mul(mpy);

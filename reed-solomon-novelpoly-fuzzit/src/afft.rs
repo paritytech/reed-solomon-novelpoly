@@ -34,7 +34,7 @@ fn main() {
 		// `&[u8]` when possible.
 		// Here, this slice will contain a "random" quantity of "random" data.
 		fuzz!(|params: AfftParams| {
-			let AfftParams { k, shift, f: _ } = dbg!(params);
+			let AfftParams { k, shift, f: _ } = params;
 
 			let mut data_plain = test_utils::gen_plain::<SmallRng>(k);
 			let mut data_faster8 = test_utils::gen_faster8_from_plain(&data_plain);
