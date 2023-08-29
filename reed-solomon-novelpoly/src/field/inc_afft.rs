@@ -653,6 +653,202 @@ mod afft_tests {
 		assert_plain_eq_faster8(dbg!(res_plain), &[dbg!(res_faster8);1][..]);
 	}
 
+	#[test]
+	fn inner2_values() {
+		pub fn afft_inner_step_faster8_round(afft: &AdditiveFFT, data: &mut [Additive8x], size: usize, index: usize, depart_no: usize, j: usize, scratch_out: &mut Vec<Vec<Additive>>) {
+			let mut scratch = Vec::new();
+			
+			let skew = dbg!(afft.skews[j + index - 1]);
+			// correct as long as `depart_no` is equal or larger to `Additive8x::LANE`
+			let j_8x = j / Additive8x::LANE;
+			let depart_no_8x = depart_no / Additive8x::LANE;
+
+			if skew.0 != ONEMASK {
+				for i_8x in (j_8x - depart_no_8x)..j_8x {
+					assert!(i_8x + depart_no_8x < data.len());
+					scratch.push(dbg!(data[i_8x].unpack()).to_vec());
+					scratch.push(dbg!(data[i_8x+depart_no_8x].unpack()).to_vec());
+					scratch.push(dbg!([Additive(skew.0 as u16);8]).to_vec());
+					let tmp = data[i_8x + depart_no_8x].mul(skew);
+					data[i_8x] ^= tmp;
+					scratch.push(tmp.unpack().to_vec());
+					scratch.push(data[i_8x].unpack().to_vec());
+					// if scratch.is_empty() && j == 2784 {
+					// 	return
+					// }
+				}
+			}
+			
+			for i_8x in (j_8x - depart_no_8x)..j_8x {
+				assert!(i_8x + depart_no_8x < data.len());
+				scratch.push(data[i_8x].unpack().to_vec());
+				scratch.push(data[i_8x + depart_no_8x].unpack().to_vec());
+
+				data[i_8x + depart_no_8x] ^= data[i_8x];
+				scratch.push(data[i_8x + depart_no_8x].unpack().to_vec());
+
+			}
+			
+			scratch_out.append(&mut scratch)
+		}
+		
+		pub fn afft_inner_step_plain_round(afft: &AdditiveFFT, data: &mut [Additive], size: usize, index: usize, depart_no: usize, j: usize, scratch_out: &mut Vec<Vec<Additive>>) {
+			let mut scratch = Vec::new();
+
+			let skew = dbg!(afft.skews[j + index - 1]);
+			if skew.0 != ONEMASK {
+				for i in (j - depart_no)..j {
+					if i & 0x07 == 0 {
+						let i = i & !0x07;
+
+						scratch.push(dbg!(&data[i..][..8]).to_vec());
+						scratch.push(dbg!(&data[(i + depart_no)..][..8]).to_vec());
+						scratch.push(dbg!([Additive(skew.0 as u16);8]).to_vec());
+						let mut tmp = [Additive::zero();8];
+						for z in 0..8 {
+							tmp[z] = data[i + z + depart_no].mul(skew);
+							data[i + z] ^= tmp[z];
+						}
+						scratch.push(tmp[..].to_vec());
+						scratch.push(data[i..][..8].to_vec());
+						// if scratch.is_empty() && j == 2784 {
+						// 	return
+						// }
+					}
+				}
+			}
+
+			for i in (j - depart_no)..j {
+				if i & 0x07 == 0 {
+					let i = i & !0x07;
+					scratch.push(data[i..][..8].to_vec());
+					scratch.push(data[(i + depart_no)..][..8].to_vec());
+					for z in 0..8 {
+						data[i + z + depart_no] ^= data[i + z];
+					}
+					scratch.push(data[(i + depart_no)..][..8].to_vec());
+				}
+			}
+
+			scratch_out.append(&mut scratch);
+		}
+		
+		let size = 4096;
+		let mut data_plain = gen_plain::<SmallRng>(size);
+		let mut data_faster8 = gen_faster8_from_plain(&data_plain);
+		
+		let mut scratch_plain = Vec::new();
+		let mut scratch_faster8 = Vec::new();
+
+		
+		let mut depart_no = size >> 1;
+		while depart_no >= 8 {			
+			let mut j = depart_no;
+			while j < size {
+				eprintln!("\n\n\n\n\n\nRunning iteration with depart_no={depart_no} j={j}\n\n\n\n\n\n");
+				
+				
+				scratch_plain.clear();
+				scratch_faster8.clear();
+				
+				afft_inner_step_plain_round(unsafe {&AFFT}, &mut data_plain, size, 0, depart_no, j, &mut scratch_plain);
+				afft_inner_step_faster8_round(unsafe {&AFFT}, &mut data_faster8, size, 0, depart_no, j, &mut scratch_faster8);
+				
+				assert_plain_eq_faster8(&data_plain, &data_faster8);
+				assert_eq!(&scratch_plain, &scratch_faster8);
+				
+				j += depart_no << 1;
+			}
+			depart_no >>= 1;
+		}
+		
+		return;
+
+		{	
+			scratch_faster8.clear();
+			scratch_plain.clear();
+
+			let j=2784;
+			let depart_no=32; 
+			
+			afft_inner_step_plain_round(unsafe {&AFFT}, &mut data_plain, size, 0, depart_no, j, &mut scratch_plain);
+			afft_inner_step_faster8_round(unsafe {&AFFT}, &mut data_faster8, size, 0, depart_no, j, &mut scratch_faster8);
+			
+			assert_eq!(&scratch_plain[..4], &scratch_faster8[..4]);
+
+			itertools::assert_equal(&scratch_plain, &scratch_faster8);
+			assert_eq!(&scratch_plain[..], &scratch_faster8[..]);
+			
+			assert_plain_eq_faster8(&data_plain, &data_faster8);
+		}
+	}
+
+	
+	#[test]
+	fn inner_values() {
+		pub fn afft_step_faster8_round(afft: &AdditiveFFT, data: &mut [Additive8x], size: usize, index: usize, depart_no: usize, x: &mut Vec<u16>) {
+			let mut j = depart_no;
+			while j < size {
+				let skew = afft.skews[j + index - 1];
+				// correct as long as `depart_no` is equal or larger to `Additive8x::LANE`
+				let j_8x = j / Additive8x::LANE;
+				let depart_no_8x = depart_no / Additive8x::LANE;
+
+				if skew.0 != ONEMASK {
+					for i_8x in (j_8x - depart_no_8x)..j_8x {
+						data[i_8x] ^= data[i_8x + depart_no_8x].mul(skew);
+					}
+				}
+				x.push(skew.0);
+				
+				for i_8x in (j_8x - depart_no_8x)..j_8x {
+					data[i_8x + depart_no_8x] ^= data[i_8x];
+				}
+
+				j += depart_no << 1;
+			}
+		}
+		
+		pub fn afft_step_plain_round(afft: &AdditiveFFT, data: &mut [Additive], size: usize, index: usize, depart_no: usize, x: &mut Vec<u16>) {
+			let mut j = depart_no;
+			while j < size {
+				let skew = afft.skews[j + index - 1];
+				if skew.0 != ONEMASK {
+					for i in (j - depart_no)..j {
+						data[i] ^= data[i + depart_no].mul(skew);
+					}
+				}
+				x.push(skew.0);
+
+				for i in (j - depart_no)..j {
+					data[i + depart_no] ^= data[i];
+				}
+
+				j += depart_no << 1;
+			}
+		}
+		
+		let size = 4096;
+		let mut data_plain = gen_plain::<SmallRng>(size);
+		let mut data_faster8 = gen_faster8_from_plain(&data_plain);
+		
+		let mut scratch_plain = vec![0;4096];
+		let mut scratch_faster8 = vec![0;4096];
+		
+		let mut depart_no = size >> 1;
+		while depart_no >= Additive8x::LANE {
+			
+			eprintln!("\n\n\n\n\n\nRunning iteration with depart_no={depart_no}\n\n\n\n\n\n");
+			afft_step_plain_round(unsafe {&AFFT}, &mut data_plain, size, 0, depart_no, &mut scratch_plain);
+			afft_step_faster8_round(unsafe {&AFFT}, &mut data_faster8, size, 0, depart_no, &mut scratch_faster8);
+			
+			itertools::assert_equal(&scratch_plain, &scratch_faster8);
+			assert_plain_eq_faster8(&data_plain, &data_faster8);
+			
+			depart_no >>= 1;
+		}
+	}
+
 	#[cfg(b_is_not_one)]
 	#[test]
 	fn b_is_one() {

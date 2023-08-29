@@ -188,8 +188,9 @@ impl Additive8x {
 
 	#[cfg(table_bootstrap_complete)]
 	pub fn mul(&self, other: Multiplier) -> Self {
-		if *self == Self::zero() {
-			return Self::zero();
+		let z = Self::zero();
+		if z == *self {
+			return z;
 		}
 		// let log = (LOG_TABLE[self.0 as usize] as Wide) + other.0 as Wide;
 		// let offset = (log & ONEMASK as Wide) + (log >> FIELD_BITS);
@@ -197,18 +198,19 @@ impl Additive8x {
 
 		unsafe {
 			// spread the multiplier
-			let other = splat_u32x8(other.0 as Wide);
+			let other32 = splat_u32x8(other.0 as Wide);
 			// unpack_u32x8(other);
 
 			// get the indices
 			let idx = unpack_u16x8(self.0);
+
 			// load from the table based on the indices
 			let logtable = load_u16x8(LOG_TABLE.as_slice(), idx);
 			// dbg!(unpack_u16x8(logtable));
 
 			let logtable = _mm256_cvtepu16_epi32(logtable);
 
-			let log = _mm256_add_epi32(logtable, other);
+			let log = _mm256_add_epi32(logtable, other32);
 			// dbg!(unpack_u32x8(log));
 
 			// (log & ONEMASK) + (log >> shift)
@@ -223,7 +225,15 @@ impl Additive8x {
 			let offset = clipping_cast(offset);
 			let offset = unpack_u16x8(offset);
 			// dbg!(offset);
-			let res = load_u16x8(EXP_TABLE.as_slice(), offset);
+			let unmasked_res = load_u16x8(EXP_TABLE.as_slice(), offset);
+
+			// block out any zero elements, the calaculations above are only correct
+			// for nonzero
+			// dbg!(Self(unmasked_res));
+			let mask = _mm_cmpeq_epi16(self.0, z.0);
+			// dbg!(Self(mask));
+			let res = _mm_andnot_si128(mask, unmasked_res);
+			// dbg!(Self(res));
 			Self(res)
 		}
 	}
@@ -383,6 +393,46 @@ mod tests {
 		}
 	}
 
+	fn test_mul_array_one(xor: [u16; 8], val: [u16; 8], mpy: Multiplier, expect: [u16; 8]) {
+		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
+
+		let mut expect = unsafe { std::mem::transmute::<_, [Additive; 8]>(expect) };
+
+		let mut xor8 = Additive8x::from(unsafe { std::mem::transmute::<_, [Additive; 8]>(xor) });
+		let mut xor_singles = xor8.unpack();
+
+		let val = unsafe { std::mem::transmute::<_, [Additive; 8]>(val) };
+		let val8 = Additive8x::from(val.clone());
+		let mut res_faster8 = xor8;
+		let inter_faster8 = val8.mul(mpy);
+		res_faster8 ^= inter_faster8;
+		let res_faster8 = res_faster8.unpack();
+
+		let val_singles = val;
+		let mut res_singles = xor_singles;
+		let mut inter_singles = [Additive::zero(); 8];
+		for i in 0..8 {
+			inter_singles[i] = val_singles[i].mul(mpy);
+			res_singles[i] ^= inter_singles[i];
+		}
+
+		assert_eq!(inter_singles, inter_faster8.unpack());
+		assert_eq!(dbg!(res_singles), dbg!(res_faster8));
+
+		assert_eq!(expect, res_singles);
+		assert_eq!(expect, res_faster8);
+	}
+
+	#[test]
+	fn single_operation_works() {
+		test_mul_array_one(
+			[0x798b, 0x9284, 0x43ae, 0x0489, 0x4037, 0x8943, 0x9527, 0x3c5f],
+			[0x104a, 0x371e, 0x2213, 0x4006, 0x0000, 0x2b5a, 0x10ec, 0xac45],
+			Multiplier(0x0808),
+			[0xe41e, 0xfdbb, 0xca9c, 0x5e82, 0x4037, 0xa969, 0x08c6, 0x2081],
+		)
+	}
+
 	#[test]
 	fn identical_mul_regressions() {
 		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
@@ -397,6 +447,8 @@ mod tests {
 		test_mul(Additive(0x16e7), Multiplier(18124));
 
 		test_mul(Additive(0x3d3d), Multiplier(15677));
+
+		test_mul(Additive(0x0000), Multiplier(0x0808));
 	}
 
 	#[test]

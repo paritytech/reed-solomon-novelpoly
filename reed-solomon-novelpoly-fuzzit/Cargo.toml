@@ -30,3 +30,7 @@ path = "src/additive_mpy.rs"
 [[bin]]
 name = "fuzz_afft"
 path = "src/afft.rs"
+
+[[bin]]
+name = "fuzz_inverse_afft"
+path = "src/inverse_afft.rs"
