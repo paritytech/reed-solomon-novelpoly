@@ -13,6 +13,7 @@ resource_types:
 resources:
 - name: minio-client
   type: file-url
+  icon: diamond
   check_every: 24h
   source:
     url: https://dl.min.io/client/mc/release/linux-amd64/mc
@@ -20,12 +21,14 @@ resources:
 
 - name: git-clone-resource
   type: git
+  icon: git
   source:
     branch: master
     uri: https://github.com/paritytech/reed-solomon-novelpoly.git
 
 - name: git-honggfuzz-rs
   type: git
+  icon: git
   source:
     branch: master
     uri: https://github.com/drahnr/honggfuzz-rs.git
@@ -33,24 +36,27 @@ resources:
 
 - name: git-flamegraph
   type: git
+  icon: git
   source:
     branch: main
     uri: https://github.com/flamegraph-rs/flamegraph.git
 
 - name: git-pr-resource
   type: pull-request
+  icon: github
   source:
     repository: drahnr/reed-solomon-novelpoly
     access_token: ((sirmergealot-github-token))
 
 - name: env-glibc
   type: registry-image
+  icon: oci
   source:
     repository: quay.io/drahnr/rust-glibc-builder
 
 - name: honggfuzz-artifact
   type: s3
-  icon: yarn
+  icon: package-variant
   source:
     endpoint: https://minio.spearow.io
     bucket: cargo-hongg
@@ -60,7 +66,7 @@ resources:
 
 - name: flamegraph-artifact
   type: s3
-  icon: flame
+  icon: package-variant
   source:
     endpoint: https://minio.spearow.io
     bucket: cargo-flamegraph
@@ -68,16 +74,47 @@ resources:
     access_key_id: ((minio-access-key))
     secret_access_key: ((minio-secret-key))
 
-
 - name: flamegraph-svg
   type: s3
-  icon: flame
+  icon: fire
   source:
     endpoint: https://minio.spearow.io
     bucket: reed-solomon-flamegraph
     regexp: "^flamegraph-(.*).svg$"
     access_key_id: ((minio-access-key))
     secret_access_key: ((minio-secret-key))
+
+
+# the tag against to measure performance
+- name: git-perf-reference-tag
+  type: git
+  icon: git
+  source:
+    branch: master
+    tag: v1.0.1
+    uri: https://github.com/paritytech/reed-solomon-novelpoly.git
+
+
+- name: criterion-reference-tar-artifact
+  type: s3
+  icon: poll
+  source:
+    endpoint: https://minio.spearow.io
+    bucket: reed-solomon-criterion-perf-reference
+    regexp: "^criterion-v(.*).tar.gz$"
+    access_key_id: ((minio-access-key))
+    secret_access_key: ((minio-secret-key))
+
+- name: criterion-tar-artifact
+  type: s3
+  icon: poll
+  source:
+    endpoint: https://minio.spearow.io
+    bucket: reed-solomon-criterion-perf
+    regexp: "^criterion-git-(.*).tar.gz$"
+    access_key_id: ((minio-access-key))
+    secret_access_key: ((minio-secret-key))
+
 
 jobs:
 ### static shit
@@ -277,7 +314,9 @@ jobs:
               sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
               rustc +stable --version --verbose
 
+              export RUSTFLAGS='-C target-feature=+sse3,+avx,+avx2,+sse4.2'
               cargo +stable test --all
+
             dir: git-pr-resource
           caches:
           - path: cargo
@@ -337,85 +376,189 @@ jobs:
 
 
 
+      - get: mc
+        resource: minio-client
+
       - in_parallel:
         - do:
-          - get: honggfuzz-artifact
-            passed: [tools-cargo-hongg]
+          - get: criterion-reference-tar-artifact
 
-          - task: pr-fuzz
-            timeout: 30m
+          - task: pr-criterion
+            timeout: 10m
             image: env-glibc
-            # tags: [houdini]
+            #tags: [houdini]
             privileged: true
             config:
               platform: linux
               inputs:
-              - name: honggfuzz-artifact
+              - name: criterion-reference-tar-artifact
               - name: git-pr-resource
+              outputs:
+              - name: criterion-output
               caches:
               - path: cargo_home
               - path: target
-              - path: dnf_cache
               run:
+                dir: git-pr-resource
                 path: sh
                 args:
                 - -exc
                 - |
-                  sudo chmod o+w /etc/dnf/dnf.conf
-                  sudo cat >> /etc/dnf/dnf.conf << EOF
-                  cachedir=$(pwd)/../dnf_cache
-                  install_weak_deps=False
-                  keepcache=True
-                  EOF
-
-                  sudo dnf install --disablerepo="*" --enablerepo="fedora" --enablerepo="updates" -y \
-                    binutils{,-devel} \
-                    make \
-                    clang \
-                    libblocksruntime{,-static,-devel} \
-                    xz{,-devel} \
-                    libunwind{,-devel} \
-                    which \
-                    fd-find \
-                    ripgrep
-
-                  export CARGO="$HOME/.cargo/bin/cargo"
                   export CARGO_HOME="$(pwd)/../cargo_home"
                   export CARGO_TARGET_DIR="$(pwd)/../target"
                   export PATH=$PATH:$CARGO_HOME/bin
+                  sudo mkdir -p ${CARGO_HOME}/bin || true
+                  sudo mkdir -p ${CARGO_TARGET_DIR} || true
+                  sudo mkdir -p ../criterion-output || true
+                  sudo mkdir -p ../tmp
+                  sudo chown $(whoami): -Rf ${CARGO_HOME}
+                  sudo chown $(whoami): -Rf ${CARGO_TARGET_DIR}
+                  sudo chown $(whoami): -Rf ..
+                  sudo chown $(whoami): -Rf .
+                  sudo chown $(whoami): -Rf ../tmp
+                  sudo chown $(whoami): -Rf ../criterion-output
 
-                  sudo mkdir -p ${CARGO_HOME}/bin ${CARGO_TARGET_DIR}
-                  sudo cp -vf ../honggfuzz-artifact/cargo-hongg-* ${CARGO_HOME}/bin/cargo-hongg
-                  sudo chmod +x ${CARGO_HOME}/bin/cargo-hongg
-                  sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
                   rustc +stable --version --verbose
-                  cargo hongg --version
 
-                  # for now patch the honggfuzz dependency to the latest git until it's merged and released upstream
-                  which cargo-add || cargo install -f cargo-edit
-                  cargo add -p fuzzit honggfuzz --git "https://github.com/drahnr/honggfuzz-rs.git"
+                  export HEAD=$(git rev-parse HEAD)
 
-                  # ptrace(PTRACE_SEIZE) must be explicitly allowed in containers
-                  cargo hongg run fuzz_reconstruct -vvvv --iterations=5000 --timeout=120 --exit-upon-crash=76
-                  cargo hongg run fuzz_roundtrip -vvvv --iterations=5000 --timeout=120 --exit-upon-crash=77
 
-                dir: git-pr-resource
+                  # unpack the reference against which to measure
+                  tar xf ../criterion-reference-tar-artifact/criterion-v*.tar.gz -C ../tmp
+
+                  export RUSTFLAGS='-C target-feature=+sse3,+avx,+avx2,+sse4.2'
+                  cargo +stable criterion --history-id ${HEAD} --target-dir ../tmp payload/novel-poly-reconstruct/466
+
+                  cd ../criterion-output
+                  tar -czf criterion-git-${HEAD}.tar.gz -C ../tmp .
 
             on_success:
-              put: git-pr-resource
-              params:
-                path: git-pr-resource
-                context: fuzz
-                status: success
+              do:
+                - put: criterion-tar-artifact
+                  params:
+                    file: ./criterion-output/criterion-git-*.tar.gz
+                    acl: public-read
+
+
+                - task: pr-share-criterion
+                  timeout: 10m
+                  image: env-glibc
+                  config:
+                    platform: linux
+                    inputs:
+                    - name: mc
+                    - name: git-pr-resource
+                    - name: criterion-output
+                    outputs:
+                    - name: comment
+                    run:
+                      path: sh
+                      args:
+                      - -exc
+                      - |
+                        sudo chown $(whoami): -Rvf ./git-pr-resource
+
+                        sudo mkdir -p /usr/local/bin/
+                        sudo cp -vf mc/mc /usr/local/bin/
+                        sudo chmod +x /usr/local/bin/mc
+                        echo -e '((minio-access-key))\n((minio-secret-key))' | mc config host add spearow https://minio.spearow.io
+
+                        export NAME="criterion-git-$(cd git-pr-resource; git rev-parse HEAD; cd ..).tar.gz"
+
+                        # mc cp criterion-output/${NAME} spearow/reed-solomon-criterion-perf/${NAME}
+
+                        sudo touch comment/comment.md
+                        sudo chmod o+rw comment/comment.md
+                        sudo chmod u+rw comment/comment.md
+
+                        printf "[📊 criterion 📊](%s)" "$(mc share download --no-color --expire=168h --json spearow/reed-solomon-criterion-perf/${NAME} | jq -c -M -r .share)" \
+                          > comment/comment.md
+
+                  on_success:
+                    put: git-pr-resource
+                    params:
+                      path: git-pr-resource
+                      comment_file: comment/comment.md
+                      delete_previous_comments: false
 
             on_failure:
               put: git-pr-resource
               params:
                 path: git-pr-resource
-                context: fuzz
-                status: failure
+                comment: "Criterion output could not be created 🍌"
+                delete_previous_comments: false
 
-        - do:
+
+          - get: honggfuzz-artifact
+            passed: [tools-cargo-hongg]
+
+          - try:
+              task: pr-fuzz
+              timeout: 30m
+              image: env-glibc
+              # tags: [houdini]
+              privileged: true
+              config:
+                platform: linux
+                inputs:
+                - name: honggfuzz-artifact
+                - name: git-pr-resource
+                caches:
+                - path: cargo_home
+                - path: target
+                # - path: dnf_cache
+                run:
+                  dir: git-pr-resource
+                  path: sh
+                  args:
+                  - -exc
+                  - |
+
+                    export CARGO="$HOME/.cargo/bin/cargo/"
+                    export CARGO_HOME="$(pwd)/../cargo_home/"
+                    export CARGO_TARGET_DIR="$(pwd)/../target/"
+                    export PATH=$PATH:$CARGO_HOME/bin
+
+                    sudo mkdir -p ../target || true
+                    sudo mkdir -p ${CARGO_HOME}/bin
+                    sudo mkdir -p ${CARGO_TARGET_DIR}
+                    # sudo cp -vf ../honggfuzz-artifact/cargo-hongg-* ${CARGO_HOME}/bin/cargo-hongg
+                    sudo chmod +x ${CARGO_HOME}/bin/cargo-hongg
+                    sudo chown $(whoami): -Rf ${CARGO_HOME}
+                    sudo chown $(whoami): -Rf ${CARGO_TARGET_DIR}
+                    sudo chown $(whoami): -Rf .
+                    sudo chown $(whoami): -Rf ../target
+                    sudo chown $(whoami): -Rf ..
+
+                    rustc +stable --version --verbose
+                    cargo hfuzz version
+
+                    # for now patch the honggfuzz dependency to the latest git until
+                    # it's merged and released upstream
+                    which cargo-add || cargo install -f cargo-edit
+                    cargo add -p fuzzit honggfuzz --git "https://github.com/drahnr/honggfuzz-rs.git"
+
+                    # honggfuzz makes a fatal assumption that `$CARGO_TARGET_DIR` is _relative_ path to the `CWD`.
+                    export CARGO_TARGET_DIR="../target/"
+                    # ptrace(PTRACE_SEIZE) must be explicitly allowed in containers
+                    cargo hfuzz run fuzz_reconstruct -vvvv --iterations=5000 --timeout=120 --exit-upon-crash=76
+                    cargo hfuzz run fuzz_roundtrip -vvvv --iterations=5000 --timeout=120 --exit-upon-crash=77
+
+              on_success:
+                put: git-pr-resource
+                params:
+                  path: git-pr-resource
+                  context: fuzz
+                  status: success
+
+              on_failure:
+                put: git-pr-resource
+                params:
+                  path: git-pr-resource
+                  context: fuzz
+                  status: failure
+
+
           - get: flamegraph-artifact
             passed: [tools-cargo-flamegraph]
 
@@ -439,29 +582,21 @@ jobs:
                 args:
                 - -exc
                 - |
-                  sudo chmod o+w /etc/dnf/dnf.conf
-                  cat >> /etc/dnf/dnf.conf << EOF
-                  cachedir=$(pwd)/../dnf_cache
-                  install_weak_deps=False
-                  keepcache=True
-                  EOF
-
-                  sudo dnf install --disablerepo="*" --enablerepo="fedora" --enablerepo="updates" -y \
-                    perf \
-                    which \
-                    fd-find \
-                    ripgrep
-
                   export CARGO_HOME="$(pwd)/../cargo_home"
                   export CARGO_TARGET_DIR="$(pwd)/../target"
                   export PATH=$PATH:$CARGO_HOME/bin
                   sudo mkdir -p ${CARGO_HOME}/bin ${CARGO_TARGET_DIR}
                   sudo cp ../flamegraph-artifact/cargo-flamegraph-* ${CARGO_HOME}/bin/cargo-flamegraph
                   sudo chmod +x ${CARGO_HOME}/bin/cargo-flamegraph
-                  sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
+                  sudo chown $(whoami): -Rf ${CARGO_HOME}
+                  sudo chown $(whoami): -Rf ${CARGO_TARGET_DIR}
+                  sudo chown $(whoami): -Rf .
+                  sudo chown $(whoami): -Rf ../flamegraph
+                  sudo chown $(whoami): -Rf ..
+
                   rustc +stable --version --verbose
 
-                  cargo-flamegraph --version
+                  cargo flamegraph --version
                   cargo flamegraph -v -F 10000 --bin reed-solomon-benches
 
                   mv flamegraph.svg ../flamegraph/flamegraph-$(git rev-parse HEAD).svg
@@ -475,9 +610,6 @@ jobs:
                     file: ./flamegraph/flamegraph-*.svg
                     acl: public-read
 
-                - get: mc
-                  resource: minio-client
-
                 - task: pr-share-flamegraph
                   timeout: 10m
                   image: env-glibc
@@ -489,21 +621,13 @@ jobs:
                     - name: flamegraph
                     outputs:
                     - name: comment
-                    caches:
-                    - name: dnf_cache
                     run:
                       path: sh
                       args:
                       - -exc
                       - |
-                        sudo chmod o+w /etc/dnf/dnf.conf
-                        cat >> /etc/dnf/dnf.conf << EOF
-                        cachedir=$(pwd)/dnf_cache
-                        install_weak_deps=False
-                        keepcache=True
-                        EOF
-
-                        sudo dnf install --disablerepo="*" --enablerepo="fedora" --enablerepo="updates" -y jq
+                        sudo chown $(whoami): -Rf flamegraph
+                      
                         sudo mkdir -p /usr/local/bin/
                         sudo cp -vf mc/mc /usr/local/bin/
                         sudo chmod +x /usr/local/bin/mc
@@ -511,7 +635,7 @@ jobs:
 
                         export NAME="flamegraph-$(cd git-pr-resource; git rev-parse HEAD; cd ..).svg"
 
-                        mc cp flamegraph/${NAME} spearow/reed-solomon-flamegraph/${NAME}
+                        # mc cp flamegraph/${NAME} spearow/reed-solomon-flamegraph/${NAME}
 
                         sudo touch comment/comment.md
                         sudo chmod o+rw comment/comment.md
@@ -525,14 +649,14 @@ jobs:
                     params:
                       path: git-pr-resource
                       comment_file: comment/comment.md
-                      delete_previous_comments: true
+                      delete_previous_comments: false
 
             on_failure:
               put: git-pr-resource
               params:
                 path: git-pr-resource
                 comment: "Flamegraph could not be created 🐞"
-                delete_previous_comments: true
+                delete_previous_comments: false
 
       - try:
           task: format-check
@@ -637,7 +761,7 @@ jobs:
               export CARGO_TARGET_DIR="$(pwd)/../target"
               sudo mkdir -p ${CARGO_HOME} ${CARGO_TARGET_DIR}
               sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
-              
+
               rustup target add x86_64-pc-windows-gnu
 
               rustc +stable --target x86_64-pc-windows-gnu --version --verbose
@@ -697,3 +821,65 @@ jobs:
                 cargo +stable fmt -- --check
 
               dir: git-repo
+
+
+
+####################################################################################
+#                           P E R F _ R E F E R E N C E
+####################################################################################
+
+  - name: create-criterion-reference
+    build_logs_to_retain: 10
+    public: true
+    serial: true
+    plan:
+    - in_parallel:
+      - get: env-glibc
+      - get: git-repo
+        resource: git-perf-reference-tag
+        trigger: true
+
+    - task: create-performance-reference
+      timeout: 60m
+      image: env-glibc
+      privileged: true
+      config:
+        platform: linux
+        inputs:
+        - name: git-repo
+        outputs:
+        - name: criterion-output
+        caches:
+        - path: cargo_home
+        - path: target
+        run:
+          # user: root
+          dir: git-repo
+          path: sh
+          args:
+          - -exc
+          - |
+            export CARGO_HOME="$(pwd)/../cargo_home"
+            export CARGO_TARGET_DIR="$(pwd)/../target"
+
+
+            sudo mkdir ../tmp
+            sudo mkdir -p ../criterion-output || true
+            sudo mkdir -p ${CARGO_HOME} ${CARGO_TARGET_DIR}
+            sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} . .. ../tmp ../criterion-output
+            rustc +stable --version --verbose
+
+            export EXE="${CARGO_TARGET_DIR}/release/reed-solomon-novelpoly"
+
+
+            export RUSTFLAGS='-C target-feature=+sse3,+avx,+avx2,+sse4.2'
+            cargo +stable criterion --history-id $(git rev-parse HEAD) --target-dir ../tmp payload/novel-poly-reconstruct/466
+
+            cd ../criterion-output
+            tar -czf criterion-v1.0.1.tar.gz -C ../tmp .
+
+
+    - put: criterion-reference-tar-artifact
+      params:
+        file: ./criterion-output/criterion-v*.tar.gz
+        acl: public-read
