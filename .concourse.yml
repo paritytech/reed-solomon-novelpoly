@@ -209,6 +209,7 @@ jobs:
       params:
         file: ./flamegraph-artifact/cargo-flamegraph-*
         acl: public-read
+
 ####################################################################################
 #                              P U L L - R E Q U E S T
 ####################################################################################
@@ -334,6 +335,49 @@ jobs:
             context: unit-tests
             status: failure
 
+
+      - try:
+          task: format-check
+          timeout: 5m
+          image: env-glibc
+          config:
+            platform: linux
+            inputs:
+            - name: git-pr-resource
+            caches:
+            - path: cargo_home
+            - path: target
+            run:
+              # user: root
+              path: sh
+              args:
+              - -exc
+              - |
+                export CARGO_HOME="$(pwd)/../cargo_home"
+                export CARGO_TARGET_DIR="$(pwd)/../target"
+                sudo mkdir -p ${CARGO_HOME} ${CARGO_TARGET_DIR}
+                sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
+                rustc +stable --version --verbose
+
+                cargo +stable fmt -- --check
+
+              dir: git-pr-resource
+
+          on_success:
+            put: git-pr-resource
+            params:
+              path: git-pr-resource
+              context: meta-check
+              status: success
+
+          on_failure:
+            put: git-pr-resource
+            params:
+              path: git-pr-resource
+              context: meta-check
+              status: failure
+
+
       # - task: pr-win64-cross-build
       #   timeout: 40m
       #   image: env-glibc
@@ -374,10 +418,6 @@ jobs:
       #       context: win64-cross-build
       #       status: failure
 
-
-
-      - get: mc
-        resource: minio-client
 
       - in_parallel:
         - do:
@@ -433,131 +473,17 @@ jobs:
                   tar -czvf criterion-git-${HEAD}.tar.gz -C ../tmp/criterion data reports
 
             on_success:
-              do:
-                - put: criterion-tar-artifact
-                  params:
-                    file: ./criterion-output/criterion-git-*.tar.gz
-                    acl: public-read
-
-
-                - task: pr-share-criterion
-                  timeout: 10m
-                  image: env-glibc
-                  config:
-                    platform: linux
-                    inputs:
-                    - name: mc
-                    - name: git-pr-resource
-                    - name: criterion-output
-                    outputs:
-                    - name: comment
-                    run:
-                      path: sh
-                      args:
-                      - -exc
-                      - |
-                        sudo chown $(whoami): -Rf ./git-pr-resource
-
-                        sudo mkdir -p /usr/local/bin/
-                        sudo cp -vf mc/mc /usr/local/bin/
-                        sudo chmod +x /usr/local/bin/mc
-                        echo -e '((minio-access-key))\n((minio-secret-key))' | mc config host add spearow https://minio.spearow.io
-
-                        export NAME="criterion-git-$(cd git-pr-resource; git rev-parse HEAD; cd ..).tar.gz"
-
-                        # mc cp criterion-output/${NAME} spearow/reed-solomon-criterion-perf/${NAME}
-
-                        sudo touch comment/comment.md
-                        sudo chmod o+rw comment/comment.md
-                        sudo chmod u+rw comment/comment.md
-
-                        printf "[📊 criterion 📊](%s)" "$(mc share download --no-color --expire=168h --json spearow/reed-solomon-criterion-perf/${NAME} | jq -c -M -r .share)" \
-                          > comment/comment.md
-
-                  on_success:
-                    put: git-pr-resource
-                    params:
-                      path: git-pr-resource
-                      comment_file: comment/comment.md
-                      delete_previous_comments: false
+              put: criterion-tar-artifact
+              params:
+                file: ./criterion-output/criterion-git-*.tar.gz
+                acl: public-read
 
             on_failure:
               put: git-pr-resource
               params:
                 path: git-pr-resource
                 comment: "Criterion output could not be created 🍌"
-                delete_previous_comments: false
-
-
-          - get: honggfuzz-artifact
-            passed: [tools-cargo-hongg]
-
-          - try:
-              task: pr-fuzz
-              timeout: 30m
-              image: env-glibc
-              # tags: [houdini]
-              privileged: true
-              config:
-                platform: linux
-                inputs:
-                - name: honggfuzz-artifact
-                - name: git-pr-resource
-                caches:
-                - path: cargo_home
-                - path: target
-                # - path: dnf_cache
-                run:
-                  dir: git-pr-resource
-                  path: sh
-                  args:
-                  - -exc
-                  - |
-
-                    export CARGO="$HOME/.cargo/bin/cargo/"
-                    export CARGO_HOME="$(pwd)/../cargo_home/"
-                    export CARGO_TARGET_DIR="$(pwd)/../target/"
-                    export PATH=$PATH:$CARGO_HOME/bin
-
-                    sudo mkdir -p ../target || true
-                    sudo mkdir -p ${CARGO_HOME}/bin
-                    sudo mkdir -p ${CARGO_TARGET_DIR}
-                    # sudo cp -vf ../honggfuzz-artifact/cargo-hongg-* ${CARGO_HOME}/bin/cargo-hongg
-                    sudo chmod +x ${CARGO_HOME}/bin/cargo-hongg
-                    sudo chown $(whoami): -Rf ${CARGO_HOME}
-                    sudo chown $(whoami): -Rf ${CARGO_TARGET_DIR}
-                    sudo chown $(whoami): -Rf .
-                    sudo chown $(whoami): -Rf ../target
-                    sudo chown $(whoami): -Rf ..
-
-                    rustc +stable --version --verbose
-                    cargo hfuzz version
-
-                    # for now patch the honggfuzz dependency to the latest git until
-                    # it's merged and released upstream
-                    which cargo-add || cargo install -f cargo-edit
-                    cargo add -p fuzzit honggfuzz --git "https://github.com/drahnr/honggfuzz-rs.git"
-
-                    # honggfuzz makes a fatal assumption that `$CARGO_TARGET_DIR` is _relative_ path to the `CWD`.
-                    export CARGO_TARGET_DIR="../target/"
-                    # ptrace(PTRACE_SEIZE) must be explicitly allowed in containers
-                    cargo hfuzz run fuzz_reconstruct -vvvv --iterations=5000 --timeout=120 --exit-upon-crash=76
-                    cargo hfuzz run fuzz_roundtrip -vvvv --iterations=5000 --timeout=120 --exit-upon-crash=77
-
-              on_success:
-                put: git-pr-resource
-                params:
-                  path: git-pr-resource
-                  context: fuzz
-                  status: success
-
-              on_failure:
-                put: git-pr-resource
-                params:
-                  path: git-pr-resource
-                  context: fuzz
-                  status: failure
-
+                delete_previous_comments: true
 
           - get: flamegraph-artifact
             passed: [tools-cargo-flamegraph]
@@ -578,6 +504,7 @@ jobs:
               - path: cargo_home
               - path: target
               run:
+                dir: git-pr-resource
                 path: sh
                 args:
                 - -exc
@@ -601,105 +528,218 @@ jobs:
 
                   mv flamegraph.svg ../flamegraph/flamegraph-$(git rev-parse HEAD).svg
 
-                dir: git-pr-resource
 
             on_success:
-              do:
-                - put: flamegraph-svg
-                  params:
-                    file: ./flamegraph/flamegraph-*.svg
-                    acl: public-read
-
-                - task: pr-share-flamegraph
-                  timeout: 10m
-                  image: env-glibc
-                  config:
-                    platform: linux
-                    inputs:
-                    - name: mc
-                    - name: git-pr-resource
-                    - name: flamegraph
-                    outputs:
-                    - name: comment
-                    run:
-                      path: sh
-                      args:
-                      - -exc
-                      - |
-                        sudo chown $(whoami): -Rf flamegraph
-                        sudo chown $(whoami): -Rf git-pr-resource
-                        sudo chown $(whoami): -Rf .
-
-                        sudo mkdir -p /usr/local/bin/
-                        sudo cp -vf mc/mc /usr/local/bin/
-                        sudo chmod +x /usr/local/bin/mc
-                        echo -e '((minio-access-key))\n((minio-secret-key))' | mc config host add spearow https://minio.spearow.io
-
-                        export NAME="flamegraph-$(cd git-pr-resource; git rev-parse HEAD; cd ..).svg"
-
-                        # mc cp flamegraph/${NAME} spearow/reed-solomon-flamegraph/${NAME}
-
-                        sudo touch comment/comment.md
-                        sudo chmod o+rw comment/comment.md
-                        sudo chmod u+rw comment/comment.md
-
-                        printf "[🔥 flamegraph 🔥](%s)" "$(mc share download --no-color --expire=168h --json spearow/reed-solomon-flamegraph-svg/${NAME} | jq -c -M -r .share)" \
-                          > comment/comment.md
-
-                  on_success:
-                    put: git-pr-resource
-                    params:
-                      path: git-pr-resource
-                      comment_file: comment/comment.md
-                      delete_previous_comments: false
+              put: flamegraph-svg
+              params:
+                file: ./flamegraph/flamegraph-*.svg
+                acl: public-read
 
             on_failure:
               put: git-pr-resource
               params:
                 path: git-pr-resource
                 comment: "Flamegraph could not be created 🐞"
-                delete_previous_comments: false
+                delete_previous_comments: true
 
-      - try:
-          task: format-check
-          timeout: 5m
-          image: env-glibc
-          config:
-            platform: linux
-            inputs:
-            - name: git-pr-resource
-            caches:
-            - path: cargo_home
-            - path: target
-            run:
-              # user: root
-              path: sh
-              args:
-              - -exc
-              - |
-                export CARGO_HOME="$(pwd)/../cargo_home"
-                export CARGO_TARGET_DIR="$(pwd)/../target"
-                sudo mkdir -p ${CARGO_HOME} ${CARGO_TARGET_DIR}
-                sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
-                rustc +stable --version --verbose
+  - name: submit-gh-comment
+    build_logs_to_retain: 10
+    public: true
+    serial: true
+    plan:
+    - in_parallel:
+      - get: git-pr-resource
+        resource: git-pr-resource
+        version: every
+        trigger: true
+        passed: [pr-validate]
 
-                cargo +stable fmt -- --check
+      - get: mc
+        resource: minio-client
 
-              dir: git-pr-resource
+      - get: env-glibc
+      
+      - get: flamegraph
+        resource: flamegraph-svg
+        passed: [pr-validate]
+      
+      - get: criterion-output
+        resource: criterion-tar-artifact
+        passed: [pr-validate]
 
-          on_success:
-            put: git-pr-resource
-            params:
-              path: git-pr-resource
-              context: meta-check
-              status: success
+    - do:
+      - task: pr-share-criterion
+        timeout: 10m
+        image: env-glibc
+        config:
+          platform: linux
+          inputs:
+          - name: mc
+          - name: git-pr-resource
+          - name: criterion-output
+          outputs:
+          - name: comment
+          run:
+            path: sh
+            args:
+            - -exc
+            - |
+              sudo chown $(whoami): -Rf ./git-pr-resource
 
-          on_failure:
-            put: git-pr-resource
-            params:
-              path: git-pr-resource
-              context: meta-check
-              status: failure
+              sudo mkdir -p /usr/local/bin/
+              sudo cp -vf mc/mc /usr/local/bin/
+              sudo chmod +x /usr/local/bin/mc
+              echo -e '((minio-access-key))\n((minio-secret-key))' | mc config host add spearow https://minio.spearow.io
+
+              export NAME=criterion-git-$(cd git-pr-resource; git rev-parse HEAD; cd ..).tar.gz
+              export NAME=$(cd criterion-output; ls -1 criterion-git-*.tar.gz; cd ..)
+
+              # mc cp criterion-output/${NAME} spearow/reed-solomon-criterion-perf/${NAME}
+
+              sudo touch comment/comment.md
+              sudo chmod o+rw comment/comment.md
+              sudo chmod u+rw comment/comment.md
+
+              printf "[📊 criterion 📊](%s)" "$(mc share download --no-color --expire=168h --json spearow/reed-solomon-criterion-perf/${NAME} | jq -c -M -r .share)" \
+                >> comment/comment.md
+
+      - task: pr-share-flamegraph
+        timeout: 10m
+        image: env-glibc
+        config:
+          platform: linux
+          inputs:
+          - name: comment
+          - name: mc
+          - name: git-pr-resource
+          - name: flamegraph
+          outputs:
+          - name: comment
+          run:
+            path: sh
+            args:
+            - -exc
+            - |
+              sudo chown $(whoami): -Rf comment
+              sudo chown $(whoami): -Rf flamegraph
+              sudo chown $(whoami): -Rf git-pr-resource
+              sudo chown $(whoami): -Rf .
+
+              sudo mkdir -p /usr/local/bin/
+              sudo cp -vf mc/mc /usr/local/bin/
+              sudo chmod +x /usr/local/bin/mc
+              echo -e '((minio-access-key))\n((minio-secret-key))' | mc config host add spearow https://minio.spearow.io
+
+              export NAME="flamegraph-$(cd git-pr-resource; git rev-parse HEAD; cd ..).svg"
+              export NAME=$(cd flamegraph; ls -1 flamegraph-*svg; cd ..)
+
+              # mc cp flamegraph/${NAME} spearow/reed-solomon-flamegraph/${NAME}
+
+              sudo touch comment/comment.md
+              sudo chmod o+rw comment/comment.md
+              sudo chmod u+rw comment/comment.md
+
+              printf "\n[🔥 flamegraph 🔥](%s)" "$(mc share download --no-color --expire=168h --json spearow/reed-solomon-flamegraph-svg/${NAME} | jq -c -M -r .share)" \
+                >> comment/comment.md
+
+        on_success:
+          put: git-pr-resource
+          params:
+            path: git-pr-resource
+            comment_file: comment/comment.md
+            delete_previous_comments: true
+
+      on_failure:
+        put: git-pr-resource
+        params:
+          path: git-pr-resource
+          comment: "Flamegraph or criterion output could not be created 🐞"
+          delete_previous_comments: true
+
+#################################################################################
+#                     H O N G G F U Z Z
+#################################################################################
+
+
+  - name: fuzz-briefly
+    build_logs_to_retain: 10
+    public: true
+    serial: true
+    plan:
+    - get: git-pr-resource
+      version: every
+      trigger: true
+
+    - get: env-glibc
+
+    - get: honggfuzz-artifact
+      passed: [tools-cargo-hongg]
+
+    - try:
+        task: pr-fuzz
+        timeout: 30m
+        image: env-glibc
+        # tags: [houdini]
+        privileged: true
+        config:
+          platform: linux
+          inputs:
+          - name: honggfuzz-artifact
+          - name: git-pr-resource
+          caches:
+          - path: cargo_home
+          - path: target
+          # - path: dnf_cache
+          run:
+            dir: git-pr-resource
+            path: sh
+            args:
+            - -exc
+            - |
+
+              export CARGO="$HOME/.cargo/bin/cargo/"
+              export CARGO_HOME="$(pwd)/../cargo_home/"
+              export CARGO_TARGET_DIR="$(pwd)/../target/"
+              export PATH=$PATH:$CARGO_HOME/bin
+
+              sudo mkdir -p ../target || true
+              sudo mkdir -p ${CARGO_HOME}/bin
+              sudo mkdir -p ${CARGO_TARGET_DIR}
+              # sudo cp -vf ../honggfuzz-artifact/cargo-hongg-* ${CARGO_HOME}/bin/cargo-hongg
+              sudo chmod +x ${CARGO_HOME}/bin/cargo-hongg
+              sudo chown $(whoami): -Rf ${CARGO_HOME}
+              sudo chown $(whoami): -Rf ${CARGO_TARGET_DIR}
+              sudo chown $(whoami): -Rf .
+              sudo chown $(whoami): -Rf ../target
+              sudo chown $(whoami): -Rf ..
+
+              rustc +stable --version --verbose
+              cargo hfuzz version
+
+              # for now patch the honggfuzz dependency to the latest git until
+              # it's merged and released upstream
+              which cargo-add || cargo install -f cargo-edit
+              cargo add -p fuzzit honggfuzz --git "https://github.com/drahnr/honggfuzz-rs.git"
+
+              # honggfuzz makes a fatal assumption that `$CARGO_TARGET_DIR` is _relative_ path to the `CWD`.
+              export CARGO_TARGET_DIR="../target/"
+              # ptrace(PTRACE_SEIZE) must be explicitly allowed in containers
+              cargo hfuzz run fuzz_reconstruct -vvvv --iterations=5000 --timeout=120 --exit-upon-crash=76
+              cargo hfuzz run fuzz_roundtrip -vvvv --iterations=5000 --timeout=120 --exit-upon-crash=77
+
+        on_success:
+          put: git-pr-resource
+          params:
+            path: git-pr-resource
+            context: fuzz
+            status: success
+
+        on_failure:
+          put: git-pr-resource
+          params:
+            path: git-pr-resource
+            context: fuzz
+            status: failure
 
   ####################################################################################
   #                                 M A S T E R
