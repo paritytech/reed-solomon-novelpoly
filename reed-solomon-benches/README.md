@@ -47,6 +47,6 @@ Currently `honggfuzz` is used.
 
 To build that a `clang` based toolchain is required.
 
-Install `cargo install honggfuzz` and run with
+Install `cargo install hongg` and run with
 
-Run the fuzzer with `cargo hfuzz run fuzzit`.
+Run the fuzzer with `cargo-hongg run fuzzit`.
