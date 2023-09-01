@@ -6,7 +6,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-honggfuzz = "=0.5.57"
+hongg = "=0.5.57"
 arbitrary = { version = "1", features = ["derive"] }
 rstester = { path = "../reed-solomon-tester", package = "reed-solomon-tester" }
 novelpoly = { path = "../reed-solomon-novelpoly", package = "reed-solomon-novelpoly", features = [
