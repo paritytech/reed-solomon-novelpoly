@@ -250,11 +250,6 @@ jobs:
       #     path: git-pr-resource
       #     context: win64-cross-build
       #     status: pending
-      - put: git-pr-resource
-        params:
-          path: fuzz-10k-rounds
-          context: fuzz
-          status: pending
 
     - in_parallel:
       - task: compile-pr
@@ -663,7 +658,7 @@ jobs:
 #                     H O N G G :: F U Z Z
 #################################################################################
 
-  - name: fuzz
+  - name: fuzz-10k-rounds
     build_logs_to_retain: 10
     public: true
     serial: true
@@ -671,6 +666,13 @@ jobs:
     - get: git-pr-resource
       version: every
       trigger: true
+    
+    - put: git-pr-resource
+      params:
+        path: git-pr-resource
+        context: fuzz
+        status: pending
+
 
     - get: env-glibc
 
@@ -697,7 +699,6 @@ jobs:
           args:
           - -exc
           - |
-            export CARGO="$HOME/.cargo/bin/cargo/"
             export CARGO_HOME="$(pwd)/../cargo_home/"
             export CARGO_TARGET_DIR="$(pwd)/../target/"
             export PATH=$PATH:$CARGO_HOME/bin
@@ -716,7 +717,7 @@ jobs:
             cargo install -f cargo-hongg
             
             rustc +stable --version --verbose
-            cargo-hongg --version || cargo-hongg version
+            cargo hongg --version || cargo hongg version || which cargo-hongg || echo "Fishy, but let's see.."
 
             # for now patch the hongg dependency to the latest git until
             # it's merged and released upstream
@@ -725,22 +726,22 @@ jobs:
             # hongg makes a fatal assumption that `$CARGO_TARGET_DIR` is _relative_ path to the `CWD`.
             export CARGO_TARGET_DIR="../target/"
             # ptrace(PTRACE_SEIZE) must be explicitly allowed in containers
-            cargo-hongg fuzz --bin fuzz_reconstruct -vvvv --n-iterations=5000 --timeout=120 --exit-upon-crash=76
-            cargo-hongg fuzz --bin fuzz_roundtrip -vvvv --n-iterations=5000 --timeout=120 --exit-upon-crash=77
+            $CARGO_HOME/bin/cargo-hongg fuzz --bin fuzz_reconstruct -vvvv --n-iterations=10000 --timeout=10 --exit-upon-crash=76
+            $CARGO_HOME/bin/cargo-hongg fuzz --bin fuzz_roundtrip -vvvv --n-iterations=10000 --timeout=10 --exit-upon-crash=77
 
-        on_success:
-          put: git-pr-resource
-          params:
-            path: fuzz-10k-rounds
-            context: fuzz
-            status: success
+      on_success:
+        put: git-pr-resource
+        params:
+          path: git-pr-resource
+          context: fuzz
+          status: success
 
-        on_failure:
-          put: git-pr-resource
-          params:
-            path: fuzz-10k-rounds
-            context: fuzz
-            status: failure
+      on_failure:
+        put: git-pr-resource
+        params:
+          path: git-pr-resource
+          context: fuzz
+          status: failure
 
   ####################################################################################
   #                                 M A S T E R
@@ -750,6 +751,7 @@ jobs:
     public: true
     serial: true
     plan:
+
     - in_parallel:
       - get: env-glibc
       - get: git-repo
@@ -904,7 +906,7 @@ jobs:
           - |
             export CARGO_HOME="$(pwd)/../cargo_home"
             export CARGO_TARGET_DIR="$(pwd)/../target"
-
+            export PATH=$CARGO_HOME/bin:$PATH
             sudo mkdir ../tmp
             sudo mkdir -p ../criterion-output || true
             sudo mkdir -p ${CARGO_HOME} ${CARGO_TARGET_DIR}
