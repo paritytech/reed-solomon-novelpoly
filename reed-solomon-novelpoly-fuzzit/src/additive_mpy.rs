@@ -1,4 +1,4 @@
-use honggfuzz::fuzz;
+use hongg::fuzz;
 
 use novelpoly::f2e16::*;
 
