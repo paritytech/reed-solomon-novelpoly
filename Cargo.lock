@@ -455,9 +455,9 @@ checksum = "443144c8cdadd93ebf52ddb4056d257f5b52c04d3c804e657d19eb73fc33668b"
 
 [[package]]
 name = "hongg"
-version = "0.5.58"
+version = "0.5.59"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de0d634a9ad34393f6a26684c25e0db130a413763d38fe18950bcbfde949b0b3"
+checksum = "de5924124850f1485ea6a3156a801c7d39b4cf2ca3d4d4448ad246145b3d7558"
 dependencies = [
  "arbitrary",
  "fs-err",
