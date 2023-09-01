@@ -22,16 +22,17 @@ resources:
 - name: git-clone-resource
   type: git
   icon: git
+  webhook_token: ((github-reed-solomon-webhook-token))
   source:
     branch: master
     uri: https://github.com/paritytech/reed-solomon-novelpoly.git
 
-- name: git-honggfuzz-rs
+- name: git-hongg-rs
   type: git
   icon: git
   source:
     branch: master
-    uri: https://github.com/drahnr/honggfuzz-rs.git
+    uri: https://github.com/drahnr/hongg-rs.git
 
 
 - name: git-flamegraph
@@ -44,6 +45,7 @@ resources:
 - name: git-pr-resource
   type: pull-request
   icon: github
+  webhook_token: ((github-reed-solomon-webhook-token))
   source:
     repository: drahnr/reed-solomon-novelpoly
     access_token: ((sirmergealot-github-token))
@@ -54,7 +56,7 @@ resources:
   source:
     repository: quay.io/drahnr/rust-glibc-builder
 
-- name: honggfuzz-artifact
+- name: hongg-artifact
   type: s3
   icon: package-variant
   source:
@@ -89,6 +91,7 @@ resources:
 - name: git-perf-reference-tag
   type: git
   icon: git
+  webhook_token: ((github-reed-solomon-webhook-token))
   source:
     branch: master
     tag: v1.0.1
@@ -124,7 +127,7 @@ jobs:
     serial: true
     plan:
     - in_parallel:
-      - get: git-honggfuzz-rs
+      - get: git-hongg-rs
         trigger: true
 
       - get: env-glibc
@@ -136,9 +139,9 @@ jobs:
       config:
         platform: linux
         inputs:
-        - name: git-honggfuzz-rs
+        - name: git-hongg-rs
         outputs:
-        - name: honggfuzz-artifact
+        - name: hongg-artifact
         caches:
         - path: cargo_home
         - path: target
@@ -153,15 +156,15 @@ jobs:
             sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
             rustc +stable --version --verbose
 
-            cargo build --release
+            cargo build --release --workspace
 
-            sudo cp -vf ${CARGO_TARGET_DIR}/release/cargo-hongg ../honggfuzz-artifact/cargo-hongg-$(git rev-parse HEAD)
+            sudo cp -vf ${CARGO_TARGET_DIR}/release/cargo-hongg ../hongg-artifact/cargo-hongg-$(git rev-parse HEAD)
 
-          dir: git-honggfuzz-rs
+          dir: git-hongg-rs
 
-    - put: honggfuzz-artifact
+    - put: hongg-artifact
       params:
-        file: ./honggfuzz-artifact/cargo-hongg-*
+        file: ./hongg-artifact/cargo-hongg-*
         acl: public-read
 
   - name: tools-cargo-flamegraph
@@ -672,60 +675,58 @@ jobs:
 
     - get: env-glibc
 
-    - get: honggfuzz-artifact
+    - get: hongg-artifact
       passed: [tools-cargo-hongg]
 
-    - try:
-        task: pr-fuzz
-        timeout: 30m
-        image: env-glibc
-        # tags: [houdini]
-        privileged: true
-        config:
-          platform: linux
-          inputs:
-          - name: honggfuzz-artifact
-          - name: git-pr-resource
-          caches:
-          - path: cargo_home
-          - path: target
-          # - path: dnf_cache
-          run:
-            dir: git-pr-resource
-            path: sh
-            args:
-            - -exc
-            - |
+    - task: pr-fuzz
+      timeout: 30m
+      image: env-glibc
+      # tags: [houdini]
+      privileged: true
+      config:
+        platform: linux
+        inputs:
+        - name: hongg-artifact
+        - name: git-pr-resource
+        caches:
+        - path: cargo_home
+        - path: target
+        # - path: dnf_cache
+        run:
+          dir: git-pr-resource
+          path: sh
+          args:
+          - -exc
+          - |
 
-              export CARGO="$HOME/.cargo/bin/cargo/"
-              export CARGO_HOME="$(pwd)/../cargo_home/"
-              export CARGO_TARGET_DIR="$(pwd)/../target/"
-              export PATH=$PATH:$CARGO_HOME/bin
+            export CARGO="$HOME/.cargo/bin/cargo/"
+            export CARGO_HOME="$(pwd)/../cargo_home/"
+            export CARGO_TARGET_DIR="$(pwd)/../target/"
+            export PATH=$PATH:$CARGO_HOME/bin
 
-              sudo mkdir -p ../target || true
-              sudo mkdir -p ${CARGO_HOME}/bin
-              sudo mkdir -p ${CARGO_TARGET_DIR}
-              # sudo cp -vf ../honggfuzz-artifact/cargo-hongg-* ${CARGO_HOME}/bin/cargo-hongg
-              sudo chmod +x ${CARGO_HOME}/bin/cargo-hongg
-              sudo chown $(whoami): -Rf ${CARGO_HOME}
-              sudo chown $(whoami): -Rf ${CARGO_TARGET_DIR}
-              sudo chown $(whoami): -Rf .
-              sudo chown $(whoami): -Rf ../target
-              sudo chown $(whoami): -Rf ..
+            sudo mkdir -p ../target || true
+            sudo mkdir -p ${CARGO_HOME}/bin
+            sudo mkdir -p ${CARGO_TARGET_DIR}
+            sudo cp -vf ../hongg-artifact/cargo-hongg-* ${CARGO_HOME}/bin/cargo-hongg
+            sudo chmod +x ${CARGO_HOME}/bin/cargo-hongg
+            sudo chown $(whoami): -Rf ${CARGO_HOME}
+            sudo chown $(whoami): -Rf ${CARGO_TARGET_DIR}
+            sudo chown $(whoami): -Rf .
+            sudo chown $(whoami): -Rf ../target
+            sudo chown $(whoami): -Rf ..
 
-              rustc +stable --version --verbose
-              cargo hfuzz version
+            rustc +stable --version --verbose
+            cargo-hongg --version || cargo-hongg version
 
-              # for now patch the honggfuzz dependency to the latest git until
-              # it's merged and released upstream
-              which cargo-add || cargo install -f cargo-edit
-              cargo add -p fuzzit honggfuzz --git "https://github.com/drahnr/honggfuzz-rs.git"
+            # for now patch the hongg dependency to the latest git until
+            # it's merged and released upstream
+            cargo add -p fuzzit hongg --git "https://github.com/drahnr/hongg-rs.git"
 
-              # honggfuzz makes a fatal assumption that `$CARGO_TARGET_DIR` is _relative_ path to the `CWD`.
-              export CARGO_TARGET_DIR="../target/"
-              # ptrace(PTRACE_SEIZE) must be explicitly allowed in containers
-              cargo hfuzz run fuzz_reconstruct -vvvv --iterations=5000 --timeout=120 --exit-upon-crash=76
-              cargo hfuzz run fuzz_roundtrip -vvvv --iterations=5000 --timeout=120 --exit-upon-crash=77
+            # hongg makes a fatal assumption that `$CARGO_TARGET_DIR` is _relative_ path to the `CWD`.
+            export CARGO_TARGET_DIR="../target/"
+            # ptrace(PTRACE_SEIZE) must be explicitly allowed in containers
+            cargo-hongg fuzz --bin fuzz_reconstruct -vvvv --n-iterations=5000 --timeout=120 --exit-upon-crash=76
+            cargo-hongg fuzz --bin fuzz_roundtrip -vvvv --n-iterations=5000 --timeout=120 --exit-upon-crash=77
 
         on_success:
           put: git-pr-resource
