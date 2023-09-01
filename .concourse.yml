@@ -252,7 +252,7 @@ jobs:
       #     status: pending
       - put: git-pr-resource
         params:
-          path: git-pr-resource
+          path: fuzz-10k-rounds
           context: fuzz
           status: pending
 
@@ -660,11 +660,10 @@ jobs:
           delete_previous_comments: true
 
 #################################################################################
-#                     H O N G G F U Z Z
+#                     H O N G G :: F U Z Z
 #################################################################################
 
-
-  - name: fuzz-briefly
+  - name: fuzz
     build_logs_to_retain: 10
     public: true
     serial: true
@@ -698,7 +697,6 @@ jobs:
           args:
           - -exc
           - |
-
             export CARGO="$HOME/.cargo/bin/cargo/"
             export CARGO_HOME="$(pwd)/../cargo_home/"
             export CARGO_TARGET_DIR="$(pwd)/../target/"
@@ -715,13 +713,15 @@ jobs:
             sudo chown $(whoami): -Rf ../target
             sudo chown $(whoami): -Rf ..
 
+            cargo install -f cargo-hongg
+            
             rustc +stable --version --verbose
             cargo-hongg --version || cargo-hongg version
 
             # for now patch the hongg dependency to the latest git until
             # it's merged and released upstream
             cargo add -p fuzzit hongg --git "https://github.com/drahnr/hongg-rs.git"
-
+            
             # hongg makes a fatal assumption that `$CARGO_TARGET_DIR` is _relative_ path to the `CWD`.
             export CARGO_TARGET_DIR="../target/"
             # ptrace(PTRACE_SEIZE) must be explicitly allowed in containers
@@ -731,14 +731,14 @@ jobs:
         on_success:
           put: git-pr-resource
           params:
-            path: git-pr-resource
+            path: fuzz-10k-rounds
             context: fuzz
             status: success
 
         on_failure:
           put: git-pr-resource
           params:
-            path: git-pr-resource
+            path: fuzz-10k-rounds
             context: fuzz
             status: failure
 
