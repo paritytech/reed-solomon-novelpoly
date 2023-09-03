@@ -240,6 +240,7 @@ fn cantor_basis() {
 }
 
 
+#[cfg(target_feature="+avx2")]
 #[test]
 fn walsh_output_plain_eq_faster8() {
 	use reed_solomon_tester::*;
