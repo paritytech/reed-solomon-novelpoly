@@ -48,15 +48,13 @@ pub type u32x8 = __m256i;
 pub struct Additive8x(pub u16x8);
 
 impl PartialEq<Self> for Additive8x {
-	/// This includes a fallacy, when migrating from [Additive;8*y] to [Additive8x;y]
-	#[inline(always)]
 	fn eq(&self, other: &Self) -> bool {
 		unsafe {
 			// set 0xFFFF for equality, 0x000 for inequality
 			let eq = _mm_cmpeq_epi16(self.0, other.0);
-			let inv_mask = _mm_setzero_si128();
+			let mask = splat_u16x8(ONEMASK);
 			// 0xFFFF for INEQUALITY, 0x0000 for EQUALITY
-			let inverted = _mm_nxor_si128(inv_mask, eq);
+			let inverted = _mm_xor_si128(eq, mask);
 			// if all bits are 0s, things are equal
 			_mm_testz_si128(inverted, mask) == 1
 		}
@@ -79,7 +77,6 @@ impl Eq for Additive8x {}
 impl BitXor for Additive8x {
 	type Output = Self;
 
-	#[inline(always)]
 	fn bitxor(self, rhs: Self) -> Self::Output {
 		Self(unsafe { _mm_xor_si128(self.0, rhs.0) })
 	}
@@ -301,13 +298,11 @@ impl Additive8x {
 }
 
 impl From<[Additive; Additive8x::LANE]> for Additive8x {
-	#[inline(always)]
 	fn from(a: [Additive; Additive8x::LANE]) -> Self {
 		Self::load(&a[..])
 	}
 }
 impl From<Additive8x> for [Additive; Additive8x::LANE] {
-	#[inline(always)]
 	fn from(val: Additive8x) -> Self {
 		unsafe { std::intrinsics::transmute(unpack_u16x8(val.0)) }
 	}
