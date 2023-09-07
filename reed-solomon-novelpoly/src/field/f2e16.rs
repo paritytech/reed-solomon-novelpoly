@@ -54,11 +54,14 @@ impl PartialEq<Self> for Additive8x {
 		unsafe {
 			// set 0xFFFF for equality, 0x000 for inequality
 			let eq = _mm_cmpeq_epi16(self.0, other.0);
-			let mask = splat_u16x8(ONEMASK);
+			let inv_mask = _mm_setzero_si128();
+			// 0xFFFF ^ 0x000 -> 0xFFFF == INEQUALITY
+			// 0x0000 ^ 0x000 -> 0x0000 == EQUALITY
 			// 0xFFFF for INEQUALITY, 0x0000 for EQUALITY
-			let inverted = _mm_xor_si128(eq, mask);
+			let inverted = _mm_xor_si128(inv_mask, eq);
 			// if all bits are 0s, things are equal
-			_mm_testz_si128(inverted, mask) == 1
+			// we use the inversion of the inversion of a
+			_mm_testc_si128(inv_mask, inverted) == 0
 		}
 	}
 }
@@ -491,6 +494,27 @@ mod tests {
 		assert_eq!(unpacked[5], Additive(42));
 		assert_eq!(unpacked[6], Additive(42));
 		assert_eq!(unpacked[7], Additive(42));
+	}
+
+	#[test]
+	fn partial_equ_works() {
+		let a1 = Additive8x::splat(Additive::zero());
+		let a2 = Additive8x::splat(Additive(1));
+		let a3 = Additive8x::splat(Additive(0xFFFE));
+		let a4 = Additive8x::splat(Additive(0xFFFF));
+
+		assert_eq!(a1, a1);
+		assert_eq!(a2, a2);
+		assert_eq!(a3, a3);
+		assert_eq!(a4, a4);
+
+		assert_ne!(a2, a1);
+		assert_ne!(a3, a2);
+		assert_ne!(a4, a3);
+		assert_ne!(a1, a4);
+
+		assert_ne!(a4, a1);
+		assert_ne!(a4, a2);
 	}
 
 	#[test]
