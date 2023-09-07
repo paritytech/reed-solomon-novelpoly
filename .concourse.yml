@@ -584,9 +584,9 @@ jobs:
             - |
               sudo chown $(whoami): -Rf ./git-pr-resource
 
-              sudo mkdir -p /usr/local/bin/
-              sudo cp -vf mc/mc /usr/local/bin/
-              sudo chmod +x /usr/local/bin/mc
+              export PATH="$PATH:$(pwd)/mc/"
+              chmod +x $(pwd)/mc/mc
+
               echo -e '((minio-access-key))\n((minio-secret-key))' | mc config host add spearow https://minio.spearow.io
 
               export NAME=criterion-git-$(cd git-pr-resource; git rev-parse HEAD; cd ..).tar.gz
