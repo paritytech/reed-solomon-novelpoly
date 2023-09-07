@@ -52,16 +52,9 @@ impl PartialEq<Self> for Additive8x {
 	#[inline(always)]
 	fn eq(&self, other: &Self) -> bool {
 		unsafe {
-			// set 0xFFFF for equality, 0x000 for inequality
+			// set 0xFFFF for equality, 0x000 for inequality for each 16 block
 			let eq = _mm_cmpeq_epi16(self.0, other.0);
-			let inv_mask = _mm_setzero_si128();
-			// 0xFFFF ^ 0x000 -> 0xFFFF == INEQUALITY
-			// 0x0000 ^ 0x000 -> 0x0000 == EQUALITY
-			// 0xFFFF for INEQUALITY, 0x0000 for EQUALITY
-			let inverted = _mm_xor_si128(inv_mask, eq);
-			// if all bits are 0s, things are equal
-			// we use the inversion of the inversion of a
-			_mm_testc_si128(inv_mask, inverted) == 0
+			_mm_test_all_ones(eq) == 1
 		}
 	}
 }
