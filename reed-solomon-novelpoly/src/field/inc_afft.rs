@@ -94,7 +94,7 @@ pub fn inverse_afft(data: &mut [Additive], size: usize, index: usize) {
 	unsafe { &AFFT }.inverse_afft(data,size,index)
 }
 
-pub fn inverse_afft_faster8(data: &mut [Additive8x], size: usize, index: usize) {
+pub fn inverse_afft_faster8(data: &mut [Additive], size: usize, index: usize) {
 	unsafe { &AFFT }.inverse_afft_faster8(data,size,index)
 }
 
@@ -104,12 +104,32 @@ pub fn afft(data: &mut [Additive], size: usize, index: usize) {
 }
 
 /// Additive FFT in the "novel polynomial basis"
-pub fn afft_faster8(data: &mut [Additive8x], size: usize, index: usize) {
+pub fn afft_faster8(data: &mut [Additive], size: usize, index: usize) {
 	unsafe { &AFFT }.afft_faster8(data,size,index)
 }
 
 
 impl AdditiveFFT {
+
+	/// `data[i + depart_no] ^= data[i];`
+	#[inline(always)]
+	fn butterfly_down(data: &mut [Additive], i_8x: usize, depart_no_8x: usize) {
+		let rhs = Additive8x::load(&data[(i_8x * Additive8x::LANE) .. ][.. Additive8x::LANE]);
+		let dest = &mut data[((i_8x + depart_no_8x) * Additive8x::LANE) .. ][.. Additive8x::LANE];
+		let mut lhs = Additive8x::load(dest);
+		lhs ^= rhs;
+		lhs.copy_to_slice(dest);
+	}
+	
+	// `data[i] ^= data[i + depart_no].mul(skew)`;
+	#[inline(always)]
+	fn butterfly_up(data: &mut [Additive], i_8x: usize, depart_no_8x: usize, skew: Multiplier) {
+		let rhs = Additive8x::load(&data[((i_8x + depart_no_8x) * Additive8x::LANE) .. ][.. Additive8x::LANE]).mul(skew);
+		let dest = &mut data[(i_8x * Additive8x::LANE) .. ][.. Additive8x::LANE];
+		let mut lhs = Additive8x::load(dest);
+		lhs ^= rhs;
+		lhs.copy_to_slice(dest);
+	}
 
 	/// Inverse additive FFT in the "novel polynomial basis"
 	pub fn inverse_afft(&self, data: &mut [Additive], size: usize, index: usize) {
@@ -194,40 +214,33 @@ impl AdditiveFFT {
 	}
 
 	/// Inverse additive FFT in the "novel polynomial basis", but do 8 at once using available vector units
-	pub fn inverse_afft_faster8(&self, data: &mut [Additive8x], size: usize, index: usize) {
+	pub fn inverse_afft_faster8(&self, data: &mut [Additive], size: usize, index: usize) {
 		let mut depart_no = 1_usize;
-
 		while depart_no < Additive8x::LANE {
 			let mut j = depart_no;
 			while j < size {
-
-				let offset = (j - depart_no)/Additive8x::LANE;
-
-				// calculate the remainder offset, which is within the selected `[Additive; 8]` slice
-				let intra = (j - depart_no) - offset * Additive8x::LANE;
-
-				let mut local_data = Additive8x::unpack(&data[offset]);
-
-				for i in intra..(intra+depart_no) {
-					local_data[i + depart_no] ^= local_data[i];
+				for i in (j - depart_no)..j {
+					data[i + depart_no] ^= data[i];
 				}
-				let skew = self.skews[j + index - 1];
+
+				let skew =
+					self.skews[j + index - 1]
+				;
 				if skew.0 != ONEMASK {
-					for i in intra..(intra+depart_no) {
-						local_data[i] ^= local_data[i + depart_no].mul(skew);
+					for i in (j - depart_no)..j {
+						data[i] ^= data[i + depart_no].mul(skew);
 					}
 				}
 
-				data[offset] = Additive8x::from(local_data);
-				// .override_partial_continuous(intra, &local_data[intra..][..(depart_no * 2)]);
-
 				j += depart_no << 1;
+
 			}
 			depart_no <<= 1;
 		}
 
 		assert!(depart_no >= Additive8x::LANE);
 
+		
 		while depart_no < size {
 			let mut j = depart_no;
 			// println!("\n\n\nfaster8/Round depart_no={depart_no}");
@@ -238,12 +251,12 @@ impl AdditiveFFT {
 				let depart_no_8x = depart_no / Additive8x::LANE;
 
 				for i_8x in (j_8x - depart_no_8x)..j_8x {
-					data[i_8x + depart_no_8x] ^= data[i_8x];
+					Self::butterfly_down(data, i_8x, depart_no_8x);
 				}
 				let skew = self.skews[j + index - 1];
 				if skew.0 != ONEMASK {
 					for i_8x in (j_8x - depart_no_8x)..j_8x {
-						data[i_8x] ^= data[i_8x + depart_no_8x].mul(skew);
+						Self::butterfly_up(data, i_8x, depart_no_8x, skew);
 					}
 				}
 				// dbg!(&data);
@@ -313,10 +326,11 @@ impl AdditiveFFT {
 			depart_no >>= 1;
 		}
 	}
+
 	/// Additive FFT in the "novel polynomial basis", but do 8 at once using available vector units
 	///
 	/// `size` is the count of the individual additive field elements, so 8x larger than `data.len()`.
-	pub fn afft_faster8(&self, data: &mut [Additive8x], size: usize, index: usize) {
+	pub fn afft_faster8(&self, data: &mut [Additive], size: usize, index: usize) {
 		let mut depart_no = size >> 1_usize;
 		while depart_no >= Additive8x::LANE {
 			let mut j = depart_no;
@@ -327,13 +341,13 @@ impl AdditiveFFT {
 				let depart_no_8x = depart_no / Additive8x::LANE;
 
 				if skew.0 != ONEMASK {
-					for i in (j_8x - depart_no_8x)..j_8x {
-						data[i] ^= data[i + depart_no_8x].mul(skew);
+					for i_8x in (j_8x - depart_no_8x)..j_8x {
+						Self::butterfly_up(data, i_8x, depart_no_8x, skew);
 					}
 				}
 
-				for i in (j_8x - depart_no_8x)..j_8x {
-					data[i + depart_no_8x] ^= data[i];
+				for i_8x in (j_8x - depart_no_8x)..j_8x {
+					Self::butterfly_down(data, i_8x, depart_no_8x)
 				}
 
 				j += depart_no << 1;
@@ -342,32 +356,21 @@ impl AdditiveFFT {
 		}
 		
 		assert!(depart_no < Additive8x::LANE);
-		// do the regular for the smaller ones, but inline it so we don't need to allocate anything
-		// and load the values from the avx registers as needed
+
 		while depart_no > 0 {
 			let mut j = depart_no;
 			while j < size {
 				let skew = self.skews[j + index - 1];
-				let offset = (j - depart_no) / Additive8x::LANE;
-
-				// calculate the remainder offset, which is within the selected `[Additive; 8]` slice
-				let intra = (j - depart_no) - offset * Additive8x::LANE;
-
-				let mut local_data = Additive8x::unpack(&data[offset]);
 
 				if skew.0 != ONEMASK {
-					for i in intra..(intra + depart_no) {
-						local_data[i] ^= local_data[i + depart_no].mul(skew);
+					for i in (j - depart_no)..j {
+						data[i] ^= data[i + depart_no].mul(skew);
 					}
 				}
 
-				for i in intra..(intra + depart_no) {
-					local_data[i + depart_no] ^= local_data[i];
+				for i in (j - depart_no)..j {
+					data[i + depart_no] ^= data[i];
 				}
-
-				data[offset] = Additive8x::from(local_data);
-				// .override_partial_continuous(intra, &local_data[intra..][..(depart_no * 2)]);
-
 				j += depart_no << 1;
 			}
 			depart_no >>= 1;
@@ -481,29 +484,21 @@ pub mod test_utils {
 		Vec::from_iter(rng.sample_iter::<u16, _>(dist).take(size).map(Additive))
 	}
 
-	pub fn gen_faster8_from_plain(data: impl AsRef<[Additive]>) -> Vec<Additive8x> {
+	pub fn gen_faster8_from_plain(data: impl AsRef<[Additive]>) -> Vec<Additive> {
 		let data = data.as_ref();
-		let size = data.len();
-		let mut dest = Vec::with_capacity((size+Additive8x::LANE-1) / Additive8x::LANE);
-		unsafe {
-			dest.set_len(dest.capacity());
-		}
-		convert_to_faster8(data, &mut dest);
-		dest
+		data.to_vec()
 	}
 
-	pub fn gen_faster8<R: Rng + SeedableRng<Seed = [u8; 32]>>(size: usize) -> Vec<Additive8x> {
+	pub fn gen_faster8<R: Rng + SeedableRng<Seed = [u8; 32]>>(size: usize) -> Vec<Additive> {
 		let data = gen_plain::<R>(size);
 		gen_faster8_from_plain(data)
 	}
 	
-	pub fn assert_plain_eq_faster8(plain: impl AsRef<[Additive]>, faster8: impl AsRef<[Additive8x]>) {
+	pub fn assert_plain_eq_faster8(plain: impl AsRef<[Additive]>, faster8: impl AsRef<[Additive]>) {
 		let plain = plain.as_ref();
 		let faster8 = faster8.as_ref();
 
-		let mut faster8_flattened = vec![Additive::zero(); faster8.len() * Additive8x::LANE];
-		convert_from_faster8(faster8, &mut faster8_flattened);
-		itertools::assert_equal(plain, faster8_flattened.iter());
+		itertools::assert_equal(plain, faster8);
 	}
 
 }
@@ -513,19 +508,6 @@ mod afft_tests {
 	use super::*;
 	use super::test_utils::*;
 	use rand::rngs::SmallRng;
-	#[test]
-	fn conversions_work() {
-		let data = gen_plain::<SmallRng>(256);
-		let mut faster8 = vec![Additive8x::zero(); 32];
-		convert_to_faster8(&data, &mut faster8);
-
-		let mut flattened = vec![Additive::zero(); data.len()];
-		convert_from_faster8(&faster8, &mut flattened);
-
-		assert_eq!(flattened, data);
-
-		assert_plain_eq_faster8(data, faster8.as_slice());
-	}
 
 	#[test]
 	fn afft_output_plain_eq_faster8_size_16() {
@@ -650,203 +632,7 @@ mod afft_tests {
 		let res_faster8 = values8x.mul(mpy);
 		let res_plain = Vec::from_iter(values.iter().map(|v| v.mul(mpy)));
 
-		assert_plain_eq_faster8(dbg!(res_plain), &[dbg!(res_faster8);1][..]);
-	}
-
-	#[test]
-	fn inner2_values() {
-		pub fn afft_inner_step_faster8_round(afft: &AdditiveFFT, data: &mut [Additive8x], size: usize, index: usize, depart_no: usize, j: usize, scratch_out: &mut Vec<Vec<Additive>>) {
-			let mut scratch = Vec::new();
-			
-			let skew = dbg!(afft.skews[j + index - 1]);
-			// correct as long as `depart_no` is equal or larger to `Additive8x::LANE`
-			let j_8x = j / Additive8x::LANE;
-			let depart_no_8x = depart_no / Additive8x::LANE;
-
-			if skew.0 != ONEMASK {
-				for i_8x in (j_8x - depart_no_8x)..j_8x {
-					assert!(i_8x + depart_no_8x < data.len());
-					scratch.push(dbg!(data[i_8x].unpack()).to_vec());
-					scratch.push(dbg!(data[i_8x+depart_no_8x].unpack()).to_vec());
-					scratch.push(dbg!([Additive(skew.0 as u16);8]).to_vec());
-					let tmp = data[i_8x + depart_no_8x].mul(skew);
-					data[i_8x] ^= tmp;
-					scratch.push(tmp.unpack().to_vec());
-					scratch.push(data[i_8x].unpack().to_vec());
-					// if scratch.is_empty() && j == 2784 {
-					// 	return
-					// }
-				}
-			}
-			
-			for i_8x in (j_8x - depart_no_8x)..j_8x {
-				assert!(i_8x + depart_no_8x < data.len());
-				scratch.push(data[i_8x].unpack().to_vec());
-				scratch.push(data[i_8x + depart_no_8x].unpack().to_vec());
-
-				data[i_8x + depart_no_8x] ^= data[i_8x];
-				scratch.push(data[i_8x + depart_no_8x].unpack().to_vec());
-
-			}
-			
-			scratch_out.append(&mut scratch)
-		}
-		
-		pub fn afft_inner_step_plain_round(afft: &AdditiveFFT, data: &mut [Additive], size: usize, index: usize, depart_no: usize, j: usize, scratch_out: &mut Vec<Vec<Additive>>) {
-			let mut scratch = Vec::new();
-
-			let skew = dbg!(afft.skews[j + index - 1]);
-			if skew.0 != ONEMASK {
-				for i in (j - depart_no)..j {
-					if i & 0x07 == 0 {
-						let i = i & !0x07;
-
-						scratch.push(dbg!(&data[i..][..8]).to_vec());
-						scratch.push(dbg!(&data[(i + depart_no)..][..8]).to_vec());
-						scratch.push(dbg!([Additive(skew.0 as u16);8]).to_vec());
-						let mut tmp = [Additive::zero();8];
-						for z in 0..8 {
-							tmp[z] = data[i + z + depart_no].mul(skew);
-							data[i + z] ^= tmp[z];
-						}
-						scratch.push(tmp[..].to_vec());
-						scratch.push(data[i..][..8].to_vec());
-						// if scratch.is_empty() && j == 2784 {
-						// 	return
-						// }
-					}
-				}
-			}
-
-			for i in (j - depart_no)..j {
-				if i & 0x07 == 0 {
-					let i = i & !0x07;
-					scratch.push(data[i..][..8].to_vec());
-					scratch.push(data[(i + depart_no)..][..8].to_vec());
-					for z in 0..8 {
-						data[i + z + depart_no] ^= data[i + z];
-					}
-					scratch.push(data[(i + depart_no)..][..8].to_vec());
-				}
-			}
-
-			scratch_out.append(&mut scratch);
-		}
-		
-		let size = 4096;
-		let mut data_plain = gen_plain::<SmallRng>(size);
-		let mut data_faster8 = gen_faster8_from_plain(&data_plain);
-		
-		let mut scratch_plain = Vec::new();
-		let mut scratch_faster8 = Vec::new();
-
-		
-		let mut depart_no = size >> 1;
-		while depart_no >= 8 {			
-			let mut j = depart_no;
-			while j < size {
-				eprintln!("\n\n\n\n\n\nRunning iteration with depart_no={depart_no} j={j}\n\n\n\n\n\n");
-				
-				
-				scratch_plain.clear();
-				scratch_faster8.clear();
-				
-				afft_inner_step_plain_round(unsafe {&AFFT}, &mut data_plain, size, 0, depart_no, j, &mut scratch_plain);
-				afft_inner_step_faster8_round(unsafe {&AFFT}, &mut data_faster8, size, 0, depart_no, j, &mut scratch_faster8);
-				
-				assert_plain_eq_faster8(&data_plain, &data_faster8);
-				assert_eq!(&scratch_plain, &scratch_faster8);
-				
-				j += depart_no << 1;
-			}
-			depart_no >>= 1;
-		}
-		
-		return;
-
-		{	
-			scratch_faster8.clear();
-			scratch_plain.clear();
-
-			let j=2784;
-			let depart_no=32; 
-			
-			afft_inner_step_plain_round(unsafe {&AFFT}, &mut data_plain, size, 0, depart_no, j, &mut scratch_plain);
-			afft_inner_step_faster8_round(unsafe {&AFFT}, &mut data_faster8, size, 0, depart_no, j, &mut scratch_faster8);
-			
-			assert_eq!(&scratch_plain[..4], &scratch_faster8[..4]);
-
-			itertools::assert_equal(&scratch_plain, &scratch_faster8);
-			assert_eq!(&scratch_plain[..], &scratch_faster8[..]);
-			
-			assert_plain_eq_faster8(&data_plain, &data_faster8);
-		}
-	}
-
-	
-	#[test]
-	fn inner_values() {
-		pub fn afft_step_faster8_round(afft: &AdditiveFFT, data: &mut [Additive8x], size: usize, index: usize, depart_no: usize, x: &mut Vec<u16>) {
-			let mut j = depart_no;
-			while j < size {
-				let skew = afft.skews[j + index - 1];
-				// correct as long as `depart_no` is equal or larger to `Additive8x::LANE`
-				let j_8x = j / Additive8x::LANE;
-				let depart_no_8x = depart_no / Additive8x::LANE;
-
-				if skew.0 != ONEMASK {
-					for i_8x in (j_8x - depart_no_8x)..j_8x {
-						data[i_8x] ^= data[i_8x + depart_no_8x].mul(skew);
-					}
-				}
-				x.push(skew.0);
-				
-				for i_8x in (j_8x - depart_no_8x)..j_8x {
-					data[i_8x + depart_no_8x] ^= data[i_8x];
-				}
-
-				j += depart_no << 1;
-			}
-		}
-		
-		pub fn afft_step_plain_round(afft: &AdditiveFFT, data: &mut [Additive], size: usize, index: usize, depart_no: usize, x: &mut Vec<u16>) {
-			let mut j = depart_no;
-			while j < size {
-				let skew = afft.skews[j + index - 1];
-				if skew.0 != ONEMASK {
-					for i in (j - depart_no)..j {
-						data[i] ^= data[i + depart_no].mul(skew);
-					}
-				}
-				x.push(skew.0);
-
-				for i in (j - depart_no)..j {
-					data[i + depart_no] ^= data[i];
-				}
-
-				j += depart_no << 1;
-			}
-		}
-		
-		let size = 4096;
-		let mut data_plain = gen_plain::<SmallRng>(size);
-		let mut data_faster8 = gen_faster8_from_plain(&data_plain);
-		
-		let mut scratch_plain = vec![0;4096];
-		let mut scratch_faster8 = vec![0;4096];
-		
-		let mut depart_no = size >> 1;
-		while depart_no >= Additive8x::LANE {
-			
-			eprintln!("\n\n\n\n\n\nRunning iteration with depart_no={depart_no}\n\n\n\n\n\n");
-			afft_step_plain_round(unsafe {&AFFT}, &mut data_plain, size, 0, depart_no, &mut scratch_plain);
-			afft_step_faster8_round(unsafe {&AFFT}, &mut data_faster8, size, 0, depart_no, &mut scratch_faster8);
-			
-			itertools::assert_equal(&scratch_plain, &scratch_faster8);
-			assert_plain_eq_faster8(&data_plain, &data_faster8);
-			
-			depart_no >>= 1;
-		}
+		assert_plain_eq_faster8(dbg!(res_plain), Additive8x::unpack(&res_faster8));
 	}
 
 	#[cfg(b_is_not_one)]

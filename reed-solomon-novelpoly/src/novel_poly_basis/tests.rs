@@ -123,6 +123,9 @@ fn sub_encode_faster8_decode_plain() -> Result<()> {
 	rng.fill_bytes(&mut data[..K2]);
 
 	let codewords = encode_sub_faster8(&data, N, K)?;
+	let codewords_expected = encode_sub_plain(&data, N, K)?;
+	itertools::assert_equal(codewords.iter(), codewords_expected.iter());
+
 	let mut codewords = codewords.into_iter().map(Some).collect::<Vec<_>>();
 	assert_eq!(codewords.len(), N);
 	codewords[0] = None;

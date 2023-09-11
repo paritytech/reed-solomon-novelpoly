@@ -41,7 +41,7 @@ fn main() {
 
 			// k := size , so we need to have shift as steps of k
 			unsafe { &AFFT }.afft(&mut data_plain, k, shift);
-			unsafe { &AFFT }.afft_faster8(&mut data_faster8, k, shift);
+			unsafe { &AFFT }.afft_faster8(&mut data_faster8[..], k, shift);
 
 			test_utils::assert_plain_eq_faster8(data_plain, data_faster8);
 		});

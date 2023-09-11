@@ -1,7 +1,7 @@
 #[inline(always)]
 pub fn encode_low(data: &[Additive], k: usize, codeword: &mut [Additive], n: usize) {
 	if k >= 16 && k % 8 == 0 && n % 8 == 0 && (n-k) % 8 == 0 {
-		encode_low_faster8_adaptor(data, k, codeword, n);		
+		encode_low_faster8(data, k, codeword, n);		
 	} else {
 		encode_low_plain(data, k, codeword, n);
 	}
@@ -46,58 +46,48 @@ pub fn encode_low_plain(data: &[Additive], k: usize, codeword: &mut [Additive], 
 	codeword[0..k].copy_from_slice(&data[0..k]);
 }
 
-pub fn encode_low_faster8_adaptor(data: &[Additive], k: usize, codeword: &mut [Additive], n: usize) {
-	assert_eq!(n % Additive8x::LANE, 0);
-	let mut codeword8x = vec![Additive8x::zero(); n / Additive8x::LANE];
-	convert_to_faster8(&data[..k], &mut codeword8x[..]);
-	let data8x = codeword8x.clone();
-	encode_low_faster8(&data8x[..], k, &mut codeword8x[..], n);
-	convert_from_faster8(&codeword8x[..], &mut codeword[..]);	
-}
-
-pub fn encode_low_faster8(data8x: &[Additive8x], k: usize, codeword8x: &mut [Additive8x], n: usize) {
+pub fn encode_low_faster8(data: &[Additive], k: usize, codeword: &mut [Additive], n: usize) {
 	assert!(k + k <= n);
-	assert_eq!(codeword8x.len(), n/Additive8x::LANE);
-	assert_eq!(data8x.len(), n/Additive8x::LANE); // FIXME, we never read data beyond 0..k
-
+	assert_eq!(codeword.len(), n);
+	assert_eq!(data.len(), n); // FIXME, we never read data beyond 0..k
+	
 	assert!(is_power_of_2(n));
 	assert!(is_power_of_2(k));
-
+	
 	assert_eq!(k % Additive8x::LANE, 0);
+	assert_eq!(n % Additive8x::LANE, 0);
 	assert_eq!((n-k) % Additive8x::LANE, 0);
 
 	// k | n is guaranteed
 	assert_eq!((n / k) * k, n);
 
 	
-	let k_8x = k / Additive8x::LANE;
-	let n_8x = n / Additive8x::LANE;
-	
 	// move the data to the codeword
+	codeword.copy_from_slice(data);
+
 	// split after the first k
-	let (codeword8x_first_k, codeword8x_skip_first_k) = codeword8x.split_at_mut(k_8x);
+	let (codeword_first_k, codeword_skip_first_k) = codeword.split_at_mut(k);
 
 	assert!((k >> 1) >= Additive8x::LANE);
-    inverse_afft_faster8(codeword8x_first_k, k, 0);
+    inverse_afft_faster8(codeword_first_k, k, 0);
 
-	// dbg!(&codeword8x_first_k);
 
 	// the first codeword is now the basis for the remaining transforms
 	// denoted `M_topdash`
 
 	
-	for shift_8x in (k_8x..n_8x).step_by(k_8x) {
-		let codeword8x_at_shift = &mut codeword8x_skip_first_k[(shift_8x - k_8x)..][..k_8x];
+	for shift in (k..n).step_by(k) {
+		let codeword_at_shift = &mut codeword_skip_first_k[(shift - k)..shift];
 		// copy `M_topdash` to the position we are currently at, the n transform
-		codeword8x_at_shift.copy_from_slice(codeword8x_first_k);
-		// dbg!(&codeword8x_at_shift);
-		afft_faster8(codeword8x_at_shift, k, shift_8x * Additive8x::LANE);
+		codeword_at_shift.copy_from_slice(codeword_first_k);
+
+		afft_faster8(codeword_at_shift, k, shift);
 		// let post = &codeword8x_at_shift;
-		// dbg!(post);
 	}
 
 	// restore `M` from the derived ones
-	codeword8x[0..k_8x].copy_from_slice(&data8x[0..k_8x]);
+	
+	codeword[0..k].copy_from_slice(&data[0..k]);
 }
 
 
@@ -107,7 +97,7 @@ pub fn encode_low_faster8(data8x: &[Additive8x], k: usize, codeword8x: &mut [Add
 #[inline(always)]
 pub fn encode_high(data: &[Additive], k: usize, parity: &mut [Additive], mem: &mut [Additive], n: usize) {
 	if (n-k) % Additive8x::LANE == 0 && n % Additive8x::LANE == 0 && k % Additive8x::LANE == 0 {
-		encode_high_faster8_adapter(data, k, parity, mem, n);
+		encode_high_faster8(data, k, parity, mem, n);
 	} else {
 		encode_high_plain(data, k, parity, mem, n);
 	}
@@ -138,42 +128,29 @@ pub fn encode_high_plain(data: &[Additive], k: usize, parity: &mut [Additive], m
 
 /// Avoid using this, it incures quite some cost
 pub fn encode_high_faster8_adapter(data: &[Additive], k: usize, parity: &mut [Additive], mem: &mut [Additive], n: usize) {
-	let mut mem8 = vec![Additive8x::zero(); mem.len()/Additive8x::LANE];
-	let data8 = Vec::from_iter(data.iter().step_by(Additive8x::LANE).enumerate().map(|(piece_idx, _offset)| {
-		Additive8x::load(&data[(piece_idx*Additive8x::LANE)..][..Additive8x::LANE])
-	}));
-	let mut parity8 = Vec::from_iter(data.iter().step_by(Additive8x::LANE).enumerate().map(|(piece_idx, _offset)| {
-		Additive8x::load(&parity[(piece_idx*Additive8x::LANE)..][..Additive8x::LANE])
-	}));
-	
-	encode_high_faster8(&data8, k, &mut parity8, &mut mem8, n);
-	
-	for (i, mem8) in mem8.iter().enumerate() {
-		mem8.copy_to_slice(&mut mem[(Additive8x::LANE * i)..][..8]);
-	}
+	encode_high_faster8(&data, k, parity, mem, n);
 }
 
-pub fn encode_high_faster8(data: &[Additive8x], k: usize, parity: &mut [Additive8x], mem: &mut [Additive8x], n: usize) {
+pub fn encode_high_faster8(data: &[Additive], k: usize, parity: &mut [Additive], mem: &mut [Additive], n: usize) {
 	let t: usize = n - k;
 	assert!(t >= 8);
 	assert_eq!(t % 8, 0);
 
-	let t8s = t >> 3;
-	for i in 0..t8s {
-		parity[i] = Additive8x::zero();
+	for i in 0..t {
+		parity[i] = Additive::zero();
 	}
 
-	let mut i = t8s;
+	let mut i = t;
 	while i < n {
-		mem[..t8s].copy_from_slice(&data[(i - t8s)..t]);
+		mem[..t].copy_from_slice(&data[(i - t)..t]);
 
-		inverse_afft_faster8(mem, t8s, i);
-		for j in 0..t8s {
+		inverse_afft_faster8(mem, t, i);
+		for j in 0..t {
 			parity[j] ^= mem[j];
 		}
-		i += t8s;
+		i += t;
 	}
-	afft_faster8(parity, t8s, 0);
+	afft_faster8(parity, t, 0);
 }
 
 pub fn encode_sub(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additive>> {
@@ -260,7 +237,7 @@ pub fn encode_sub_faster8(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additi
 	// pad the incoming bytes with trailing 0s
 	// so we get a buffer of size `N` in `GF` symbols
 	let zero_bytes_to_add = n * 2 - bytes_len;
-	let data = Vec::<Additive>::from_iter(
+	let elm_data = Vec::<Additive>::from_iter(
 		bytes
 		.iter()
 		.copied()
@@ -269,30 +246,15 @@ pub fn encode_sub_faster8(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additi
 		.step_by(2)
 		.map(|(a,b)| Additive(Elt::from_be_bytes([a, b])))
 	);
-	let data8x = Vec::<Additive8x>::from_iter(data.chunks(Additive8x::LANE).map(Additive8x::load));
 
 	// update new data bytes with zero padded bytes
 	// `l` is now `GF(2^16)` symbols
-	let elm_len = data8x.len();
-	assert_eq!(elm_len * Additive8x::LANE, n);
+	let elm_len = elm_data.len();
+	assert_eq!(elm_len, n);
 
-	let mut codeword8x = data8x.clone();
-	assert_eq!(codeword8x.len(), elm_len);
+	let mut codeword = elm_data.clone();
+	encode_low_faster8(&elm_data[..], k, &mut codeword[..], n);
 
-	encode_low_faster8(&data8x[..], k, &mut codeword8x[..], n);
-
-	let mut codeword = Vec::<Additive>::with_capacity(Additive8x::LANE * codeword8x.len());
-	unsafe {
-		codeword.set_len(codeword.capacity());
-	}
-
-	codeword8x
-		.into_iter()
-		.enumerate()
-		.for_each(
-	|(idx, item8x)| {
-		item8x.copy_to_slice(&mut codeword[(idx * Additive8x::LANE)..][..Additive8x::LANE]);
-	});
 	Ok(codeword)
 }
 
@@ -312,7 +274,7 @@ mod tests_plain_vs_faster8 {
 		encode_low_plain(&data1[..], k, &mut parity1[..], n);
 
 		let mut parity2 = vec![Additive::zero(); n];
-		encode_low_faster8_adaptor(&data2[..], k, &mut parity2[..], n);
+		encode_low_faster8(&data2[..], k, &mut parity2[..], n);
 
 		assert_eq!(parity1, parity2);
 	}

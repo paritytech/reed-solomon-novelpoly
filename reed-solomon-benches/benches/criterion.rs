@@ -231,7 +231,7 @@ pub mod parameterized {
 		k: usize,
 		rng: &mut SmallRng,
 	) {
-		use reed_solomon_novelpoly::f2e16::{Additive};
+		use reed_solomon_novelpoly::f2e16::Additive;
 		use rand::Rng;
 		{
 			group.bench_with_input(
@@ -242,7 +242,7 @@ pub mod parameterized {
 					let data = Vec::from_iter(rng.sample_iter::<u16, _>(dist).take(n).map(Additive));
 					let mut codeword = vec![Additive::zero(); n];
 					b.iter(|| {
-						reed_solomon_novelpoly::f2e16::encode_low_faster8_adaptor(
+						reed_solomon_novelpoly::f2e16::encode_low_faster8(
 							black_box(&data),
 							black_box(k),
 							black_box(&mut codeword[..]),
