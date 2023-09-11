@@ -550,7 +550,7 @@ jobs:
                   tar xf ../criterion-reference-tar-artifact/criterion-v*.tar.gz -C ../tmp
 
                   export RUSTFLAGS='-C target-feature=+sse3,+avx,+avx2,+sse4.2'
-                  cargo +stable criterion --history-id ${HEAD} --target-dir ../tmp payload/novel-poly-reconstruct/466
+                  cargo +stable criterion --history-id ${HEAD} --target-dir ../tmp
 
                   cd ../criterion-output
                   tar -czvf criterion-git-${HEAD}.tar.gz -C ../tmp/criterion data reports
@@ -1018,7 +1018,7 @@ jobs:
             export EXE="${CARGO_TARGET_DIR}/release/reed-solomon-novelpoly"
 
             export RUSTFLAGS='-C target-feature=+sse3,+avx,+avx2,+sse4.2'
-            cargo +stable criterion --history-id $(git rev-parse HEAD) --target-dir ../tmp payload/novel-poly-reconstruct/466
+            cargo +stable criterion --history-id $(git rev-parse HEAD) --target-dir ../tmp
 
             cd ../criterion-output
             tar -czvf criterion-v1.0.1.tar.gz -C ../tmp/criterion data reports
