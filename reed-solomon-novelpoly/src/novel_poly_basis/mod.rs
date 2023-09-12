@@ -65,6 +65,16 @@ impl CodeParams {
 		ReedSolomon::new(self.n, self.k, self.wanted_n)
 			.expect("this struct is not created with invalid shard number; qed")
 	}
+
+	/// Return the computed `n` value.
+	pub fn n(&self) -> usize {
+		self.n
+	}
+
+	/// Return the computed `k` value.
+	pub fn k(&self) -> usize {
+		self.k
+	}
 }
 
 pub struct ReedSolomon {
