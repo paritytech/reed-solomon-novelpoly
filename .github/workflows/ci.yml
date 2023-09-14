@@ -45,8 +45,6 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@a95ba195448af2da9b00fb742d14ffaaf3c21f43 # v2.7.0
 
-      - run: rustup target add wasm32-unknown-unknown
-
       - name: Test with default features
         uses: actions-rs/cargo@v1
         with:
