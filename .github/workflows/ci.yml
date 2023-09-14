@@ -34,7 +34,6 @@ jobs:
         os:
           - ubuntu-latest
           - macOS-latest
-          - windows-latest
     steps:
       - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
@@ -54,6 +53,24 @@ jobs:
           command: test
           args: --workspace
 
+  test_windows:
+    name: Test Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@a95ba195448af2da9b00fb742d14ffaaf3c21f43 # v2.7.0
+
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --workspace --exclude fuzzit
   fmt:
     name: Rustfmt
     runs-on: ubuntu-latest
@@ -70,7 +87,6 @@ jobs:
           command: fmt
           args: --all -- --check
 
-
   # clippy:
   #   name: Clippy
   #   runs-on: ubuntu-latest
@@ -81,8 +97,8 @@ jobs:
   #         profile: minimal
   #         toolchain: stable
   #         override: true
-  #     - run: rustup component add clippy
+  #     - ru
   #     - uses: actions-rs/cargo@v1
   #       with:
   #         command: clippy
-  #         args: --all -- --check
+  #         args: --workspace
