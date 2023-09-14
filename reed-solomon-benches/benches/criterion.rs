@@ -32,7 +32,8 @@ macro_rules! instanciate_upper_bound_test {
 					reconstruct::<WrappedShard>,
 					black_box(&BYTES[..PAYLOAD_SIZE_CUTOFF]),
 					VALIDATOR_COUNT,
-				).unwrap();
+				)
+				.unwrap();
 			}
 
 			pub fn bench_encode(crit: &mut Criterion) {
@@ -205,11 +206,9 @@ pub mod parameterized {
 				BenchmarkId::new("naive-reconstruct", param.to_string()),
 				&payload_size,
 				|b, &payload_size| {
-					let encoded = reed_solomon_benches::naive::encode::<WrappedShard>(
-						&BYTES[..payload_size],
-						validator_count,
-					)
-					.unwrap();
+					let encoded =
+						reed_solomon_benches::naive::encode::<WrappedShard>(&BYTES[..payload_size], validator_count)
+							.unwrap();
 					let shards = encoded.clone().into_iter().map(Some).collect::<Vec<_>>();
 
 					b.iter(|| {
