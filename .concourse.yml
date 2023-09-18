@@ -503,7 +503,7 @@ jobs:
           - get: criterion-single-page-html-artifact
 
           - task: pr-criterion
-            timeout: 10m
+            timeout: 60m
             image: env-glibc
             #tags: [houdini]
             privileged: true
@@ -692,7 +692,7 @@ jobs:
 
               export SHARE_URL_TAR=$(mc share download --no-color --expire=168h --json spearow/reed-solomon-criterion-perf/${NAME_TAR})
               export SHARE_URL_ONEPAGER=$(mc share download --no-color --expire=168h --json spearow/reed-solomon-criterion-onepager/${NAME_ONEPAGER})
-              printf "[📊 criterion (tar.gz source)](%s) [📊 criterion (onepager)](%s)" \
+              printf "📊 criterion [(tar.gz source)](%s) [(onepager)](%s)" \
                 "$(echo $SHARE_URL_TAR | jq -e -c -M -r .share)" \
                 "$(echo $SHARE_URL_ONEPAGER | jq -e -c -M -r .share)" \
                 >> comment/comment.md
