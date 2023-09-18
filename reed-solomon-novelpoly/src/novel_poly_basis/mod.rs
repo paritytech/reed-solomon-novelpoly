@@ -205,15 +205,14 @@ impl ReedSolomon {
 		let mut acc = Vec::<u8>::with_capacity(shard_len_in_syms * 2 * self.k);
 		for i in 0..shard_len_in_syms {
 			// take the i-th element of all shards and try to recover
-			let decoding_run = received_shards
+			let decoding_run = Vec::<Option<Additive>>::from_iter(received_shards
 				.iter()
 				.map(|x| {
 					x.as_ref().map(|x| {
 						let z = AsRef::<[[u8; 2]]>::as_ref(&x)[i];
 						Additive(u16::from_be_bytes(z))
 					})
-				})
-				.collect::<Vec<Option<Additive>>>();
+				}));
 
 			assert_eq!(decoding_run.len(), self.n);
 

@@ -87,11 +87,12 @@ impl BitXor for Additive8x {
 	type Output = Self;
 
 	#[inline(always)]
-	fn bitxor(mut self, rhs: Self) -> Self::Output {
+	fn bitxor(self, rhs: Self) -> Self::Output {
+		let mut x = Self::zero();
 		for i in 0..Self::LANE {
-			self.0[i] ^= rhs.0[i];
+			x.0[i] = self.0[i] ^ rhs.0[i];
 		}
-		self
+		x
 	}
 }
 
