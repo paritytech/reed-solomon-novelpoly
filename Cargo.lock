@@ -902,6 +902,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "reed-solomon-gao-mateer"
+version = "1.0.1-alpha.0"
+dependencies = [
+ "assert_matches",
+ "derive_more",
+ "fs-err",
+ "itertools 0.10.0",
+ "rand",
+ "reed-solomon-erasure",
+ "reed-solomon-tester",
+ "static_init",
+ "thiserror",
+]
+
+[[package]]
 name = "reed-solomon-novelpoly"
 version = "1.0.2"
 dependencies = [
