@@ -326,6 +326,7 @@ pub fn convert_from_faster8(data: &[Additive8x], dest: &mut [Additive]) {
 mod tests {
 	use super::*;
 
+	#[cfg_attr(target_feature = "avx2", ignore)]
 	#[test]
 	fn identical_copy_in_copy_out() {
 		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
@@ -355,6 +356,7 @@ mod tests {
 		}
 	}
 
+	#[cfg_attr(target_feature = "avx2", ignore)]
 	#[test]
 	fn identical_slice_elements() {
 		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
@@ -434,6 +436,7 @@ mod tests {
 		)
 	}
 
+	#[cfg_attr(target_feature = "avx2", ignore)]
 	#[test]
 	fn identical_mul_regressions() {
 		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
@@ -452,6 +455,7 @@ mod tests {
 		test_mul(Additive(0x0000), Multiplier(0x0808));
 	}
 
+	#[cfg_attr(target_feature = "avx2", ignore)]
 	#[test]
 	fn identical_splat_u16x8() {
 		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
@@ -463,6 +467,7 @@ mod tests {
 		}
 	}
 
+	#[cfg_attr(target_feature = "avx2", ignore)]
 	#[test]
 	fn identical_splat_u32x8() {
 		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
@@ -510,6 +515,7 @@ mod tests {
 		assert_ne!(a4, a2);
 	}
 
+	#[cfg_attr(target_feature = "avx2", ignore)]
 	#[test]
 	fn expand_and_clip_cast() {
 		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");

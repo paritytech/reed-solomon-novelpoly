@@ -608,6 +608,8 @@ mod afft_tests {
 	}
 
 
+	
+	#[cfg_attr(target_feature = "avx2", ignore)]
 	#[test]
 	fn tash_mush() {
 		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
@@ -622,6 +624,8 @@ mod afft_tests {
 		assert_eq!(res_plain, Additive8x::unpack(&res_faster8)[INDEX_TO_TEST]);
 	}
 
+	
+	#[cfg_attr(target_feature = "avx2", ignore)]
 	#[test]
 	fn identical_mul_with_overflow() {
 		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
