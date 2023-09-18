@@ -44,3 +44,5 @@ default = []
 with-alt-cxx-impl = ["cc", "bindgen"]
 naive = ["reed-solomon-erasure"]
 mock = ["rand", "reed-solomon-tester"]
+# enable the small field, experimental support
+f256 = []

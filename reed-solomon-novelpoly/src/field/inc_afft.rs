@@ -479,9 +479,9 @@ pub mod test_utils {
 
 	pub fn gen_plain<R: Rng + SeedableRng<Seed = [u8; 32]>>(size: usize) -> Vec<Additive> {
 		let rng = <R as SeedableRng>::from_seed(reed_solomon_tester::SMALL_RNG_SEED);
-		let dist = rand::distributions::Uniform::new_inclusive(u16::MIN, u16::MAX);
+		let dist = rand::distributions::Uniform::new_inclusive(Elt::MIN, Elt::MAX);
 		
-		Vec::from_iter(rng.sample_iter::<u16, _>(dist).take(size).map(Additive))
+		Vec::from_iter(rng.sample_iter::<Elt, _>(dist).take(size).map(Additive))
 	}
 
 	pub fn gen_faster8_from_plain(data: impl AsRef<[Additive]>) -> Vec<Additive> {
@@ -559,7 +559,7 @@ mod afft_tests {
 			let size = 32;
 
 			let mut data_plain = vec![Additive::zero(); size];
-			data_plain[0] = Additive(0x1234);
+			data_plain[0] = Additive((0x1234 & ONEMASK as u16) as Elt);
 			let mut data_faster8 = gen_faster8_from_plain(&data_plain);
 			
 			assert_plain_eq_faster8(&data_plain, &data_faster8);
@@ -615,35 +615,7 @@ mod afft_tests {
 			println!(">>>>");
 			assert_plain_eq_faster8(data_plain, data_faster8);
 		}
-		
-		#[cfg_attr(not(target_feature = "avx2"), ignore)]
-		#[test]
-		fn tash_mush() {
-			assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
 
-			const INDEX_TO_TEST: usize = 1;
-			let mpy = Multiplier(21845);
-			let values = [Additive(0xe8ad), Additive(0xFFFF), Additive(0x0000), Additive(0x1111), Additive(0xcc8a), Additive(0xe8ad), Additive(0x2c64), Additive(0x92f7)];
-			let values8x = Additive8x::from(values);
-			let res_faster8 = values8x.mul(mpy);
-			let res_plain = values[INDEX_TO_TEST].mul(mpy);
-			
-			assert_eq!(res_plain, Additive8x::unpack(&res_faster8)[INDEX_TO_TEST]);
-		}
-
-		#[cfg_attr(not(target_feature = "avx2"), ignore)]
-		#[test]
-		fn identical_mul_with_overflow() {
-			assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
-
-			let mpy = Multiplier(21845);
-			let values = [Additive(0xe8ad), Additive(0x2c64), Additive(0x92f7), Additive(0xa812), Additive(0xcc8a), Additive(0xe8ad), Additive(0x2c64), Additive(0x92f7)];
-			let values8x = Additive8x::from(values);
-			let res_faster8 = values8x.mul(mpy);
-			let res_plain = Vec::from_iter(values.iter().map(|v| v.mul(mpy)));
-
-			assert_plain_eq_faster8(dbg!(res_plain), Additive8x::unpack(&res_faster8));
-		}
 	}
 
 	#[cfg(b_is_not_one)]

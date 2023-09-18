@@ -481,6 +481,7 @@ mod tests {
 		}
 	}
 
+	#[cfg_attr(not(target_feature = "avx2"), ignore)]
 	#[test]
 	fn partial_works() {
 		let mut base = Additive8x::splat(Additive(42));
@@ -496,6 +497,7 @@ mod tests {
 		assert_eq!(unpacked[7], Additive(42));
 	}
 
+	#[cfg_attr(not(target_feature = "avx2"), ignore)]
 	#[test]
 	fn partial_equ_works() {
 		let a1 = Additive8x::splat(Additive::zero());
@@ -515,6 +517,53 @@ mod tests {
 
 		assert_ne!(a4, a1);
 		assert_ne!(a4, a2);
+	}
+
+	#[cfg_attr(not(target_feature = "avx2"), ignore)]
+	#[test]
+	fn identical_mul_with_overflow() {
+		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
+
+		let mpy = Multiplier(21845);
+		let values = [
+			Additive(0xe8ad),
+			Additive(0x2c64),
+			Additive(0x92f7),
+			Additive(0xa812),
+			Additive(0xcc8a),
+			Additive(0xe8ad),
+			Additive(0x2c64),
+			Additive(0x92f7),
+		];
+		let values8x = Additive8x::from(values);
+		let res_faster8 = values8x.mul(mpy);
+		let res_plain = Vec::from_iter(values.iter().map(|v| v.mul(mpy)));
+
+		assert_eq!(dbg!(res_plain), Additive8x::unpack(&res_faster8));
+	}
+
+	#[cfg_attr(not(target_feature = "avx2"), ignore)]
+	#[test]
+	fn tash_mush() {
+		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
+
+		const INDEX_TO_TEST: usize = 1;
+		let mpy = Multiplier(21845);
+		let values = [
+			Additive(0xe8ad),
+			Additive(0xFFFF),
+			Additive(0x0000),
+			Additive(0x1111),
+			Additive(0xcc8a),
+			Additive(0xe8ad),
+			Additive(0x2c64),
+			Additive(0x92f7),
+		];
+		let values8x = Additive8x::from(values);
+		let res_faster8 = values8x.mul(mpy);
+		let res_plain = values[INDEX_TO_TEST].mul(mpy);
+
+		assert_eq!(res_plain, Additive8x::unpack(&res_faster8)[INDEX_TO_TEST]);
 	}
 
 	#[cfg_attr(not(target_feature = "avx2"), ignore)]
