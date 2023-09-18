@@ -172,6 +172,7 @@ pub(crate) fn clipping_cast(data: u32x8) -> u16x8 {
 	}
 }
 
+#[allow(dead_code)]
 #[inline(always)]
 pub(crate) fn expand_cast(data: u16x8) -> u32x8 {
 	unsafe { _mm256_cvtepu16_epi32(data) }
@@ -326,7 +327,7 @@ pub fn convert_from_faster8(data: &[Additive8x], dest: &mut [Additive]) {
 mod tests {
 	use super::*;
 
-	#[cfg_attr(target_feature = "avx2", ignore)]
+	#[cfg_attr(not(target_feature = "avx2"), ignore)]
 	#[test]
 	fn identical_copy_in_copy_out() {
 		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
@@ -356,7 +357,7 @@ mod tests {
 		}
 	}
 
-	#[cfg_attr(target_feature = "avx2", ignore)]
+	#[cfg_attr(not(target_feature = "avx2"), ignore)]
 	#[test]
 	fn identical_slice_elements() {
 		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
@@ -399,10 +400,10 @@ mod tests {
 	fn test_mul_array_one(xor: [u16; 8], val: [u16; 8], mpy: Multiplier, expect: [u16; 8]) {
 		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
 
-		let mut expect = unsafe { std::mem::transmute::<_, [Additive; 8]>(expect) };
+		let expect = unsafe { std::mem::transmute::<_, [Additive; 8]>(expect) };
 
-		let mut xor8 = Additive8x::from(unsafe { std::mem::transmute::<_, [Additive; 8]>(xor) });
-		let mut xor_singles = xor8.unpack();
+		let xor8 = Additive8x::from(unsafe { std::mem::transmute::<_, [Additive; 8]>(xor) });
+		let xor_singles = xor8.unpack();
 
 		let val = unsafe { std::mem::transmute::<_, [Additive; 8]>(val) };
 		let val8 = Additive8x::from(val.clone());
@@ -426,6 +427,7 @@ mod tests {
 		assert_eq!(expect, res_faster8);
 	}
 
+	#[cfg_attr(not(target_feature = "avx2"), ignore)]
 	#[test]
 	fn single_operation_works() {
 		test_mul_array_one(
@@ -436,7 +438,7 @@ mod tests {
 		)
 	}
 
-	#[cfg_attr(target_feature = "avx2", ignore)]
+	#[cfg_attr(not(target_feature = "avx2"), ignore)]
 	#[test]
 	fn identical_mul_regressions() {
 		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
@@ -455,7 +457,7 @@ mod tests {
 		test_mul(Additive(0x0000), Multiplier(0x0808));
 	}
 
-	#[cfg_attr(target_feature = "avx2", ignore)]
+	#[cfg_attr(not(target_feature = "avx2"), ignore)]
 	#[test]
 	fn identical_splat_u16x8() {
 		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
@@ -467,7 +469,7 @@ mod tests {
 		}
 	}
 
-	#[cfg_attr(target_feature = "avx2", ignore)]
+	#[cfg_attr(not(target_feature = "avx2"), ignore)]
 	#[test]
 	fn identical_splat_u32x8() {
 		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
@@ -515,7 +517,7 @@ mod tests {
 		assert_ne!(a4, a2);
 	}
 
-	#[cfg_attr(target_feature = "avx2", ignore)]
+	#[cfg_attr(not(target_feature = "avx2"), ignore)]
 	#[test]
 	fn expand_and_clip_cast() {
 		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");

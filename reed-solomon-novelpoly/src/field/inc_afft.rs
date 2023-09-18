@@ -509,134 +509,141 @@ mod afft_tests {
 	use super::test_utils::*;
 	use rand::rngs::SmallRng;
 
-	#[test]
-	fn afft_output_plain_eq_faster8_size_16() {
-		let index = 0;
-		let size = 16;
-		let mut data_plain = gen_plain::<SmallRng>(size);
-		let mut data_faster8 = gen_faster8::<SmallRng>(size);
-		println!(">>>>");
-		unsafe { &AFFT }.afft(&mut data_plain, size, index);
-		println!(r#"
-
-		>>>>
-
-		"#);
-		unsafe { &AFFT }.afft_faster8(&mut data_faster8, size, index);
-		println!(">>>>");
-		assert_plain_eq_faster8(data_plain, data_faster8);
-	}
-
-	#[test]
-	fn afft_output_plain_eq_faster8_size_32() {
-		let index = 0;
-		let size = 32;
-		let mut data_plain = gen_plain::<SmallRng>(size);
-		let mut data_faster8 = gen_faster8::<SmallRng>(size);
-		println!(">>>>");
-		unsafe { &AFFT }.afft(&mut data_plain, size, index);
-		println!(r#"
-
-		>>>>
-
-		"#);
-		unsafe { &AFFT }.afft_faster8(&mut data_faster8, size, index);
-		println!(">>>>");
-		assert_plain_eq_faster8(data_plain, data_faster8);
-	}
-	
-	
-	#[test]
-	fn afft_output_plain_eq_faster8_impulse_data() {
-		let index = 0;
-		let size = 32;
-
-		let mut data_plain = vec![Additive::zero(); size];
-		data_plain[0] = Additive(0x1234);
-		let mut data_faster8 = gen_faster8_from_plain(&data_plain);
+	mod simd {
+		use super::*;
 		
-		assert_plain_eq_faster8(&data_plain, &data_faster8);
+				#[cfg_attr(not(target_feature = "avx2"), ignore)]
+
+		#[test]
+		fn afft_output_plain_eq_faster8_size_16() {
+			let index = 0;
+			let size = 16;
+			let mut data_plain = gen_plain::<SmallRng>(size);
+			let mut data_faster8 = gen_faster8::<SmallRng>(size);
+			println!(">>>>");
+			unsafe { &AFFT }.afft(&mut data_plain, size, index);
+			println!(r#"
+
+			>>>>
+
+			"#);
+			unsafe { &AFFT }.afft_faster8(&mut data_faster8, size, index);
+			println!(">>>>");
+			assert_plain_eq_faster8(data_plain, data_faster8);
+		}
+		#[cfg_attr(not(target_feature = "avx2"), ignore)]
+
+		#[test]
+		fn afft_output_plain_eq_faster8_size_32() {
+			let index = 0;
+			let size = 32;
+			let mut data_plain = gen_plain::<SmallRng>(size);
+			let mut data_faster8 = gen_faster8::<SmallRng>(size);
+			println!(">>>>");
+			unsafe { &AFFT }.afft(&mut data_plain, size, index);
+			println!(r#"
+
+			>>>>
+
+			"#);
+			unsafe { &AFFT }.afft_faster8(&mut data_faster8, size, index);
+			println!(">>>>");
+			assert_plain_eq_faster8(data_plain, data_faster8);
+		}
 		
-		println!(">>>>");
-		unsafe { &AFFT }.afft(&mut data_plain, size, index);
-		println!(r#"
+		#[cfg_attr(not(target_feature = "avx2"), ignore)]
 
-		>>>>
+		#[test]
+		fn afft_output_plain_eq_faster8_impulse_data() {
+			let index = 0;
+			let size = 32;
 
-		"#);
-		unsafe { &AFFT }.afft_faster8(&mut data_faster8, size, index);
-		println!(">>>>");
-		assert_plain_eq_faster8(data_plain, data_faster8);
-	}
+			let mut data_plain = vec![Additive::zero(); size];
+			data_plain[0] = Additive(0x1234);
+			let mut data_faster8 = gen_faster8_from_plain(&data_plain);
+			
+			assert_plain_eq_faster8(&data_plain, &data_faster8);
+			
+			println!(">>>>");
+			unsafe { &AFFT }.afft(&mut data_plain, size, index);
+			println!(r#"
 
-	#[test]
-	fn inverse_afft_output_plain_eq_faster8_size_8() {
-		let index = 0;
-		let size = 8;
-		let mut data_plain = gen_plain::<SmallRng>(size);
-		let mut data_faster8 = gen_faster8::<SmallRng>(size);
-		assert_plain_eq_faster8(&data_plain, &data_faster8);
+			>>>>
 
-		println!(">>>>");
-		unsafe { &AFFT }.inverse_afft(&mut data_plain, size, index);
-		println!(r#"
+			"#);
+			unsafe { &AFFT }.afft_faster8(&mut data_faster8, size, index);
+			println!(">>>>");
+			assert_plain_eq_faster8(data_plain, data_faster8);
+		}
+		#[cfg_attr(not(target_feature = "avx2"), ignore)]
 
-		>>>>
+		#[test]
+		fn inverse_afft_output_plain_eq_faster8_size_8() {
+			let index = 0;
+			let size = 8;
+			let mut data_plain = gen_plain::<SmallRng>(size);
+			let mut data_faster8 = gen_faster8::<SmallRng>(size);
+			assert_plain_eq_faster8(&data_plain, &data_faster8);
 
-		"#);
-		unsafe { &AFFT }.inverse_afft_faster8(&mut data_faster8, size, index);
-		println!(">>>>");
-		assert_plain_eq_faster8(data_plain, data_faster8);
-	}
+			println!(">>>>");
+			unsafe { &AFFT }.inverse_afft(&mut data_plain, size, index);
+			println!(r#"
 
-	#[test]
-	fn inverse_afft_output_plain_eq_faster8_size_32() {
-		let index = 0;
-		let size = 32;
-		let mut data_plain = gen_plain::<SmallRng>(size);
-		let mut data_faster8 = gen_faster8::<SmallRng>(size);
-		println!(">>>>");
-		unsafe { &AFFT }.inverse_afft(&mut data_plain, size, index);
-		println!(r#"
+			>>>>
 
-		>>>>
+			"#);
+			unsafe { &AFFT }.inverse_afft_faster8(&mut data_faster8, size, index);
+			println!(">>>>");
+			assert_plain_eq_faster8(data_plain, data_faster8);
+		}
+		#[cfg_attr(not(target_feature = "avx2"), ignore)]
 
-		"#);
-		unsafe { &AFFT }.inverse_afft_faster8(&mut data_faster8, size, index);
-		println!(">>>>");
-		assert_plain_eq_faster8(data_plain, data_faster8);
-	}
+		#[test]
+		fn inverse_afft_output_plain_eq_faster8_size_32() {
+			let index = 0;
+			let size = 32;
+			let mut data_plain = gen_plain::<SmallRng>(size);
+			let mut data_faster8 = gen_faster8::<SmallRng>(size);
+			println!(">>>>");
+			unsafe { &AFFT }.inverse_afft(&mut data_plain, size, index);
+			println!(r#"
 
+			>>>>
 
-	
-	#[cfg_attr(target_feature = "avx2", ignore)]
-	#[test]
-	fn tash_mush() {
-		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
-
-		const INDEX_TO_TEST: usize = 1;
-		let mpy = Multiplier(21845);
-		let values = [Additive(0xe8ad), Additive(0xFFFF), Additive(0x0000), Additive(0x1111), Additive(0xcc8a), Additive(0xe8ad), Additive(0x2c64), Additive(0x92f7)];
-		let values8x = Additive8x::from(values);
-		let res_faster8 = values8x.mul(mpy);
-		let res_plain = values[INDEX_TO_TEST].mul(mpy);
+			"#);
+			unsafe { &AFFT }.inverse_afft_faster8(&mut data_faster8, size, index);
+			println!(">>>>");
+			assert_plain_eq_faster8(data_plain, data_faster8);
+		}
 		
-		assert_eq!(res_plain, Additive8x::unpack(&res_faster8)[INDEX_TO_TEST]);
-	}
+		#[cfg_attr(not(target_feature = "avx2"), ignore)]
+		#[test]
+		fn tash_mush() {
+			assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
 
-	
-	#[cfg_attr(target_feature = "avx2", ignore)]
-	#[test]
-	fn identical_mul_with_overflow() {
-		assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
+			const INDEX_TO_TEST: usize = 1;
+			let mpy = Multiplier(21845);
+			let values = [Additive(0xe8ad), Additive(0xFFFF), Additive(0x0000), Additive(0x1111), Additive(0xcc8a), Additive(0xe8ad), Additive(0x2c64), Additive(0x92f7)];
+			let values8x = Additive8x::from(values);
+			let res_faster8 = values8x.mul(mpy);
+			let res_plain = values[INDEX_TO_TEST].mul(mpy);
+			
+			assert_eq!(res_plain, Additive8x::unpack(&res_faster8)[INDEX_TO_TEST]);
+		}
 
-		let mpy = Multiplier(21845);
-		let values = [Additive(0xe8ad), Additive(0x2c64), Additive(0x92f7), Additive(0xa812), Additive(0xcc8a), Additive(0xe8ad), Additive(0x2c64), Additive(0x92f7)];
-		let values8x = Additive8x::from(values);
-		let res_faster8 = values8x.mul(mpy);
-		let res_plain = Vec::from_iter(values.iter().map(|v| v.mul(mpy)));
+		#[cfg_attr(not(target_feature = "avx2"), ignore)]
+		#[test]
+		fn identical_mul_with_overflow() {
+			assert!(cfg!(target_feature = "avx2"), "Tests are meaningless without avx2 target feature");
 
-		assert_plain_eq_faster8(dbg!(res_plain), Additive8x::unpack(&res_faster8));
+			let mpy = Multiplier(21845);
+			let values = [Additive(0xe8ad), Additive(0x2c64), Additive(0x92f7), Additive(0xa812), Additive(0xcc8a), Additive(0xe8ad), Additive(0x2c64), Additive(0x92f7)];
+			let values8x = Additive8x::from(values);
+			let res_faster8 = values8x.mul(mpy);
+			let res_plain = Vec::from_iter(values.iter().map(|v| v.mul(mpy)));
+
+			assert_plain_eq_faster8(dbg!(res_plain), Additive8x::unpack(&res_faster8));
+		}
 	}
 
 	#[cfg(b_is_not_one)]
