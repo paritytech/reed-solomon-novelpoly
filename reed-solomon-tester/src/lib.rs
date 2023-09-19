@@ -153,7 +153,7 @@ where
 
 	// Make a copy and transform it into option shards arrangement
 	// for feeding into reconstruct_shards
-	let mut received_shards = shards.into_iter().map(Some).collect::<Vec<Option<S>>>();
+	let mut received_shards = Vec::<Option<S>>::from_iter(shards.into_iter().map(Some));
 
 	let dropped_indices =
 		drop_rand(received_shards.as_mut_slice(), target_shard_count, target_shard_count / 3, &mut rng);

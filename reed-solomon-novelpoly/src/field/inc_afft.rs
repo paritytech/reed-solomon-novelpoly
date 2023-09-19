@@ -472,7 +472,7 @@ impl AdditiveFFT {
 
 }
 
-#[cfg(feature = "mock")]
+#[cfg(any(feature = "mock", test))]
 pub mod test_utils {
 	use super::*;
 	use rand::{Rng,SeedableRng};
@@ -512,8 +512,7 @@ mod afft_tests {
 	mod simd {
 		use super::*;
 		
-				#[cfg_attr(not(target_feature = "avx2"), ignore)]
-
+		#[cfg_attr(not(target_feature = "avx2"), ignore)]
 		#[test]
 		fn afft_output_plain_eq_faster8_size_16() {
 			let index = 0;

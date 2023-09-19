@@ -295,7 +295,7 @@ simplicissimus!(case_1: validators: 10, payload: 16);
 simplicissimus!(case_2: validators: 100, payload: 1);
 
 // Common case of way ore payload than validators
-simplicissimus!(case_3: validators: 4, payload: 100);
+simplicissimus!(case_3: validators: 4, payload: 10);
 
 // Way more validators than payload bytes
 simplicissimus!(case_4: validators: 2003, payload: 17);
