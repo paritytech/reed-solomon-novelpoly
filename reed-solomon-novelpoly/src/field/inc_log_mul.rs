@@ -82,9 +82,9 @@ impl std::fmt::Display for Multiplier {
 /// Fast Walsh–Hadamard transform over modulo `ONEMASK`
 #[inline(always)]
 pub fn walsh(data: &mut [Multiplier], size: usize) {
-	#[cfg(target_feature = "avx2")]
+	#[cfg(all(target_feature = "avx", table_bootstrap_complete))]
 	walsh_faster8(data, size);
-	#[cfg(not(target_feature = "avx2"))]
+	#[cfg(not(all(target_feature = "avx", table_bootstrap_complete)))]
 	walsh_plain(data, size);
 }
 
@@ -110,7 +110,9 @@ pub fn walsh_plain(data: &mut [Multiplier], size: usize) {
 	}
 }
 
-#[cfg(target_feature = "avx2")]
+
+#[cfg(table_bootstrap_complete)]
+#[cfg(target_feature = "avx")]
 pub fn walsh_faster8(data: &mut [Multiplier], size: usize) {
 	const LANE: usize = 8;
 	
@@ -240,7 +242,8 @@ fn cantor_basis() {
 }
 
 
-#[cfg(target_feature="+avx2")]
+#[cfg(table_bootstrap_complete)]
+#[cfg(target_feature = "avx")]
 #[test]
 fn walsh_output_plain_eq_faster8() {
 	use reed_solomon_tester::*;

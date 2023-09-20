@@ -20,7 +20,7 @@ pub const N_SHARDS: usize = 123;
 /// Shared target number of payload size for simple, quirk turnaround tests:
 pub const TEST_DATA_CHUNK_SIZE: usize = 1337;
 
-// Just enough to trigger the avx2 code path with size 1 field elements shards.
+// Just enough to trigger the avx code path with size 1 field elements shards.
 pub const N_SHARDS_JUST_ENOUGH: usize = 32;
 pub const TEST_DATA_CHUNK_SIZE_JUST_ENOUGH: usize = 64;
 
@@ -29,8 +29,8 @@ pub fn assert_recovery(
 	expected_payload: &[u8],
 	reconstructed_payload: &[u8],
 	dropped_indices: IndexVec,
-	target_n: usize,
-	target_k: usize,
+	n: usize,
+	k: usize,
 ) {
 	assert!(reconstructed_payload.len() >= expected_payload.len());
 
@@ -45,8 +45,8 @@ pub fn assert_recovery(
 				"Data at bytes {:?} within 0..{} must match (n={}, k={}):",
 				range,
 				expected_payload.len(),
-				target_n,
-				target_k
+				n,
+				k
 			);
 		}
 	});
@@ -131,6 +131,10 @@ where
 	Ok(v)
 }
 
+const fn recoverablity_subset_size(n_wanted_shards: usize) -> usize {
+	(n_wanted_shards.saturating_sub(1) / 3) + 1
+}
+
 pub fn roundtrip_w_drop_closure<'s, Enc, Recon, DropFun, RandGen, S, E>(
 	encode: Enc,
 	reconstruct: Recon,
@@ -148,6 +152,9 @@ where
 {
 	let mut rng = <RandGen as rand::SeedableRng>::from_seed(SMALL_RNG_SEED);
 
+	let target_n = target_shard_count;
+	let target_k = recoverablity_subset_size(target_n);
+
 	// Construct the shards
 	let shards = encode(payload, target_shard_count)?;
 
@@ -155,11 +162,10 @@ where
 	// for feeding into reconstruct_shards
 	let mut received_shards = Vec::<Option<S>>::from_iter(shards.into_iter().map(Some));
 
-	let dropped_indices =
-		drop_rand(received_shards.as_mut_slice(), target_shard_count, target_shard_count / 3, &mut rng);
+	let dropped_indices = drop_rand(received_shards.as_mut_slice(), target_n, target_k, &mut rng);
 
 	let recovered_payload = reconstruct(received_shards, target_shard_count)?;
 
-	assert_recovery(&payload[..], &recovered_payload[..], dropped_indices, target_shard_count, target_shard_count / 3);
+	assert_recovery(&payload[..], &recovered_payload[..], dropped_indices, target_n, target_k);
 	Ok(())
 }

@@ -111,6 +111,7 @@ fn sub_encode_decode() -> Result<()> {
 	Ok(())
 }
 
+#[cfg(target_feature = "avx")]
 #[test]
 fn sub_encode_faster8_decode_plain() -> Result<()> {
 	let mut rng = rand::rngs::SmallRng::from_seed(SMALL_RNG_SEED);
@@ -210,7 +211,7 @@ fn roundtrip_for_large_messages() -> Result<()> {
 	const K2: usize = K * 2;
 
 	// assure the derived sizes match
-	let rs = CodeParams::derive_parameters(N_WANTED_SHARDS, N_WANTED_SHARDS.saturating_sub(1) / 3)
+	let rs = CodeParams::derive_parameters(N_WANTED_SHARDS, recoverablity_subset_size(N_WANTED_SHARDS))
 		.expect("Const test parameters are ok. qed");
 	assert_eq!(rs.n, N);
 	assert_eq!(rs.k, K);
@@ -295,10 +296,14 @@ simplicissimus!(case_1: validators: 10, payload: 16);
 simplicissimus!(case_2: validators: 100, payload: 1);
 
 // Common case of way ore payload than validators
-simplicissimus!(case_3: validators: 4, payload: 10);
+simplicissimus!(case_3: validators: 3, payload: 10);
+simplicissimus!(case_4: validators: 4, payload: 10);
+simplicissimus!(case_5: validators: 4, payload: 2 /* bytes = 1 field element */);
+simplicissimus!(case_6: validators: 4, payload: 100);
+simplicissimus!(case_7: validators: 4, payload: 100);
 
 // Way more validators than payload bytes
-simplicissimus!(case_4: validators: 2003, payload: 17);
+simplicissimus!(case_8: validators: 2003, payload: 17);
 
 #[test]
 fn flt_roundtrip_small() {

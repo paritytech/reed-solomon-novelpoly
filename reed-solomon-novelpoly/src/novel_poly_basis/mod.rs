@@ -60,9 +60,14 @@ impl CodeParams {
 		Ok(Self { n: n_po2, k: k_po2, wanted_n: n })
 	}
 
-	/// Check if this could use the `faster8` code path, possibly utilizing `avx2` SIMD instructions
+	/// Check if this could use the `faster8` code path, possibly utilizing `avx` SIMD instructions
 	pub fn is_faster8(&self) -> bool {
-		self.k >= (Additive8x::LANE << 1) && self.n % Additive8x::LANE == 0
+		#[cfg(target_feature = "avx")]
+		{
+			self.k >= (Additive8x::LANE << 1) && self.n % Additive8x::LANE == 0
+		}
+		#[cfg(not(target_feature = "avx"))]
+		false
 	}
 
 	// make a reed-solomon instance.
@@ -82,6 +87,7 @@ impl CodeParams {
 	}
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReedSolomon {
 	/// The true number of total shards to be had, derived from `n_wanted`.
 	n: usize,

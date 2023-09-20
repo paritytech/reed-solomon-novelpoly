@@ -11,6 +11,9 @@ pub mod field;
 pub use self::field::f256;
 pub use self::field::f2e16;
 
+#[cfg(target_feature = "avx")]
+pub use self::field::faster8;
+
 mod novel_poly_basis;
 pub use self::novel_poly_basis::*;
 

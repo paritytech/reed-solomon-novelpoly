@@ -24,6 +24,15 @@ impl<'a> Arbitrary<'a> for InverseAfftParams {
 }
 
 fn main() {
+	#[cfg(target_feature = "avx")]
+	run();
+
+	#[cfg(not(target_feature = "avx"))]
+	panic!("Nothing to do for non avx enabled targets")
+}
+
+#[cfg(target_feature = "avx")]
+fn run() {
 	// You have full control over the loop but
 	// you're supposed to call `fuzz` ad vitam aeternam
 
