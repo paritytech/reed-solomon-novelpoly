@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
+
 use hongg::fuzz;
 
 use novelpoly::f2e16::*;

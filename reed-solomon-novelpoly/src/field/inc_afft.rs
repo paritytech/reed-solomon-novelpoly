@@ -18,7 +18,7 @@ pub struct AdditiveFFT {
 /// Formal derivative of polynomial in the new?? basis
 pub fn formal_derivative(cos: &mut [Additive], size: usize) {
 	for i in 1..size {
-		let length = ((i ^ i - 1) + 1) >> 1;
+		let length = ((i ^ (i - 1)) + 1) >> 1;
 		for j in (i - length)..i {
 			cos[j] ^= cos.get(j + length).copied().unwrap_or(Additive::ZERO);
 		}
@@ -514,12 +514,12 @@ pub mod test_utils {
 
 #[cfg(test)]
 mod afft_tests {
-	use super::*;
-	use super::test_utils::*;
-	use rand::rngs::SmallRng;
 
+	#[cfg(target_feature = "avx")]
 	mod simd {
-		use super::*;
+		use super::super::*;
+		use super::super::test_utils::*;
+		use rand::rngs::SmallRng;
 		
 		#[cfg(target_feature = "avx")]
 		#[test]
@@ -625,9 +625,14 @@ mod afft_tests {
 
 	}
 
+
+	#[cfg(b_is_not_one)]
+	use super::*;
+
 	#[cfg(b_is_not_one)]
 	#[test]
 	fn b_is_one() {
+
 		// This test ensure that b can be safely bypassed in tweaked_formal_derivative
 		let B = unsafe { &AFFT.B };
 		fn test_b(b: Multiplier) {

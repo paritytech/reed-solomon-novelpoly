@@ -19,7 +19,7 @@ pub fn reconstruct_sub(
 
 	// get rid of all `None`s
 	let mut codeword = codewords
-		.into_iter()
+		.iter()
 		.enumerate()
 		.map(|(idx, sym)| {
 			// fill the gaps with `0_u16` codewords
@@ -42,7 +42,7 @@ pub fn reconstruct_sub(
 
 	//---------Erasure decoding----------------
 
-	decode_main(&mut codeword[..], recover_up_to, &erasures[..], &error_poly[..], n);
+	decode_main(&mut codeword[..], recover_up_to, erasures, &error_poly[..], n);
 
 	for idx in 0..recover_up_to {
 		if erasures[idx] {
