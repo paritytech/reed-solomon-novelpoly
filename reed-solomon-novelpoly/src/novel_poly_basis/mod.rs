@@ -102,7 +102,7 @@ impl ReedSolomon {
 	pub fn shard_len(&self, payload_size: usize) -> usize {
 		let payload_symbols = (payload_size + 1) / 2;
 		let shard_symbols_ceil = (payload_symbols + self.k - 1) / self.k;
-		
+
 		shard_symbols_ceil * 2
 	}
 
