@@ -7,8 +7,12 @@ pub mod util;
 pub use util::*;
 
 pub mod field;
+#[cfg(feature = "f256")]
 pub use self::field::f256;
 pub use self::field::f2e16;
+
+#[cfg(target_feature = "avx")]
+pub use self::field::faster8;
 
 mod novel_poly_basis;
 pub use self::novel_poly_basis::*;
@@ -45,6 +49,7 @@ mod test {
 		)
 	}
 
+	/// Showcase the systematic nature of the algorithm.
 	#[test]
 	fn systematic_for_sure() {
 		let bytes = [1_u8, 2, 3, 4];

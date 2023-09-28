@@ -6,10 +6,13 @@ edition = "2021"
 publish = false
 
 [dependencies]
-honggfuzz = "=0.5.55"
+hongg = "=0.5.61"
+#hongg = { path = "../../hongg-rs/hongg", package = "hongg", version = "0.5.61" }
 arbitrary = { version = "1", features = ["derive"] }
 rstester = { path = "../reed-solomon-tester", package = "reed-solomon-tester" }
-novelpoly = { path = "../reed-solomon-novelpoly", package = "reed-solomon-novelpoly" }
+novelpoly = { path = "../reed-solomon-novelpoly", package = "reed-solomon-novelpoly", features = [
+  "mock",
+] }
 rand_chacha = "0.3.0"
 rand = "0.8.3"
 
@@ -20,3 +23,15 @@ path = "src/reconstruct.rs"
 [[bin]]
 name = "fuzz_roundtrip"
 path = "src/roundtrip.rs"
+
+[[bin]]
+name = "fuzz_additive_mpy"
+path = "src/additive_mpy.rs"
+
+[[bin]]
+name = "fuzz_afft"
+path = "src/afft.rs"
+
+[[bin]]
+name = "fuzz_inverse_afft"
+path = "src/inverse_afft.rs"

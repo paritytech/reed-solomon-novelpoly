@@ -4,25 +4,294 @@ resource_types:
   source:
     repository: teliaoss/github-pr-resource
 
+- name: file-url
+  type: registry-image
+  source:
+    repository: pivotalservices/concourse-curl-resource
+    tag: latest
+
 resources:
+- name: minio-client
+  type: file-url
+  icon: diamond
+  check_every: 24h
+  source:
+    url: https://dl.min.io/client/mc/release/linux-amd64/mc
+    filename: mc
+
 - name: git-clone-resource
   type: git
+  icon: git
+  webhook_token: ((github-reed-solomon-webhook-token))
   source:
     branch: master
-    uri: https://github.com/drahnr/rs-ec-perf.git
+    uri: https://github.com/paritytech/reed-solomon-novelpoly.git
 
-- name: git-pull-request-resource
-  type: pull-request
+- name: git-hongg-rs
+  type: git
+  icon: git
   source:
-    repository: drahnr/rs-ec-perf
+    branch: master
+    uri: https://github.com/drahnr/hongg-rs.git
+
+- name: git-criterion-single-page-html
+  type: git
+  icon: git
+  source:
+    branch: master
+    uri: https://github.com/drahnr/criterion-single-page-html.git
+
+- name: git-flamegraph
+  type: git
+  icon: git
+  source:
+    branch: main
+    uri: https://github.com/flamegraph-rs/flamegraph.git
+
+- name: git-pr-resource
+  type: pull-request
+  icon: github
+  webhook_token: ((github-reed-solomon-webhook-token))
+  source:
+    repository: drahnr/reed-solomon-novelpoly
     access_token: ((sirmergealot-github-token))
 
 - name: env-glibc
   type: registry-image
+  icon: oci
   source:
     repository: quay.io/drahnr/rust-glibc-builder
 
+- name: hongg-artifact
+  type: s3
+  icon: package-variant
+  source:
+    endpoint: https://minio.spearow.io
+    bucket: cargo-hongg
+    regexp: "^cargo-hongg-(.*)$"
+    access_key_id: ((minio-access-key))
+    secret_access_key: ((minio-secret-key))
+
+- name: criterion-single-page-html-artifact
+  type: s3
+  icon: package-variant
+  source:
+    endpoint: https://minio.spearow.io
+    bucket: criterion-single-page-html
+    regexp: "^criterion-single-page-html-(.*)$"
+    access_key_id: ((minio-access-key))
+    secret_access_key: ((minio-secret-key))
+
+- name: flamegraph-artifact
+  type: s3
+  icon: package-variant
+  source:
+    endpoint: https://minio.spearow.io
+    bucket: cargo-flamegraph
+    regexp: "^cargo-flamegraph-(.*)$"
+    access_key_id: ((minio-access-key))
+    secret_access_key: ((minio-secret-key))
+
+- name: flamegraph-svg
+  type: s3
+  icon: fire
+  source:
+    endpoint: https://minio.spearow.io
+    bucket: reed-solomon-flamegraph-svg
+    regexp: "^flamegraph-(.*).svg$"
+    access_key_id: ((minio-access-key))
+    secret_access_key: ((minio-secret-key))
+
+
+# the tag against to measure performance
+- name: git-perf-reference-tag
+  type: git
+  icon: git
+  webhook_token: ((github-reed-solomon-webhook-token))
+  source:
+    branch: master
+    tag: v1.0.1
+    uri: https://github.com/paritytech/reed-solomon-novelpoly.git
+
+
+- name: criterion-reference-tar-artifact
+  type: s3
+  icon: poll
+  source:
+    endpoint: https://minio.spearow.io
+    bucket: reed-solomon-criterion-perf-reference
+    regexp: "^criterion-v(.*).tar.gz$"
+    access_key_id: ((minio-access-key))
+    secret_access_key: ((minio-secret-key))
+
+- name: criterion-tar-artifact
+  type: s3
+  icon: poll
+  source:
+    endpoint: https://minio.spearow.io
+    bucket: reed-solomon-criterion-perf
+    regexp: "^criterion-git-(.*).tar.gz$"
+    access_key_id: ((minio-access-key))
+    secret_access_key: ((minio-secret-key))
+
+- name: criterion-onepager-artifact
+  type: s3
+  icon: poll
+  source:
+    endpoint: https://minio.spearow.io
+    bucket: reed-solomon-criterion-onepager
+    regexp: "^criterion-onepager-git-(.*).html$"
+    access_key_id: ((minio-access-key))
+    secret_access_key: ((minio-secret-key))
+
+
 jobs:
+####################################################################################
+#                         S T A T I C _ H E L P E R _ T O O L S
+####################################################################################
+
+  - name: tools-cargo-hongg
+    build_logs_to_retain: 3
+    public: true
+    serial: true
+    plan:
+    - in_parallel:
+      - get: git-hongg-rs
+        trigger: true
+
+      - get: env-glibc
+
+    - task: create-cargo-hongg
+      timeout: 20m
+      image: env-glibc
+      privileged: true
+      config:
+        platform: linux
+        inputs:
+        - name: git-hongg-rs
+        outputs:
+        - name: hongg-artifact
+        caches:
+        - path: cargo_home
+        - path: target
+        run:
+          path: sh
+          args:
+          - -exc
+          - |
+            export CARGO_HOME="$(pwd)/../cargo_home"
+            export CARGO_TARGET_DIR="$(pwd)/../target"
+            sudo mkdir -p ${CARGO_HOME} ${CARGO_TARGET_DIR}
+            sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
+            rustc +stable --version --verbose
+
+            cargo build --release --workspace
+
+            sudo cp -vf ${CARGO_TARGET_DIR}/release/cargo-hongg ../hongg-artifact/cargo-hongg-$(git rev-parse HEAD)
+
+          dir: git-hongg-rs
+
+    - put: hongg-artifact
+      params:
+        file: ./hongg-artifact/cargo-hongg-*
+        acl: private
+
+  - name: tools-criterion-single-page-html
+    build_logs_to_retain: 3
+    public: true
+    serial: true
+    plan:
+    - in_parallel:
+      - get: git-criterion-single-page-html
+        trigger: true
+
+      - get: env-glibc
+
+    - task: create-criterion-single-page-html
+      timeout: 20m
+      image: env-glibc
+      privileged: true
+      config:
+        platform: linux
+        inputs:
+        - name: git-criterion-single-page-html
+        outputs:
+        - name: criterion-single-page-html-artifact
+        caches:
+        - path: cargo_home
+        - path: target
+        run:
+          dir: git-criterion-single-page-html
+          path: sh
+          args:
+          - -exc
+          - |
+            export CARGO_HOME="$(pwd)/../cargo_home"
+            export CARGO_TARGET_DIR="$(pwd)/../target"
+            sudo mkdir -p ${CARGO_HOME} ${CARGO_TARGET_DIR}
+            sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
+
+            export HEAD=$(git rev-parse HEAD)
+
+            rustc +stable --version --verbose
+
+            cargo build --release --workspace
+
+
+            sudo cp -vf ${CARGO_TARGET_DIR}/release/criterion-single-page-html ../criterion-single-page-html-artifact/criterion-single-page-html-${HEAD}
+
+
+    - put: criterion-single-page-html-artifact
+      params:
+        file: ./criterion-single-page-html-artifact/criterion-single-page-html-*
+        acl: private
+
+  - name: tools-cargo-flamegraph
+    build_logs_to_retain: 3
+    public: true
+    serial: true
+    plan:
+    - in_parallel:
+      - get: git-flamegraph
+        trigger: true
+      - get: env-glibc
+
+    - task: create-cargo-flamegraph
+      timeout: 30m
+      image: env-glibc
+      privileged: true
+      config:
+        platform: linux
+        inputs:
+        - name: git-flamegraph
+        outputs:
+        - name: flamegraph-artifact
+        caches:
+        - path: cargo_home
+        - path: target
+        run:
+          path: sh
+          args:
+          - -exc
+          - |
+            export CARGO_HOME="$(pwd)/../cargo_home"
+            export CARGO_TARGET_DIR="$(pwd)/../target"
+            export PATH=$PATH:$CARGO_HOME/bin
+            sudo mkdir -p ${CARGO_HOME}/bin ${CARGO_TARGET_DIR}
+            sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
+            rustc +stable --version --verbose
+
+            cargo build --release
+
+            sudo cp -vf $CARGO_TARGET_DIR/release/cargo-flamegraph ../flamegraph-artifact/cargo-flamegraph-$(git rev-parse HEAD)
+
+          dir: git-flamegraph
+
+    - put: flamegraph-artifact
+      params:
+        file: ./flamegraph-artifact/cargo-flamegraph-*
+        acl: private
+
 ####################################################################################
 #                              P U L L - R E Q U E S T
 ####################################################################################
@@ -32,34 +301,34 @@ jobs:
     serial: true
     plan:
     - in_parallel:
-      - get: git-pull-request-resource
-        resource: git-pull-request-resource
+      - get: git-pr-resource
+        resource: git-pr-resource
         version: every
         trigger: true
 
       - get: env-glibc
 
     - in_parallel:
-      - put: git-pull-request-resource
+      - put: git-pr-resource
         params:
-          path: git-pull-request-resource
+          path: git-pr-resource
           context: meta-check
           status: pending
-      - put: git-pull-request-resource
+      - put: git-pr-resource
         params:
-          path: git-pull-request-resource
+          path: git-pr-resource
           context: compile
           status: pending
-      - put: git-pull-request-resource
+      - put: git-pr-resource
         params:
-          path: git-pull-request-resource
+          path: git-pr-resource
           context: unit-tests
           status: pending
-      - put: git-pull-request-resource
-        params:
-          path: git-pull-request-resource
-          context: win64-cross-build
-          status: pending
+      # - put: git-pr-resource
+      #   params:
+      #     path: git-pr-resource
+      #     context: win64-cross-build
+      #     status: pending
 
     - in_parallel:
       - task: compile-pr
@@ -68,7 +337,7 @@ jobs:
         config:
           platform: linux
           inputs:
-          - name: git-pull-request-resource
+          - name: git-pr-resource
           caches:
           - path: cargo_home
           - path: target
@@ -84,22 +353,20 @@ jobs:
               sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
               rustc +stable --version --verbose
 
-              export EXE="${CARGO_TARGET_DIR}/release/rs-ec-perf"
-
               cargo +stable build --release
 
-            dir: git-pull-request-resource
+            dir: git-pr-resource
 
         on_success:
-          put: git-pull-request-resource
+          put: git-pr-resource
           params:
-            path: git-pull-request-resource
+            path: git-pr-resource
             context: compile
             status: success
         on_failure:
-          put: git-pull-request-resource
+          put: git-pr-resource
           params:
-            path: git-pull-request-resource
+            path: git-pr-resource
             context: compile
             status: failure
 
@@ -109,9 +376,10 @@ jobs:
         config:
           platform: linux
           inputs:
-          - name: git-pull-request-resource
+          - name: git-pr-resource
           caches:
           - path: cargo_home
+          - path: target
           run:
             # user: root
             path: sh
@@ -124,62 +392,26 @@ jobs:
               sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
               rustc +stable --version --verbose
 
+              export RUSTFLAGS='-C target-feature=+sse3,+avx,+avx2,+sse4.2'
               cargo +stable test --all
-            dir: git-pull-request-resource
+
+            dir: git-pr-resource
           caches:
           - path: cargo
 
         on_success:
-          put: git-pull-request-resource
+          put: git-pr-resource
           params:
-            path: git-pull-request-resource
+            path: git-pr-resource
             context: unit-tests
             status: success
         on_failure:
-          put: git-pull-request-resource
+          put: git-pr-resource
           params:
-            path: git-pull-request-resource
+            path: git-pr-resource
             context: unit-tests
             status: failure
 
-      - task: pr-win64-cross-build
-        timeout: 20m
-        image: env-glibc
-        config:
-          platform: linux
-          inputs:
-          - name: git-pull-request-resource
-          caches:
-          - path: cargo_home
-          - path: target
-          run:
-            path: sh
-            args:
-            - -exc
-            - |
-              export CARGO_HOME="$(pwd)/../cargo_home"
-              export CARGO_TARGET_DIR="$(pwd)/../target"
-              sudo mkdir -p ${CARGO_HOME} ${CARGO_TARGET_DIR}
-              sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
-              rustc +stable --version --verbose
-
-              cargo build --target x86_64-pc-windows-gnu
-
-            dir: git-pull-request-resource
-
-        on_success:
-          put: git-pull-request-resource
-          params:
-            path: git-pull-request-resource
-            context: win64-cross-build
-            status: success
-
-        on_failure:
-          put: git-pull-request-resource
-          params:
-            path: git-pull-request-resource
-            context: win64-cross-build
-            status: failure
 
       - try:
           task: format-check
@@ -188,7 +420,7 @@ jobs:
           config:
             platform: linux
             inputs:
-            - name: git-pull-request-resource
+            - name: git-pr-resource
             caches:
             - path: cargo_home
             - path: target
@@ -206,21 +438,406 @@ jobs:
 
                 cargo +stable fmt -- --check
 
-              dir: git-pull-request-resource
+              dir: git-pr-resource
 
           on_success:
-            put: git-pull-request-resource
+            put: git-pr-resource
             params:
-              path: git-pull-request-resource
+              path: git-pr-resource
               context: meta-check
               status: success
 
           on_failure:
-            put: git-pull-request-resource
+            put: git-pr-resource
             params:
-              path: git-pull-request-resource
+              path: git-pr-resource
               context: meta-check
               status: failure
+
+
+      # - task: pr-win64-cross-build
+      #   timeout: 40m
+      #   image: env-glibc
+      #   config:
+      #     platform: linux
+      #     inputs:
+      #     - name: git-pr-resource
+      #     caches:
+      #     - path: cargo_home
+      #     - path: target
+      #     run:
+      #       path: sh
+      #       args:
+      #       - -exc
+      #       - |
+      #         export CARGO_HOME="$(pwd)/../cargo_home"
+      #         export CARGO_TARGET_DIR="$(pwd)/../target"
+      #         sudo mkdir -p ${CARGO_HOME} ${CARGO_TARGET_DIR}
+      #         sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
+      #         rustup target add x86_64-pc-windows-gnu
+      #         rustc +stable --version --verbose
+
+      #         cargo build --target x86_64-pc-windows-gnu
+
+      #       dir: git-pr-resource
+
+      #   on_success:
+      #     put: git-pr-resource
+      #     params:
+      #       path: git-pr-resource
+      #       context: win64-cross-build
+      #       status: success
+
+      #   on_failure:
+      #     put: git-pr-resource
+      #     params:
+      #       path: git-pr-resource
+      #       context: win64-cross-build
+      #       status: failure
+
+
+      - in_parallel:
+        - do:
+          - get: criterion-reference-tar-artifact
+
+          - get: criterion-single-page-html-artifact
+
+          - task: pr-criterion
+            timeout: 60m
+            image: env-glibc
+            #tags: [houdini]
+            privileged: true
+            config:
+              platform: linux
+              inputs:
+              - name: criterion-reference-tar-artifact
+              - name: criterion-single-page-html-artifact
+              - name: git-pr-resource
+              outputs:
+              - name: criterion-output
+              caches:
+              - path: cargo_home
+              - path: target
+              run:
+                dir: git-pr-resource
+                path: sh
+                args:
+                - -exc
+                - |
+                  export CARGO_HOME="$(pwd)/../cargo_home"
+                  export CARGO_TARGET_DIR="$(pwd)/../target"
+                  export PATH=$PATH:$CARGO_HOME/bin
+                  sudo mkdir -p ${CARGO_HOME}/bin || true
+                  sudo mkdir -p ${CARGO_TARGET_DIR} || true
+                  sudo mkdir -p ../criterion-output || true
+                  sudo mkdir -p ../tmp
+                  sudo chown $(whoami): -Rf ${CARGO_HOME}
+                  sudo chown $(whoami): -Rf ${CARGO_TARGET_DIR}
+                  sudo chown $(whoami): -Rf ..
+                  sudo chown $(whoami): -Rf .
+                  sudo chown $(whoami): -Rf ../tmp
+                  sudo chown $(whoami): -Rf ../criterion-output
+
+                  sudo mkdir -p /usr/local/bin/
+                  sudo cp -vf ../criterion-single-page-html-artifact/criterion-single-page-html-* /usr/local/bin/criterion-single-page-html
+                  sudo chmod +x /usr/local/bin/criterion-single-page-html
+
+                  rustc +stable --version --verbose
+
+                  export HEAD=$(git rev-parse HEAD)
+
+                  # unpack the reference against which to measure
+                  tar xf ../criterion-reference-tar-artifact/criterion-v*.tar.gz -C ../tmp
+
+                  export RUSTFLAGS='-C target-feature=+sse3,+avx,+avx2,+sse4.2'
+                  cargo +stable criterion --history-id ${HEAD} --target-dir ../tmp
+
+                  cd ../criterion-output
+                  tar -czvf criterion-git-${HEAD}.tar.gz -C ../tmp/criterion data reports
+
+                  criterion-single-page-html --root ../tmp/criterion/reports/index.html --dest criterion-onepager-git-${HEAD}.html
+
+            on_success:
+              do:
+              - put: criterion-tar-artifact
+                params:
+                  file: ./criterion-output/criterion-git-*.tar.gz
+                  acl: private
+              - put: criterion-onepager-artifact
+                params:
+                  file: ./criterion-output/criterion-onepager-git-*.html
+                  acl: private
+
+            on_failure:
+              put: git-pr-resource
+              params:
+                path: git-pr-resource
+                comment: "Criterion output could not be created 🍌"
+                delete_previous_comments: true
+
+          - get: flamegraph-artifact
+            passed: [tools-cargo-flamegraph]
+
+          - task: pr-flamegraph
+            timeout: 10m
+            image: env-glibc
+            #tags: [houdini]
+            privileged: true
+            config:
+              platform: linux
+              inputs:
+              - name: flamegraph-artifact
+              - name: git-pr-resource
+              outputs:
+              - name: flamegraph
+              caches:
+              - path: cargo_home
+              - path: target
+              run:
+                dir: git-pr-resource
+                path: sh
+                args:
+                - -exc
+                - |
+                  export CARGO_HOME="$(pwd)/../cargo_home"
+                  export CARGO_TARGET_DIR="$(pwd)/../target"
+                  export PATH=$PATH:$CARGO_HOME/bin
+                  sudo mkdir -p ${CARGO_HOME}/bin ${CARGO_TARGET_DIR}
+                  sudo cp ../flamegraph-artifact/cargo-flamegraph-* ${CARGO_HOME}/bin/cargo-flamegraph
+                  sudo chmod +x ${CARGO_HOME}/bin/cargo-flamegraph
+                  sudo chown $(whoami): -Rf ${CARGO_HOME}
+                  sudo chown $(whoami): -Rf ${CARGO_TARGET_DIR}
+                  sudo chown $(whoami): -Rf .
+                  sudo chown $(whoami): -Rf ../flamegraph
+                  sudo chown $(whoami): -Rf ..
+
+                  rustc +stable --version --verbose
+
+                  cargo flamegraph --version
+                  cargo flamegraph -v -F 10000 --bin reed-solomon-benches
+
+                  mv flamegraph.svg ../flamegraph/flamegraph-$(git rev-parse HEAD).svg
+
+            on_success:
+              put: flamegraph-svg
+              params:
+                file: ./flamegraph/flamegraph-*.svg
+                acl: private
+
+            on_failure:
+              put: git-pr-resource
+              params:
+                path: git-pr-resource
+                comment: "Flamegraph could not be created 🐞"
+                delete_previous_comments: true
+
+  - name: submit-gh-comment
+    build_logs_to_retain: 10
+    public: true
+    serial: true
+    plan:
+    - in_parallel:
+      - get: git-pr-resource
+        resource: git-pr-resource
+        version: every
+        trigger: true
+        passed: [pr-validate]
+
+      - get: mc
+        resource: minio-client
+
+      - get: env-glibc
+
+      - get: flamegraph
+        resource: flamegraph-svg
+        passed: [pr-validate]
+
+      - get: criterion-tar-artifact
+        passed: [pr-validate]
+        trigger: true
+
+      - get: criterion-onepager-artifact
+        passed: [pr-validate]
+        trigger: true
+
+    - do:
+      - task: pr-share-criterion
+        timeout: 10m
+        image: env-glibc
+        config:
+          platform: linux
+          inputs:
+          - name: mc
+          - name: git-pr-resource
+          - name: criterion-tar-artifact
+          - name: criterion-onepager-artifact
+          outputs:
+          - name: comment
+          run:
+            path: sh
+            args:
+            - -exc
+            - |
+              sudo chown $(whoami): -Rf ./git-pr-resource
+              sudo chown $(whoami): -Rf ./comment
+
+              export PATH="$PATH:$(pwd)/mc/"
+              sudo chmod +x $(pwd)/mc/mc
+
+              echo -e '((minio-access-key))\n((minio-secret-key))' | mc config host add spearow https://minio.spearow.io
+
+              # export NAME_ANY=criterion-git-$(cd git-pr-resource; git rev-parse HEAD; cd ..).tar.gz
+              export NAME_TAR=$(ls -1 criterion-tar-artifact | rg 'criterion-git-.*.tar.gz$')
+              export NAME_ONEPAGER=$(ls -1 criterion-onepager-artifact/ | rg 'criterion-onepager-git-.*.html$')
+
+              export SHARE_URL_TAR=$(mc share download --no-color --expire=168h --json spearow/reed-solomon-criterion-perf/${NAME_TAR})
+              export SHARE_URL_ONEPAGER=$(mc share download --no-color --expire=168h --json spearow/reed-solomon-criterion-onepager/${NAME_ONEPAGER})
+              printf "📊 criterion [(tar.gz source)](%s) [(onepager)](%s)" \
+                "$(echo $SHARE_URL_TAR | jq -e -c -M -r .share)" \
+                "$(echo $SHARE_URL_ONEPAGER | jq -e -c -M -r .share)" \
+                >> comment/comment.md
+
+      - task: pr-share-flamegraph
+        timeout: 10m
+        image: env-glibc
+        config:
+          platform: linux
+          inputs:
+          - name: comment
+          - name: mc
+          - name: git-pr-resource
+          - name: flamegraph
+          outputs:
+          - name: comment
+          run:
+            path: sh
+            args:
+            - -exc
+            - |
+              sudo chown $(whoami): -Rf comment
+              sudo chown $(whoami): -Rf flamegraph
+              sudo chown $(whoami): -Rf git-pr-resource
+              sudo chown $(whoami): -Rf .
+
+              sudo mkdir -p /usr/local/bin/
+              sudo cp -vf mc/mc /usr/local/bin/
+              sudo chmod +x /usr/local/bin/mc
+              echo -e '((minio-access-key))\n((minio-secret-key))' | mc config host add spearow https://minio.spearow.io
+
+              export NAME="flamegraph-$(cd git-pr-resource; git rev-parse HEAD; cd ..).svg"
+              export NAME=$(cd flamegraph; ls -1 flamegraph-*svg; cd ..)
+
+              # mc cp flamegraph/${NAME} spearow/reed-solomon-flamegraph/${NAME}
+
+              sudo touch comment/comment.md
+              sudo chmod o+rw comment/comment.md
+              sudo chmod u+rw comment/comment.md
+
+              printf "\n[🔥 flamegraph 🔥](%s)" "$(mc share download --no-color --expire=168h --json spearow/reed-solomon-flamegraph-svg/${NAME} | jq -c -M -r .share)" \
+                >> comment/comment.md
+
+        on_success:
+          put: git-pr-resource
+          params:
+            path: git-pr-resource
+            comment_file: comment/comment.md
+            delete_previous_comments: true
+
+      on_failure:
+        put: git-pr-resource
+        params:
+          path: git-pr-resource
+          comment: "Flamegraph or criterion output could not be created 🐞"
+          delete_previous_comments: true
+
+#################################################################################
+#                     H O N G G :: F U Z Z
+#################################################################################
+
+  - name: fuzz-10k-rounds
+    build_logs_to_retain: 10
+    public: true
+    serial: true
+    plan:
+    - get: git-pr-resource
+      version: every
+      trigger: true
+
+    - put: git-pr-resource
+      params:
+        path: git-pr-resource
+        context: fuzz
+        status: pending
+
+
+    - get: env-glibc
+
+    - get: hongg-artifact
+      passed: [tools-cargo-hongg]
+
+    - task: pr-fuzz
+      timeout: 30m
+      image: env-glibc
+      # tags: [houdini]
+      privileged: true
+      config:
+        platform: linux
+        inputs:
+        - name: hongg-artifact
+        - name: git-pr-resource
+        caches:
+        - path: cargo_home
+        - path: target
+        # - path: dnf_cache
+        run:
+          dir: git-pr-resource
+          path: sh
+          args:
+          - -exc
+          - |
+            export CARGO_HOME="$(pwd)/../cargo_home/"
+            export CARGO_TARGET_DIR="$(pwd)/../target/"
+            export PATH=$PATH:$CARGO_HOME/bin
+
+            sudo mkdir -p ../target || true
+            sudo mkdir -p ${CARGO_HOME}/bin
+            sudo mkdir -p ${CARGO_TARGET_DIR}
+            sudo cp -vf ../hongg-artifact/cargo-hongg-* ${CARGO_HOME}/bin/cargo-hongg
+            sudo chmod +x ${CARGO_HOME}/bin/cargo-hongg
+            sudo chown $(whoami): -Rf ${CARGO_HOME}
+            sudo chown $(whoami): -Rf ${CARGO_TARGET_DIR}
+            sudo chown $(whoami): -Rf .
+            sudo chown $(whoami): -Rf ../target
+            sudo chown $(whoami): -Rf ..
+
+            cargo install -f cargo-hongg
+
+            rustc +stable --version --verbose
+            cargo hongg --version || cargo hongg version || which cargo-hongg || echo "Fishy, but let's see.."
+
+            # for now patch the hongg dependency to the latest git until
+            # it's merged and released upstream
+            cargo add -p fuzzit hongg --git "https://github.com/drahnr/hongg-rs.git"
+
+            # hongg makes a fatal assumption that `$CARGO_TARGET_DIR` is _relative_ path to the `CWD`.
+            export CARGO_TARGET_DIR="../target/"
+            # ptrace(PTRACE_SEIZE) must be explicitly allowed in containers
+            $CARGO_HOME/bin/cargo-hongg fuzz --bin fuzz_reconstruct -vvvv --n-iterations=10000 --timeout=10 --exit-upon-crash=76
+            $CARGO_HOME/bin/cargo-hongg fuzz --bin fuzz_roundtrip -vvvv --n-iterations=10000 --timeout=10 --exit-upon-crash=77
+
+      on_success:
+        put: git-pr-resource
+        params:
+          path: git-pr-resource
+          context: fuzz
+          status: success
+
+      on_failure:
+        put: git-pr-resource
+        params:
+          path: git-pr-resource
+          context: fuzz
+          status: failure
 
   ####################################################################################
   #                                 M A S T E R
@@ -230,6 +847,7 @@ jobs:
     public: true
     serial: true
     plan:
+
     - in_parallel:
       - get: env-glibc
       - get: git-repo
@@ -259,35 +877,38 @@ jobs:
               sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
               rustc +stable --version --verbose
 
-              export EXE="${CARGO_TARGET_DIR}/release/rs-ec-perf"
+              export EXE="${CARGO_TARGET_DIR}/release/reed-solomon-novelpoly"
 
               cargo +stable build --release
 
             dir: git-repo
 
-      - task: win64-cross-build-master
-        timeout: 15m
-        image: env-glibc
-        config:
-          platform: linux
-          inputs:
-          - name: git-repo
-          caches:
-          - path: cargo_home
-          - path: target
-          run:
-            path: sh
-            args:
-            - -exc
-            - |
-              export CARGO_HOME="$(pwd)/../cargo_home"
-              export CARGO_TARGET_DIR="$(pwd)/../target"
-              sudo mkdir -p ${CARGO_HOME} ${CARGO_TARGET_DIR}
-              sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
-              rustc +stable --version --verbose
+      # - task: win64-cross-build-master
+      #   timeout: 15m
+      #   image: env-glibc
+      #   config:
+      #     platform: linux
+      #     inputs:
+      #     - name: git-repo
+      #     caches:
+      #     - path: cargo_home
+      #     - path: target
+      #     run:
+      #       path: sh
+      #       args:
+      #       - -exc
+      #       - |
+      #         export CARGO_HOME="$(pwd)/../cargo_home"
+      #         export CARGO_TARGET_DIR="$(pwd)/../target"
+      #         sudo mkdir -p ${CARGO_HOME} ${CARGO_TARGET_DIR}
+      #         sudo chown $(whoami): -Rf ${CARGO_HOME} ${CARGO_TARGET_DIR} .
 
-              cargo build --target x86_64-pc-windows-gnu
-            dir: git-repo
+      #         rustup target add x86_64-pc-windows-gnu
+
+      #         rustc +stable --target x86_64-pc-windows-gnu --version --verbose
+
+      #         cargo build --target x86_64-pc-windows-gnu -p reed-solomon-novelpoly
+      #       dir: git-repo
 
       - task: unit-tests-master
         timeout: 10m
@@ -341,3 +962,68 @@ jobs:
                 cargo +stable fmt -- --check
 
               dir: git-repo
+
+
+
+####################################################################################
+#                           P E R F _ R E F E R E N C E
+####################################################################################
+
+  - name: create-criterion-reference
+    build_logs_to_retain: 10
+    public: false
+    serial: true
+    plan:
+    - in_parallel:
+      - get: env-glibc
+      - get: git-repo
+        resource: git-perf-reference-tag
+        trigger: true
+
+    - task: create-performance-reference
+      timeout: 60m
+      image: env-glibc
+      privileged: true
+      config:
+        platform: linux
+        inputs:
+        - name: git-repo
+        outputs:
+        - name: criterion-output
+        caches:
+        - path: cargo_home
+        - path: target
+        run:
+          # user: root
+          dir: git-repo
+          path: sh
+          args:
+          - -exc
+          - |
+            export CARGO_HOME="$(pwd)/../cargo_home"
+            export CARGO_TARGET_DIR="$(pwd)/../target"
+            export PATH=$CARGO_HOME/bin:$PATH
+            sudo mkdir ../tmp
+            sudo mkdir -p ../criterion-output || true
+            sudo mkdir -p ${CARGO_HOME} ${CARGO_TARGET_DIR}
+            sudo chown $(whoami): -Rf ${CARGO_HOME}
+            sudo chown $(whoami): -Rf ${CARGO_TARGET_DIR}
+            sudo chown $(whoami): -Rf .
+            sudo chown $(whoami): -Rf ..
+            sudo chown $(whoami): -Rf ../tmp
+            sudo chown $(whoami): -Rf ../criterion-output
+
+            rustc +stable --version --verbose
+
+            export EXE="${CARGO_TARGET_DIR}/release/reed-solomon-novelpoly"
+
+            export RUSTFLAGS='-C target-feature=+sse3,+avx,+avx2,+sse4.2'
+            cargo +stable criterion --history-id $(git rev-parse HEAD) --target-dir ../tmp
+
+            cd ../criterion-output
+            tar -czvf criterion-v1.0.1.tar.gz -C ../tmp/criterion data reports
+
+    - put: criterion-reference-tar-artifact
+      params:
+        file: ./criterion-output/criterion-v*.tar.gz
+        acl: private

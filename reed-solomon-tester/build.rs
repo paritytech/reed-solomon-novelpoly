@@ -14,7 +14,7 @@ fn gen_10mb_rand_data() -> Result<()> {
 	let out = env::var("OUT_DIR").expect("OUT_DIR is set by cargo after process launch. qed");
 	let dest = PathBuf::from(out).join("rand_data.bin");
 
-	let mut f = OpenOptions::new().truncate(true).write(true).create(true).open(&dest)?;
+	let mut f = OpenOptions::new().truncate(true).write(true).create(true).open(dest)?;
 
 	f.write_all(&data)?;
 

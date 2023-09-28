@@ -6,7 +6,9 @@ edition = "2021"
 publish = false
 
 [dependencies]
-reed-solomon-erasure = { version = "6.0.0", features = ["simd-accel"], optional = true }
+reed-solomon-erasure = { version = "6.0.0", features = [
+  "simd-accel",
+], optional = true }
 reed-solomon-novelpoly = { package = "reed-solomon-novelpoly", path = "../reed-solomon-novelpoly" }
 reed-solomon-tester = { package = "reed-solomon-tester", path = "../reed-solomon-tester" }
 
@@ -28,4 +30,4 @@ harness = false
 default = []
 novelpoly-cxx = ["reed-solomon-novelpoly/with-alt-cxx-impl"]
 naive = ["reed-solomon-erasure"]
-upperbounds=["naive"]
+upperbounds = ["naive"]

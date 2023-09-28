@@ -21,3 +21,19 @@ include!("inc_encode.rs");
 
 #[cfg(table_bootstrap_complete)]
 include!("inc_reconstruct.rs");
+
+impl std::fmt::Display for Additive {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{:04x}", self.0)
+	}
+}
+
+impl std::fmt::Debug for Additive {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{:04x}", self.0)
+	}
+}
+
+#[cfg(table_bootstrap_complete)]
+#[cfg(target_feature = "avx")]
+pub use crate::field::faster8::f2e16::*;

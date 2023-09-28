@@ -1,4 +1,4 @@
-use honggfuzz::fuzz;
+use hongg::fuzz;
 
 use novelpoly::WrappedShard;
 
@@ -24,7 +24,6 @@ impl<'a> Arbitrary<'a> for ReconstructionFeed {
 		let iv = rand::seq::index::sample(&mut rng, validator_count, validator_count - n_chunks).into_vec();
 
 		let mut received = (0..validator_count)
-			.into_iter()
 			.map(|idx| {
 				if iv.contains(&idx) {
 					None

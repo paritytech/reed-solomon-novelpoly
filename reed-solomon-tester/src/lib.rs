@@ -4,6 +4,9 @@ use std::error;
 use std::iter;
 use std::result;
 
+mod utils;
+pub use crate::utils::*;
+
 pub static SMALL_RNG_SEED: [u8; 32] = [
 	0, 6, 0xFA, 0, 0x37, 3, 19, 89, 32, 032, 0x37, 0x77, 77, 0b11, 112, 52, 12, 40, 82, 34, 0, 0, 0, 1, 4, 4, 1, 4, 99,
 	127, 121, 107,
@@ -17,20 +20,33 @@ pub const N_SHARDS: usize = 123;
 /// Shared target number of payload size for simple, quirk turnaround tests:
 pub const TEST_DATA_CHUNK_SIZE: usize = 1337;
 
+// Just enough to trigger the avx code path with size 1 field elements shards.
+pub const N_SHARDS_JUST_ENOUGH: usize = 32;
+pub const TEST_DATA_CHUNK_SIZE_JUST_ENOUGH: usize = 64;
+
 /// Assert the byte ranges derived from the index vec are recovered properly
-pub fn assert_recovery(payload: &[u8], reconstructed_payload: &[u8], dropped_indices: IndexVec) {
-	assert!(reconstructed_payload.len() >= payload.len());
+pub fn assert_recovery(
+	expected_payload: &[u8],
+	reconstructed_payload: &[u8],
+	dropped_indices: IndexVec,
+	n: usize,
+	k: usize,
+) {
+	assert!(reconstructed_payload.len() >= expected_payload.len());
 
 	dropped_indices.into_iter().for_each(|dropped_idx| {
 		let byteoffset = dropped_idx * 2;
 		let range = byteoffset..(byteoffset + 2);
 		// dropped indices are over `n`, but our data indices are just of length `k * 2`
-		if payload.len() >= range.end {
+		if expected_payload.len() >= range.end {
 			assert_eq!(
-				&payload[range.clone()],
+				&expected_payload[range.clone()],
 				&reconstructed_payload[range.clone()],
-				"Data at bytes {:?} must match:",
-				range
+				"Data at bytes {:?} within 0..{} must match (n={}, k={}):",
+				range,
+				expected_payload.len(),
+				n,
+				k
 			);
 		}
 	});
@@ -115,6 +131,10 @@ where
 	Ok(v)
 }
 
+const fn recoverablity_subset_size(n_wanted_shards: usize) -> usize {
+	(n_wanted_shards.saturating_sub(1) / 3) + 1
+}
+
 pub fn roundtrip_w_drop_closure<'s, Enc, Recon, DropFun, RandGen, S, E>(
 	encode: Enc,
 	reconstruct: Recon,
@@ -132,18 +152,20 @@ where
 {
 	let mut rng = <RandGen as rand::SeedableRng>::from_seed(SMALL_RNG_SEED);
 
+	let target_n = target_shard_count;
+	let target_k = recoverablity_subset_size(target_n);
+
 	// Construct the shards
 	let shards = encode(payload, target_shard_count)?;
 
 	// Make a copy and transform it into option shards arrangement
 	// for feeding into reconstruct_shards
-	let mut received_shards = shards.into_iter().map(Some).collect::<Vec<Option<S>>>();
+	let mut received_shards = Vec::<Option<S>>::from_iter(shards.into_iter().map(Some));
 
-	let dropped_indices =
-		drop_rand(received_shards.as_mut_slice(), target_shard_count, target_shard_count / 3, &mut rng);
+	let dropped_indices = drop_rand(received_shards.as_mut_slice(), target_n, target_k, &mut rng);
 
 	let recovered_payload = reconstruct(received_shards, target_shard_count)?;
 
-	assert_recovery(&payload[..], &recovered_payload[..], dropped_indices);
+	assert_recovery(&payload[..], &recovered_payload[..], dropped_indices, target_n, target_k);
 	Ok(())
 }

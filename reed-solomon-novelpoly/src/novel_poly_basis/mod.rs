@@ -54,10 +54,20 @@ impl CodeParams {
 		// which is true by definition
 		assert!(n * k_po2 <= n_po2 * k);
 
-		if n_po2 > FIELD_SIZE as usize {
+		if n_po2 > FIELD_SIZE {
 			return Err(Error::WantedShardCountTooHigh(n));
 		}
 		Ok(Self { n: n_po2, k: k_po2, wanted_n: n })
+	}
+
+	/// Check if this could use the `faster8` code path, possibly utilizing `avx` SIMD instructions
+	pub fn is_faster8(&self) -> bool {
+		#[cfg(target_feature = "avx")]
+		{
+			self.k >= (Additive8x::LANE << 1) && self.n % Additive8x::LANE == 0
+		}
+		#[cfg(not(target_feature = "avx"))]
+		false
 	}
 
 	// make a reed-solomon instance.
@@ -77,9 +87,13 @@ impl CodeParams {
 	}
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReedSolomon {
+	/// The true number of total shards to be had, derived from `n_wanted`.
 	n: usize,
+	/// The amount of original data shards, that are part of the systematic code.
 	k: usize,
+	/// The size as desired by the user. Strictly smaller than `n`.
 	wanted_n: usize,
 }
 
@@ -88,8 +102,8 @@ impl ReedSolomon {
 	pub fn shard_len(&self, payload_size: usize) -> usize {
 		let payload_symbols = (payload_size + 1) / 2;
 		let shard_symbols_ceil = (payload_symbols + self.k - 1) / self.k;
-		let shard_bytes = shard_symbols_ceil * 2;
-		shard_bytes
+
+		shard_symbols_ceil * 2
 	}
 
 	pub(crate) fn new(n: usize, k: usize, wanted_n: usize) -> Result<Self> {
@@ -124,7 +138,7 @@ impl ReedSolomon {
 			validator_count
 		];
 
-		for (chunk_idx, i) in (0..bytes.len()).into_iter().step_by(k2).enumerate() {
+		for (chunk_idx, i) in (0..bytes.len()).step_by(k2).enumerate() {
 			let end = std::cmp::min(i + k2, bytes.len());
 			assert_ne!(i, end);
 			let data_piece = &bytes[i..end];
@@ -197,15 +211,12 @@ impl ReedSolomon {
 		let mut acc = Vec::<u8>::with_capacity(shard_len_in_syms * 2 * self.k);
 		for i in 0..shard_len_in_syms {
 			// take the i-th element of all shards and try to recover
-			let decoding_run = received_shards
-				.iter()
-				.map(|x| {
-					x.as_ref().map(|x| {
-						let z = AsRef::<[[u8; 2]]>::as_ref(&x)[i];
-						Additive(u16::from_be_bytes(z))
-					})
+			let decoding_run = Vec::<Option<Additive>>::from_iter(received_shards.iter().map(|x| {
+				x.as_ref().map(|x| {
+					let z = AsRef::<[[u8; 2]]>::as_ref(&x)[i];
+					Additive(u16::from_be_bytes(z))
 				})
-				.collect::<Vec<Option<Additive>>>();
+			}));
 
 			assert_eq!(decoding_run.len(), self.n);
 
