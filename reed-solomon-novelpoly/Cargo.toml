@@ -16,7 +16,7 @@ derive_more = { version = "0.99.0", default-features = false, features = [
 ] }
 fs-err = "2.5.0"
 bindgen = { version = "0.66.1", optional = true }
-cc = { version = "1.0.67", features = ["parallel"], optional = true }
+cc = { version = "1.0.83", features = ["parallel"], optional = true }
 
 [dependencies]
 reed-solomon-erasure = { version = "6.0", features = [
