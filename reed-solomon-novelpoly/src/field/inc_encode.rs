@@ -200,13 +200,11 @@ pub fn encode_sub_plain(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additive
 	// pad the incoming bytes with trailing 0s
 	// so we get a buffer of size `N` in `GF` symbols
 	let zero_bytes_to_add = n * 2 - bytes_len;
-	let elm_data = Vec::<Additive>::from_iter(bytes
-		.iter()
-		.copied()
-		.chain(std::iter::repeat(0u8).take(zero_bytes_to_add))
-		.tuple_windows()
-		.step_by(2)
-		.map(|(a, b)| Additive(Elt::from_be_bytes([a, b]))));
+	let mut elm_data = Vec::with_capacity(zero_bytes_to_add + (bytes.len() / 2));
+	let zeros = std::iter::repeat(&0u8).take(zero_bytes_to_add);
+	for (first, second) in bytes.into_iter().chain(zeros).tuples() {
+		elm_data.push(Additive(Elt::from_be_bytes([*first, *second])));
+	}
 
 	// update new data bytes with zero padded bytes
 	// `l` is now `GF(2^16)` symbols
