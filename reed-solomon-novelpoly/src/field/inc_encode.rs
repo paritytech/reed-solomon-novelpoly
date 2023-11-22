@@ -194,13 +194,13 @@ pub fn encode_sub_plain(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additive
 	assert!(is_power_of_2(upper_len));
 	assert!(upper_len >= bytes_len);
 
-    // tuple_windows are only used here
-    use itertools::Itertools;
+	// tuple are only used here
+	use itertools::Itertools;
 
 	// pad the incoming bytes with trailing 0s
 	// so we get a buffer of size `N` in `GF` symbols
 	let zero_bytes_to_add = n * 2 - bytes_len;
-	let mut elm_data = Vec::with_capacity(zero_bytes_to_add + (bytes.len() / 2));
+	let mut elm_data = Vec::with_capacity(n);
 	let zeros = std::iter::repeat(&0u8).take(zero_bytes_to_add);
 	for (first, second) in bytes.into_iter().chain(zeros).tuples() {
 		elm_data.push(Additive(Elt::from_be_bytes([*first, *second])));
