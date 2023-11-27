@@ -130,7 +130,9 @@ impl ReedSolomon {
 		let k2 = self.k * 2;
 		// prepare one wrapped shard per validator
 		let mut shards = vec![
-			<S as From<Vec<u8>>>::from({
+			<S as From<Vec<u8>>>::from(
+				#[allow(clippy::uninit_vec)]
+				{
 				let mut v = Vec::<u8>::with_capacity(shard_len);
 				unsafe { v.set_len(shard_len) }
 				v

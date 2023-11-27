@@ -1,4 +1,5 @@
 #![forbid(unused_crate_dependencies)]
+#![allow(clippy::needless_range_loop)]
 
 pub mod errors;
 pub use errors::*;

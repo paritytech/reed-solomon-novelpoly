@@ -49,7 +49,7 @@ pub fn reconstruct<S: Shard>(
 	// Try to reconstruct missing shards
 	r.reconstruct_data(&mut received_shards).expect("Sufficient shards must be received. qed");
 
-	let result = received_shards.into_iter().filter_map(|x| x).take(r.data_shard_count()).fold(
+	let result = received_shards.into_iter().flatten().take(r.data_shard_count()).fold(
 		Vec::with_capacity(12 << 20),
 		|mut acc, reconstructed_shard| {
 			acc.extend_from_slice(AsRef::<[u8]>::as_ref(&reconstructed_shard));
