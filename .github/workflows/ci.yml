@@ -95,7 +95,6 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      - ru
       - uses: actions-rs/cargo@v1
         with:
           command: clippy
