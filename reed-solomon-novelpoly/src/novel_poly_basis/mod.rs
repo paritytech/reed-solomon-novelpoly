@@ -133,10 +133,11 @@ impl ReedSolomon {
 			<S as From<Vec<u8>>>::from(
 				#[allow(clippy::uninit_vec)]
 				{
-				let mut v = Vec::<u8>::with_capacity(shard_len);
-				unsafe { v.set_len(shard_len) }
-				v
-			});
+					let mut v = Vec::<u8>::with_capacity(shard_len);
+					unsafe { v.set_len(shard_len) }
+					v
+				}
+			);
 			validator_count
 		];
 
