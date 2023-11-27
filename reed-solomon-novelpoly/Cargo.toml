@@ -19,9 +19,6 @@ bindgen = { version = "0.66.1", optional = true }
 cc = { version = "1.0.67", features = ["parallel"], optional = true }
 
 [dependencies]
-reed-solomon-erasure = { version = "6.0", features = [
-  "simd-accel",
-], optional = true }
 static_init = "1"
 
 thiserror = "1.0.23"
@@ -42,7 +39,7 @@ assert_matches = "1.5.0"
 [features]
 default = []
 with-alt-cxx-impl = ["cc", "bindgen"]
-naive = ["reed-solomon-erasure"]
 mock = ["rand", "reed-solomon-tester"]
 # enable the small field, experimental support
 f256 = []
+avx = []
