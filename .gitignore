@@ -1,2 +1,5 @@
 /target
 .DS_Store
+.vscode
+**/hfuzz_target
+**/hfuzz_workspace

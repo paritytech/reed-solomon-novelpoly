@@ -38,6 +38,7 @@ impl Additive {
 
 	/// Return a*EXP_TABLE[b] over GF(2^r)
     #[inline(always)]
+	#[allow(clippy::should_implement_trait)]
 	pub fn mul(self, other: Multiplier) -> Additive {
 		if self == Self::ZERO {
 			return Self::ZERO;

@@ -4,11 +4,8 @@ use std::error;
 use std::iter;
 use std::result;
 
-mod utils;
-pub use crate::utils::*;
-
 pub static SMALL_RNG_SEED: [u8; 32] = [
-	0, 6, 0xFA, 0, 0x37, 3, 19, 89, 32, 032, 0x37, 0x77, 77, 0b11, 112, 52, 12, 40, 82, 34, 0, 0, 0, 1, 4, 4, 1, 4, 99,
+	0, 6, 0xFA, 0, 0x37, 3, 19, 89, 32, 32, 0x37, 0x77, 77, 0b11, 112, 52, 12, 40, 82, 34, 0, 0, 0, 1, 4, 4, 1, 4, 99,
 	127, 121, 107,
 ];
 
@@ -63,16 +60,16 @@ pub fn deterministic_drop_shards<T: Sized, G: rand::SeedableRng + rand::Rng>(
 	let mut v = Vec::with_capacity(n - k);
 	// k is a power of 2
 	let half = (n - k) >> 1;
-	for i in 0..half {
-		codewords[i] = None;
+	for (i, codeword) in codewords.iter_mut().enumerate().take(half) {
+		*codeword = None;
 		v.push(i);
 	}
 	// if the codewords is shorter than n
 	// the remaining ones were
 	// already dropped implicitly
-	for i in n - half..n {
+	for (i, codeword) in codewords.iter_mut().enumerate().take(n).skip(n - half) {
 		if i < l {
-			codewords[i] = None;
+			*codeword = None;
 			v.push(i);
 		}
 	}
@@ -85,7 +82,7 @@ pub fn deterministic_drop_shards_clone<T: Sized + Clone>(
 	k: usize,
 ) -> (Vec<Option<T>>, IndexVec) {
 	let mut rng = SmallRng::from_seed(SMALL_RNG_SEED);
-	let mut codewords = codewords.into_iter().map(|x| Some(x.clone())).collect::<Vec<Option<T>>>();
+	let mut codewords = codewords.iter().map(|x| Some(x.clone())).collect::<Vec<Option<T>>>();
 	let idx = deterministic_drop_shards::<T, SmallRng>(&mut codewords, n, k, &mut rng);
 	assert!(idx.len() <= n - k);
 	(codewords, idx)
@@ -121,14 +118,13 @@ where
 	E: error::Error + Send + Sync + 'static,
 	S: Clone + AsRef<[u8]> + AsMut<[[u8; 2]]> + AsRef<[[u8; 2]]> + iter::FromIterator<[u8; 2]> + From<Vec<u8>>,
 {
-	let v = roundtrip_w_drop_closure::<'s, Enc, Recon, _, SmallRng, S, E>(
+	roundtrip_w_drop_closure::<'s, Enc, Recon, _, SmallRng, S, E>(
 		encode,
 		reconstruct,
 		payload,
 		target_shard_count,
 		drop_random_max,
-	)?;
-	Ok(v)
+	)
 }
 
 const fn recoverablity_subset_size(n_wanted_shards: usize) -> usize {
@@ -166,6 +162,6 @@ where
 
 	let recovered_payload = reconstruct(received_shards, target_shard_count)?;
 
-	assert_recovery(&payload[..], &recovered_payload[..], dropped_indices, target_n, target_k);
+	assert_recovery(payload, &recovered_payload[..], dropped_indices, target_n, target_k);
 	Ok(())
 }

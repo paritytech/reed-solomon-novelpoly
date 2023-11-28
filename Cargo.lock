@@ -927,7 +927,6 @@ dependencies = [
  "fs-err",
  "itertools 0.11.0",
  "rand",
- "reed-solomon-erasure",
  "reed-solomon-tester",
  "static_init",
  "thiserror",

@@ -3,6 +3,7 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 
+#[allow(clippy::module_inception)]
 mod cxx {
 	include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }

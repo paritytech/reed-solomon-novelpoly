@@ -233,6 +233,7 @@ pub mod parameterized {
 	) {
 		use reed_solomon_novelpoly::f2e16::Additive;
 		use rand::Rng;
+		#[cfg(feature = "avx")]
 		{
 			group.bench_with_input(
 				BenchmarkId::new("novel-poly-guts-encode-faster8", param.to_string()),
@@ -267,6 +268,7 @@ pub mod parameterized {
 				})
 			});
 		}
+		#[cfg(feature = "avx")]
 		{
 			group.bench_with_input(
 				BenchmarkId::new("novel-poly-encode-sub-faster8", param.to_string()),
@@ -285,7 +287,8 @@ pub mod parameterized {
 				let dist = rand::distributions::Uniform::new_inclusive(u8::MIN, u8::MAX);
 				let data = Vec::from_iter(rng.sample_iter::<u8, _>(dist).take(k * 2));
 				b.iter(|| {
-					reed_solomon_novelpoly::f2e16::encode_sub_plain(black_box(&data), black_box(n), black_box(k));
+					reed_solomon_novelpoly::f2e16::encode_sub_plain(black_box(&data), black_box(n), black_box(k))
+						.unwrap();
 				})
 			});
 		}
@@ -293,7 +296,6 @@ pub mod parameterized {
 
 	pub fn bench_encode_guts(crit: &mut Criterion) {
 		let mut rng = SmallRng::from_seed(SMALL_RNG_SEED);
-		use reed_solomon_novelpoly::f2e16::{Additive8x};
 
 		// factors of 1/2..1/8 are reasonable
 		for f_exp in 1..3 {
@@ -303,8 +305,12 @@ pub mod parameterized {
 				let k = 1 << k_exp;
 				let n = k * f;
 				assert!(n > k);
-				assert_eq!(n % Additive8x::LANE, 0);
-				assert_eq!(k % Additive8x::LANE, 0);
+				#[cfg(feature = "avx")]
+				{
+					use reed_solomon_novelpoly::f2e16::{Additive8x};
+					assert_eq!(n % Additive8x::LANE, 0);
+					assert_eq!(k % Additive8x::LANE, 0);
+				}
 				let param = format!("n={n} k={k} (n/k = {f})");
 				encode_guts_add_to_group(&mut group, param, n, k, &mut rng);
 			}
@@ -318,14 +324,14 @@ fn parameterized_criterion() -> Criterion {
 }
 
 criterion_group!(
-name = plot_parameterized;
-config = parameterized_criterion();
-targets =
-	parameterized::bench_encode_2d,
-	parameterized::bench_reconstruct_2d,
-	parameterized::bench_encode_fixed_1mb_payload,
-	parameterized::bench_reconstruct_fixed_1mb_payload,
-	parameterized::bench_encode_guts,
+	name = plot_parameterized;
+	config = parameterized_criterion();
+	targets =
+		parameterized::bench_encode_2d,
+		parameterized::bench_reconstruct_2d,
+		parameterized::bench_encode_fixed_1mb_payload,
+		parameterized::bench_reconstruct_fixed_1mb_payload,
+		parameterized::bench_encode_guts,
 );
 
 #[cfg(feature = "upperbounds")]

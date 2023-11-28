@@ -202,7 +202,7 @@ pub fn encode_sub_plain(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additive
 	let zero_bytes_to_add = n * 2 - bytes_len;
 	let mut elm_data = Vec::with_capacity(n);
 	let zeros = std::iter::repeat(&0u8).take(zero_bytes_to_add);
-	for (first, second) in bytes.into_iter().chain(zeros).tuples() {
+	for (first, second) in bytes.iter().chain(zeros).tuples() {
 		elm_data.push(Additive(Elt::from_be_bytes([*first, *second])));
 	}
 
