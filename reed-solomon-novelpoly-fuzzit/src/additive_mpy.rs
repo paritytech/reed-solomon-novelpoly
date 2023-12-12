@@ -14,7 +14,7 @@ struct FieldMpyParams {
 	idx_to_test: usize,
 }
 
-#[cfg(target_feature = "avx")]
+#[cfg(all(target_feature = "avx", feature = "avx"))]
 impl<'a> Arbitrary<'a> for FieldMpyParams {
 	fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
 		let additive = Additive(u.int_in_range(0..=u16::MAX)?);
@@ -26,14 +26,14 @@ impl<'a> Arbitrary<'a> for FieldMpyParams {
 }
 
 fn main() {
-	#[cfg(target_feature = "avx")]
+	#[cfg(all(target_feature = "avx", feature = "avx"))]
 	run();
 
 	#[cfg(not(target_feature = "avx"))]
 	panic!("Nothing to do for non avx enabled targets")
 }
 
-#[cfg(target_feature = "avx")]
+#[cfg(all(target_feature = "avx", feature = "avx"))]
 fn run() {
 	// You have full control over the loop but
 	// you're supposed to call `fuzz` ad vitam aeternam

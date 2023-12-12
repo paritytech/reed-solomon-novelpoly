@@ -9,5 +9,5 @@ pub mod f256;
 
 pub mod f2e16;
 
-#[cfg(target_feature = "avx")]
+#[cfg(all(target_feature = "avx", feature = "avx"))]
 pub mod faster8;
