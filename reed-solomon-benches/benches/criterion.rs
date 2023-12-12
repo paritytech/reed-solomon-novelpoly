@@ -307,7 +307,7 @@ pub mod parameterized {
 				assert!(n > k);
 				#[cfg(feature = "avx")]
 				{
-					use reed_solomon_novelpoly::f2e16::{Additive8x};
+					use reed_solomon_novelpoly::f2e16::Additive8x;
 					assert_eq!(n % Additive8x::LANE, 0);
 					assert_eq!(k % Additive8x::LANE, 0);
 				}

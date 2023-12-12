@@ -1,9 +1,7 @@
-
 use static_init::dynamic;
 
 #[dynamic(0)]
 pub static AFFT: AdditiveFFT = AdditiveFFT::initalize();
-
 
 /// Additive FFT and inverse in the "novel polynomial basis"
 #[allow(non_snake_case)]
@@ -72,14 +70,12 @@ fn b_is_one() {
 	for i in (0..FIELD_SIZE).into_iter().step_by(256) {
 		let b = B[i >> 1];
 		if old_b != Some(b) {
-			test_b( Multiplier(ONEMASK) - b );
-			test_b( b );
+			test_b(Multiplier(ONEMASK) - b);
+			test_b(b);
 			old_b = Some(b);
 		}
 	}
 }
-
-
 
 // We want the low rate scheme given in
 // https://www.citi.sinica.edu.tw/papers/whc/5524-F.pdf
@@ -91,45 +87,43 @@ fn b_is_one() {
 
 /// Inverse additive FFT in the "novel polynomial basis"
 pub fn inverse_afft(data: &mut [Additive], size: usize, index: usize) {
-	unsafe { &AFFT }.inverse_afft(data,size,index)
+	unsafe { &AFFT }.inverse_afft(data, size, index)
 }
 
 #[cfg(target_feature = "avx")]
 pub fn inverse_afft_faster8(data: &mut [Additive], size: usize, index: usize) {
-	unsafe { &AFFT }.inverse_afft_faster8(data,size,index)
+	unsafe { &AFFT }.inverse_afft_faster8(data, size, index)
 }
 
 /// Additive FFT in the "novel polynomial basis"
 pub fn afft(data: &mut [Additive], size: usize, index: usize) {
-	unsafe { &AFFT }.afft(data,size,index)
+	unsafe { &AFFT }.afft(data, size, index)
 }
 
 #[cfg(target_feature = "avx")]
 /// Additive FFT in the "novel polynomial basis"
 pub fn afft_faster8(data: &mut [Additive], size: usize, index: usize) {
-	unsafe { &AFFT }.afft_faster8(data,size,index)
+	unsafe { &AFFT }.afft_faster8(data, size, index)
 }
 
-
 impl AdditiveFFT {
-
 	/// `data[i + depart_no] ^= data[i];`
 	#[cfg(target_feature = "avx")]
 	#[inline(always)]
 	fn butterfly_down(data: &mut [Additive], i_8x: usize, depart_no_8x: usize) {
-		let rhs = Additive8x::load(&data[(i_8x * Additive8x::LANE) .. ][.. Additive8x::LANE]);
-		let dest = &mut data[((i_8x + depart_no_8x) * Additive8x::LANE) .. ][.. Additive8x::LANE];
+		let rhs = Additive8x::load(&data[(i_8x * Additive8x::LANE)..][..Additive8x::LANE]);
+		let dest = &mut data[((i_8x + depart_no_8x) * Additive8x::LANE)..][..Additive8x::LANE];
 		let mut lhs = Additive8x::load(dest);
 		lhs ^= rhs;
 		lhs.copy_to_slice(dest);
 	}
-	
+
 	// `data[i] ^= data[i + depart_no].mul(skew)`;
 	#[cfg(target_feature = "avx")]
 	#[inline(always)]
 	fn butterfly_up(data: &mut [Additive], i_8x: usize, depart_no_8x: usize, skew: Multiplier) {
-		let rhs = Additive8x::load(&data[((i_8x + depart_no_8x) * Additive8x::LANE) .. ][.. Additive8x::LANE]).mul(skew);
-		let dest = &mut data[(i_8x * Additive8x::LANE) .. ][.. Additive8x::LANE];
+		let rhs = Additive8x::load(&data[((i_8x + depart_no_8x) * Additive8x::LANE)..][..Additive8x::LANE]).mul(skew);
+		let dest = &mut data[(i_8x * Additive8x::LANE)..][..Additive8x::LANE];
 		let mut lhs = Additive8x::load(dest);
 		lhs ^= rhs;
 		lhs.copy_to_slice(dest);
@@ -148,7 +142,6 @@ impl AdditiveFFT {
 		// and progress through FIELD_BITS-1 steps, obtaining \Psi_\beta(0,0).
 		let mut depart_no = 1_usize;
 		while depart_no < size {
-
 			// if depart_no >= 8 {
 			// 	println!("\n\n\nplain/Round depart_no={depart_no}");
 			// 	dbg!(&data);
@@ -172,9 +165,9 @@ impl AdditiveFFT {
 					// adding depart_no acts like the r+2^i superscript.
 
 					// if depart_no >= 8  && false{
-						// data[i + depart_no] ^= dbg!(data[dbg!(i)]);
+					// data[i + depart_no] ^= dbg!(data[dbg!(i)]);
 					// } else {
-						data[i + depart_no] ^= data[i];
+					data[i + depart_no] ^= data[i];
 					// }
 				}
 
@@ -198,7 +191,7 @@ impl AdditiveFFT {
 						// if depart_no >= 8 && false{
 						// 	data[i] ^= dbg!(dbg!(data[dbg!(i + depart_no)]).mul(skew));
 						// } else {
-							data[i] ^= data[i + depart_no].mul(skew);
+						data[i] ^= data[i + depart_no].mul(skew);
 						// }
 					}
 				}
@@ -210,11 +203,9 @@ impl AdditiveFFT {
 				// Increment by double depart_no in agreement with
 				// our updating 2*depart_no elements at this depth.
 				j += depart_no << 1;
-
 			}
 			depart_no <<= 1;
 		}
-
 	}
 
 	/// Inverse additive FFT in the "novel polynomial basis", but do 8 at once using available vector units
@@ -228,9 +219,7 @@ impl AdditiveFFT {
 					data[i + depart_no] ^= data[i];
 				}
 
-				let skew =
-					self.skews[j + index - 1]
-				;
+				let skew = self.skews[j + index - 1];
 				if skew.0 != ONEMASK {
 					for i in (j - depart_no)..j {
 						data[i] ^= data[i + depart_no].mul(skew);
@@ -238,14 +227,12 @@ impl AdditiveFFT {
 				}
 
 				j += depart_no << 1;
-
 			}
 			depart_no <<= 1;
 		}
 
 		assert!(depart_no >= Additive8x::LANE);
 
-		
 		while depart_no < size {
 			let mut j = depart_no;
 			// println!("\n\n\nfaster8/Round depart_no={depart_no}");
@@ -360,7 +347,7 @@ impl AdditiveFFT {
 			}
 			depart_no >>= 1;
 		}
-		
+
 		assert!(depart_no < Additive8x::LANE);
 
 		while depart_no > 0 {
@@ -418,7 +405,7 @@ impl AdditiveFFT {
 			// TODO: But why?
 			//
 			// let idx = mul_table(base[m], LOG_TABLE[(base[m] ^ 1_u16) as usize]);
-			let idx = Additive(base[m]).mul( Additive(base[m] ^ 1).to_multiplier() );
+			let idx = Additive(base[m]).mul(Additive(base[m] ^ 1).to_multiplier());
 			// WTF?!?
 			// base[m] = ONEMASK - LOG_TABLE[idx as usize];
 			base[m] = ONEMASK - idx.to_multiplier().0;
@@ -455,9 +442,8 @@ impl AdditiveFFT {
 				// TODO: How does this alter base?
 				base[0] = ONEMASK - base[0];
 				for i in 1..(FIELD_BITS - 1) {
-					base[i] = ( (
-						(ONEMASK as Wide) - (base[i] as Wide) + (base[i - 1] as Wide)
-					) % (ONEMASK as Wide) ) as Elt;
+					base[i] =
+						(((ONEMASK as Wide) - (base[i] as Wide) + (base[i - 1] as Wide)) % (ONEMASK as Wide)) as Elt;
 				}
 
 				// TODO: What is B anyways?
@@ -465,28 +451,25 @@ impl AdditiveFFT {
 				for i in 0..(FIELD_BITS - 1) {
 					let depart = 1 << i;
 					for j in 0..depart {
-						B[j + depart] = Multiplier( ((
-							B[j].to_wide() + (base[i] as Wide)
-						) % (ONEMASK as Wide)) as Elt);
+						B[j + depart] = Multiplier(((B[j].to_wide() + (base[i] as Wide)) % (ONEMASK as Wide)) as Elt);
 					}
 				}
 
 				B
-			}
+			},
 		}
 	}
-
 }
 
 #[cfg(any(feature = "mock", test))]
 pub mod test_utils {
 	use super::*;
-	use rand::{Rng,SeedableRng};
+	use rand::{Rng, SeedableRng};
 
 	pub fn gen_plain<R: Rng + SeedableRng<Seed = [u8; 32]>>(size: usize) -> Vec<Additive> {
 		let rng = <R as SeedableRng>::from_seed(reed_solomon_tester::SMALL_RNG_SEED);
 		let dist = rand::distributions::Uniform::new_inclusive(Elt::MIN, Elt::MAX);
-		
+
 		Vec::from_iter(rng.sample_iter::<Elt, _>(dist).take(size).map(Additive))
 	}
 
@@ -501,7 +484,7 @@ pub mod test_utils {
 		let data = gen_plain::<R>(size);
 		gen_faster8_from_plain(data)
 	}
-	
+
 	#[cfg(target_feature = "avx")]
 	pub fn assert_plain_eq_faster8(plain: impl AsRef<[Additive]>, faster8: impl AsRef<[Additive]>) {
 		let plain = plain.as_ref();
@@ -509,7 +492,6 @@ pub mod test_utils {
 
 		itertools::assert_equal(plain, faster8);
 	}
-
 }
 
 #[cfg(test)]
@@ -520,7 +502,7 @@ mod afft_tests {
 		use super::super::*;
 		use super::super::test_utils::*;
 		use rand::rngs::SmallRng;
-		
+
 		#[cfg(target_feature = "avx")]
 		#[test]
 		fn afft_output_plain_eq_faster8_size_16() {
@@ -530,11 +512,13 @@ mod afft_tests {
 			let mut data_faster8 = gen_faster8::<SmallRng>(size);
 			println!(">>>>");
 			unsafe { &AFFT }.afft(&mut data_plain, size, index);
-			println!(r#"
+			println!(
+				r#"
 
 			>>>>
 
-			"#);
+			"#
+			);
 			unsafe { &AFFT }.afft_faster8(&mut data_faster8, size, index);
 			println!(">>>>");
 			assert_plain_eq_faster8(data_plain, data_faster8);
@@ -549,16 +533,18 @@ mod afft_tests {
 			let mut data_faster8 = gen_faster8::<SmallRng>(size);
 			println!(">>>>");
 			unsafe { &AFFT }.afft(&mut data_plain, size, index);
-			println!(r#"
+			println!(
+				r#"
 
 			>>>>
 
-			"#);
+			"#
+			);
 			unsafe { &AFFT }.afft_faster8(&mut data_faster8, size, index);
 			println!(">>>>");
 			assert_plain_eq_faster8(data_plain, data_faster8);
 		}
-		
+
 		#[cfg(target_feature = "avx")]
 		#[test]
 		fn afft_output_plain_eq_faster8_impulse_data() {
@@ -568,16 +554,18 @@ mod afft_tests {
 			let mut data_plain = vec![Additive::zero(); size];
 			data_plain[0] = Additive((0x1234 & ONEMASK as u16) as Elt);
 			let mut data_faster8 = gen_faster8_from_plain(&data_plain);
-			
+
 			assert_plain_eq_faster8(&data_plain, &data_faster8);
-			
+
 			println!(">>>>");
 			unsafe { &AFFT }.afft(&mut data_plain, size, index);
-			println!(r#"
+			println!(
+				r#"
 
 			>>>>
 
-			"#);
+			"#
+			);
 			unsafe { &AFFT }.afft_faster8(&mut data_faster8, size, index);
 			println!(">>>>");
 			assert_plain_eq_faster8(data_plain, data_faster8);
@@ -594,11 +582,13 @@ mod afft_tests {
 
 			println!(">>>>");
 			unsafe { &AFFT }.inverse_afft(&mut data_plain, size, index);
-			println!(r#"
+			println!(
+				r#"
 
 			>>>>
 
-			"#);
+			"#
+			);
 			unsafe { &AFFT }.inverse_afft_faster8(&mut data_faster8, size, index);
 			println!(">>>>");
 			assert_plain_eq_faster8(data_plain, data_faster8);
@@ -613,18 +603,18 @@ mod afft_tests {
 			let mut data_faster8 = gen_faster8::<SmallRng>(size);
 			println!(">>>>");
 			unsafe { &AFFT }.inverse_afft(&mut data_plain, size, index);
-			println!(r#"
+			println!(
+				r#"
 
 			>>>>
 
-			"#);
+			"#
+			);
 			unsafe { &AFFT }.inverse_afft_faster8(&mut data_faster8, size, index);
 			println!(">>>>");
 			assert_plain_eq_faster8(data_plain, data_faster8);
 		}
-
 	}
-
 
 	#[cfg(b_is_not_one)]
 	use super::*;
@@ -632,7 +622,6 @@ mod afft_tests {
 	#[cfg(b_is_not_one)]
 	#[test]
 	fn b_is_one() {
-
 		// This test ensure that b can be safely bypassed in tweaked_formal_derivative
 		let B = unsafe { &AFFT.B };
 		fn test_b(b: Multiplier) {
@@ -647,11 +636,10 @@ mod afft_tests {
 		for i in (0..FIELD_SIZE).into_iter().step_by(256) {
 			let b = B[i >> 1];
 			if old_b != Some(b) {
-				test_b( Multiplier(ONEMASK) - b );
-				test_b( b );
+				test_b(Multiplier(ONEMASK) - b);
+				test_b(b);
 				old_b = Some(b);
 			}
 		}
 	}
-
 }
