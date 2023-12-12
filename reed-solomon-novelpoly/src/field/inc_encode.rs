@@ -200,8 +200,8 @@ pub fn encode_sub_plain(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additive
 
 	for i in 0..(bytes_len / 2) {
 		elm_data[i] = Additive(Elt::from_be_bytes([
-			bytes.get(2 * i).map(|x| *x).unwrap_or_default(),
-			bytes.get(2 * i + 1).map(|x| *x).unwrap_or_default(),
+			bytes.get(2 * i).copied().unwrap_or_default(),
+			bytes.get(2 * i + 1).copied().unwrap_or_default(),
 		]))
  	}
 
