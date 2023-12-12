@@ -62,7 +62,7 @@ impl CodeParams {
 
 	/// Check if this could use the `faster8` code path, possibly utilizing `avx` SIMD instructions
 	pub fn is_faster8(&self) -> bool {
-		#[cfg(target_feature = "avx")]
+		#[cfg(all(target_feature = "avx", feature = "avx"))]
 		{
 			self.k >= (Additive8x::LANE << 1) && self.n % Additive8x::LANE == 0
 		}

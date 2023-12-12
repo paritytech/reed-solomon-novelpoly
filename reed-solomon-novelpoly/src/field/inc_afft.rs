@@ -94,7 +94,7 @@ pub fn inverse_afft(data: &mut [Additive], size: usize, index: usize) {
 	unsafe { &AFFT }.inverse_afft(data,size,index)
 }
 
-#[cfg(target_feature = "avx")]
+#[cfg(all(target_feature = "avx", feature = "avx"))]
 pub fn inverse_afft_faster8(data: &mut [Additive], size: usize, index: usize) {
 	unsafe { &AFFT }.inverse_afft_faster8(data,size,index)
 }
@@ -104,7 +104,7 @@ pub fn afft(data: &mut [Additive], size: usize, index: usize) {
 	unsafe { &AFFT }.afft(data,size,index)
 }
 
-#[cfg(target_feature = "avx")]
+#[cfg(all(target_feature = "avx", feature = "avx"))]
 /// Additive FFT in the "novel polynomial basis"
 pub fn afft_faster8(data: &mut [Additive], size: usize, index: usize) {
 	unsafe { &AFFT }.afft_faster8(data,size,index)
@@ -114,7 +114,7 @@ pub fn afft_faster8(data: &mut [Additive], size: usize, index: usize) {
 impl AdditiveFFT {
 
 	/// `data[i + depart_no] ^= data[i];`
-	#[cfg(target_feature = "avx")]
+	#[cfg(all(target_feature = "avx", feature = "avx"))]
 	#[inline(always)]
 	fn butterfly_down(data: &mut [Additive], i_8x: usize, depart_no_8x: usize) {
 		let rhs = Additive8x::load(&data[(i_8x * Additive8x::LANE) .. ][.. Additive8x::LANE]);
@@ -125,7 +125,7 @@ impl AdditiveFFT {
 	}
 	
 	// `data[i] ^= data[i + depart_no].mul(skew)`;
-	#[cfg(target_feature = "avx")]
+	#[cfg(all(target_feature = "avx", feature = "avx"))]
 	#[inline(always)]
 	fn butterfly_up(data: &mut [Additive], i_8x: usize, depart_no_8x: usize, skew: Multiplier) {
 		let rhs = Additive8x::load(&data[((i_8x + depart_no_8x) * Additive8x::LANE) .. ][.. Additive8x::LANE]).mul(skew);
@@ -218,7 +218,7 @@ impl AdditiveFFT {
 	}
 
 	/// Inverse additive FFT in the "novel polynomial basis", but do 8 at once using available vector units
-	#[cfg(target_feature = "avx")]
+	#[cfg(all(target_feature = "avx", feature = "avx"))]
 	pub fn inverse_afft_faster8(&self, data: &mut [Additive], size: usize, index: usize) {
 		let mut depart_no = 1_usize;
 		while depart_no < Additive8x::LANE {
@@ -335,7 +335,7 @@ impl AdditiveFFT {
 	/// Additive FFT in the "novel polynomial basis", but do 8 at once using available vector units
 	///
 	/// `size` is the count of the individual additive field elements, so 8x larger than `data.len()`.
-	#[cfg(target_feature = "avx")]
+	#[cfg(all(target_feature = "avx", feature = "avx"))]
 	pub fn afft_faster8(&self, data: &mut [Additive], size: usize, index: usize) {
 		let mut depart_no = size >> 1_usize;
 		while depart_no >= Additive8x::LANE {
@@ -490,19 +490,19 @@ pub mod test_utils {
 		Vec::from_iter(rng.sample_iter::<Elt, _>(dist).take(size).map(Additive))
 	}
 
-	#[cfg(target_feature = "avx")]
+	#[cfg(all(target_feature = "avx", feature = "avx"))]
 	pub fn gen_faster8_from_plain(data: impl AsRef<[Additive]>) -> Vec<Additive> {
 		let data = data.as_ref();
 		data.to_vec()
 	}
 
-	#[cfg(target_feature = "avx")]
+	#[cfg(all(target_feature = "avx", feature = "avx"))]
 	pub fn gen_faster8<R: Rng + SeedableRng<Seed = [u8; 32]>>(size: usize) -> Vec<Additive> {
 		let data = gen_plain::<R>(size);
 		gen_faster8_from_plain(data)
 	}
 	
-	#[cfg(target_feature = "avx")]
+	#[cfg(all(target_feature = "avx", feature = "avx"))]
 	pub fn assert_plain_eq_faster8(plain: impl AsRef<[Additive]>, faster8: impl AsRef<[Additive]>) {
 		let plain = plain.as_ref();
 		let faster8 = faster8.as_ref();
@@ -515,13 +515,13 @@ pub mod test_utils {
 #[cfg(test)]
 mod afft_tests {
 
-	#[cfg(target_feature = "avx")]
+	#[cfg(all(target_feature = "avx", feature = "avx"))]
 	mod simd {
 		use super::super::*;
 		use super::super::test_utils::*;
 		use rand::rngs::SmallRng;
 		
-		#[cfg(target_feature = "avx")]
+		#[cfg(all(target_feature = "avx", feature = "avx"))]
 		#[test]
 		fn afft_output_plain_eq_faster8_size_16() {
 			let index = 0;
@@ -540,7 +540,7 @@ mod afft_tests {
 			assert_plain_eq_faster8(data_plain, data_faster8);
 		}
 
-		#[cfg(target_feature = "avx")]
+		#[cfg(all(target_feature = "avx", feature = "avx"))]
 		#[test]
 		fn afft_output_plain_eq_faster8_size_32() {
 			let index = 0;
@@ -559,7 +559,7 @@ mod afft_tests {
 			assert_plain_eq_faster8(data_plain, data_faster8);
 		}
 		
-		#[cfg(target_feature = "avx")]
+		#[cfg(all(target_feature = "avx", feature = "avx"))]
 		#[test]
 		fn afft_output_plain_eq_faster8_impulse_data() {
 			let index = 0;
@@ -583,7 +583,7 @@ mod afft_tests {
 			assert_plain_eq_faster8(data_plain, data_faster8);
 		}
 
-		#[cfg(target_feature = "avx")]
+		#[cfg(all(target_feature = "avx", feature = "avx"))]
 		#[test]
 		fn inverse_afft_output_plain_eq_faster8_size_8() {
 			let index = 0;
@@ -604,7 +604,7 @@ mod afft_tests {
 			assert_plain_eq_faster8(data_plain, data_faster8);
 		}
 
-		#[cfg(target_feature = "avx")]
+		#[cfg(all(target_feature = "avx", feature = "avx"))]
 		#[test]
 		fn inverse_afft_output_plain_eq_faster8_size_32() {
 			let index = 0;
