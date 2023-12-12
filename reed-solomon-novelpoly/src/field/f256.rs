@@ -18,5 +18,5 @@ impl std::fmt::Debug for Additive {
 }
 
 #[cfg(table_bootstrap_complete)]
-#[cfg(target_feature = "avx")]
+#[cfg(all(target_feature = "avx", feature = "avx"))]
 pub use faster8::f256::*;

@@ -111,7 +111,7 @@ fn sub_encode_decode() -> Result<()> {
 	Ok(())
 }
 
-#[cfg(target_feature = "avx")]
+#[cfg(all(target_feature = "avx", feature = "avx"))]
 #[test]
 fn sub_encode_faster8_decode_plain() -> Result<()> {
 	let mut rng = rand::rngs::SmallRng::from_seed(SMALL_RNG_SEED);

@@ -24,7 +24,28 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: check
-          args: --workspace --all-features
+          args: --workspace
+  
+  check_avx:
+    name: Check AVX
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@3cf7f8cc28d1b4e7d01e3783be10a97d55d483c8 # v2.7.1
+
+      - uses: actions-rs/cargo@v1
+        env:
+          RUSTFLAGS: "-C target-cpu=native"
+        with:
+          command: check
+          args: --features avx --workspace
 
   test:
     name: Test
@@ -50,6 +71,28 @@ jobs:
         with:
           command: test
           args: --workspace
+
+  test_avx:
+    name: Test AVX
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@3cf7f8cc28d1b4e7d01e3783be10a97d55d483c8 # v2.7.1
+
+      - name: Test with avx feature
+        uses: actions-rs/cargo@v1
+        env:
+          RUSTFLAGS: "-C target-cpu=native"
+        with:
+          command: test
+          args: --workspace --features avx
 
   test_windows:
     name: Test Windows
@@ -98,4 +141,4 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: --workspace --all-features
+          args: --workspace --all-features -- -D warnings

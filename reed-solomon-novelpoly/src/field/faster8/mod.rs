@@ -1,4 +1,4 @@
-#![cfg(target_feature = "avx")]
+#![cfg(all(target_feature = "avx", feature = "avx"))]
 
 #[cfg(feature = "f256")]
 pub mod f256;

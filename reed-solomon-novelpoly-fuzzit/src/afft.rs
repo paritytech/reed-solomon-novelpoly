@@ -26,14 +26,14 @@ impl<'a> Arbitrary<'a> for AfftParams {
 }
 
 fn main() {
-	#[cfg(target_feature = "avx")]
+	#[cfg(all(target_feature = "avx", feature = "avx"))]
 	run();
 
 	#[cfg(not(target_feature = "avx"))]
 	panic!("Nothing to do for non avx enabled targets")
 }
 
-#[cfg(target_feature = "avx")]
+#[cfg(all(target_feature = "avx", feature = "avx"))]
 fn run() {
 	// You have full control over the loop but
 	// you're supposed to call `fuzz` ad vitam aeternam

@@ -110,7 +110,7 @@ pub fn walsh_plain(data: &mut [Multiplier], size: usize) {
 }
 
 #[cfg(table_bootstrap_complete)]
-#[cfg(target_feature = "avx")]
+#[cfg(all(target_feature = "avx", feature = "avx"))]
 pub fn walsh_faster8(data: &mut [Multiplier], size: usize) {
 	const LANE: usize = 8;
 
@@ -242,7 +242,7 @@ fn cantor_basis() {
 }
 
 #[cfg(table_bootstrap_complete)]
-#[cfg(target_feature = "avx")]
+#[cfg(all(target_feature = "avx", feature = "avx"))]
 #[test]
 fn walsh_output_plain_eq_faster8() {
 	use reed_solomon_tester::*;
