@@ -1,16 +1,15 @@
 #[inline(always)]
 pub fn encode_low(data: &[Additive], k: usize, codeword: &mut [Additive], n: usize) {
 	#[cfg(all(target_feature = "avx", feature = "avx"))]
-	if k >= 16 && k % 8 == 0 && n % 8 == 0 && (n-k) % 8 == 0 {
-		encode_low_faster8(data, k, codeword, n);		
+	if k >= 16 && k % 8 == 0 && n % 8 == 0 && (n - k) % 8 == 0 {
+		encode_low_faster8(data, k, codeword, n);
 	} else {
 		encode_low_plain(data, k, codeword, n);
 	}
-	
+
 	#[cfg(not(target_feature = "avx"))]
 	encode_low_plain(data, k, codeword, n);
 }
-
 
 // Encoding alg for k/n < 0.5: message is a power of two
 pub fn encode_low_plain(data: &[Additive], k: usize, codeword: &mut [Additive], n: usize) {
@@ -50,24 +49,22 @@ pub fn encode_low_plain(data: &[Additive], k: usize, codeword: &mut [Additive], 
 	codeword[0..k].copy_from_slice(&data[0..k]);
 }
 
-
 #[cfg(all(target_feature = "avx", feature = "avx"))]
 pub fn encode_low_faster8(data: &[Additive], k: usize, codeword: &mut [Additive], n: usize) {
 	assert!(k + k <= n);
 	assert_eq!(codeword.len(), n);
 	assert_eq!(data.len(), n); // FIXME, we never read data beyond 0..k
-	
+
 	assert!(is_power_of_2(n));
 	assert!(is_power_of_2(k));
-	
+
 	assert_eq!(k % Additive8x::LANE, 0);
 	assert_eq!(n % Additive8x::LANE, 0);
-	assert_eq!((n-k) % Additive8x::LANE, 0);
+	assert_eq!((n - k) % Additive8x::LANE, 0);
 
 	// k | n is guaranteed
 	assert_eq!((n / k) * k, n);
 
-	
 	// move the data to the codeword
 	codeword.copy_from_slice(data);
 
@@ -77,11 +74,9 @@ pub fn encode_low_faster8(data: &[Additive], k: usize, codeword: &mut [Additive]
 	assert!((k >> 1) >= Additive8x::LANE);
 	inverse_afft_faster8(codeword_first_k, k, 0);
 
-
 	// the first codeword is now the basis for the remaining transforms
 	// denoted `M_topdash`
 
-	
 	for shift in (k..n).step_by(k) {
 		let codeword_at_shift = &mut codeword_skip_first_k[(shift - k)..shift];
 		// copy `M_topdash` to the position we are currently at, the n transform
@@ -92,18 +87,16 @@ pub fn encode_low_faster8(data: &[Additive], k: usize, codeword: &mut [Additive]
 	}
 
 	// restore `M` from the derived ones
-	
+
 	codeword[0..k].copy_from_slice(&data[0..k]);
 }
-
-
 
 //data: message array. parity: parity array. mem: buffer(size>= n-k)
 //Encoding alg for k/n>0.5: parity is a power of two.
 #[inline(always)]
 pub fn encode_high(data: &[Additive], k: usize, parity: &mut [Additive], mem: &mut [Additive], n: usize) {
 	#[cfg(all(target_feature = "avx", feature = "avx"))]
-	if (n-k) % Additive8x::LANE == 0 && n % Additive8x::LANE == 0 && k % Additive8x::LANE == 0 {
+	if (n - k) % Additive8x::LANE == 0 && n % Additive8x::LANE == 0 && k % Additive8x::LANE == 0 {
 		encode_high_faster8(data, k, parity, mem, n);
 	} else {
 		encode_high_plain(data, k, parity, mem, n);
@@ -116,7 +109,7 @@ pub fn encode_high(data: &[Additive], k: usize, parity: &mut [Additive], mem: &m
 //Encoding alg for k/n>0.5: parity is a power of two.
 pub fn encode_high_plain(data: &[Additive], k: usize, parity: &mut [Additive], mem: &mut [Additive], n: usize) {
 	let t: usize = n - k;
-	
+
 	// mem_zero(&mut parity[0..t]);
 	for i in 0..t {
 		parity[i] = Additive(0);
@@ -133,11 +126,6 @@ pub fn encode_high_plain(data: &[Additive], k: usize, parity: &mut [Additive], m
 		i += t;
 	}
 	afft(parity, t, 0);
-}
-
-#[cfg(all(target_feature = "avx", feature = "avx"))]
-pub fn encode_high_faster8_adapter(data: &[Additive], k: usize, parity: &mut [Additive], mem: &mut [Additive], n: usize) {
-	encode_high_faster8(&data, k, parity, mem, n);
 }
 
 #[cfg(all(target_feature = "avx", feature = "avx"))]
@@ -188,8 +176,12 @@ pub fn encode_sub_plain(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additive
 	} else {
 		let loglen = log2(bytes_len);
 		let upper_len = 1 << loglen;
-		
-		if upper_len >= bytes_len { upper_len } else { upper_len << 1 }
+
+		if upper_len >= bytes_len {
+			upper_len
+		} else {
+			upper_len << 1
+		}
 	};
 	assert!(is_power_of_2(upper_len));
 	assert!(upper_len >= bytes_len);
@@ -203,7 +195,7 @@ pub fn encode_sub_plain(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additive
 			bytes.get(2 * i).copied().unwrap_or_default(),
 			bytes.get(2 * i + 1).copied().unwrap_or_default(),
 		]))
- 	}
+	}
 
 	// update new data bytes with zero padded bytes
 	// `l` is now `GF(2^16)` symbols
@@ -217,7 +209,6 @@ pub fn encode_sub_plain(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additive
 
 	Ok(codeword)
 }
-
 
 /// Bytes shall only contain payload data
 #[cfg(all(target_feature = "avx", feature = "avx"))]
@@ -236,8 +227,12 @@ pub fn encode_sub_faster8(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additi
 	} else {
 		let loglen = log2(std::cmp::max(Additive8x::LANE, bytes_len));
 		let upper_len = 1 << loglen;
-		
-		if upper_len >= bytes_len { upper_len } else { upper_len << 1 }
+
+		if upper_len >= bytes_len {
+			upper_len
+		} else {
+			upper_len << 1
+		}
 	};
 	assert!(is_power_of_2(upper_len));
 	assert!(upper_len >= bytes_len);
@@ -251,7 +246,7 @@ pub fn encode_sub_faster8(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additi
 			bytes.get(2 * i).map(|x| *x).unwrap_or_default(),
 			bytes.get(2 * i + 1).map(|x| *x).unwrap_or_default(),
 		]))
- 	}
+	}
 
 	// update new data bytes with zero padded bytes
 	// `l` is now `GF(2^16)` symbols
@@ -268,7 +263,7 @@ pub fn encode_sub_faster8(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additi
 #[cfg(test)]
 mod tests_plain_vs_faster8 {
 	use super::*;
-	
+
 	#[test]
 	fn encode_low_output_plain_eq_faster8() {
 		// k must be larger, since the afft is only accelerated by lower values
@@ -276,7 +271,7 @@ mod tests_plain_vs_faster8 {
 		let k: usize = 16;
 		let data1 = vec![Additive(0x1234); n];
 		let data2 = data1.clone();
-		
+
 		let mut parity1 = vec![Additive::zero(); n];
 		encode_low_plain(&data1[..], k, &mut parity1[..], n);
 
@@ -285,8 +280,7 @@ mod tests_plain_vs_faster8 {
 
 		assert_eq!(parity1, parity2);
 	}
-	
-	
+
 	#[cfg(all(target_feature = "avx", feature = "avx"))]
 	#[test]
 	fn encode_sub_output_plain_eq_faster8() {
@@ -296,8 +290,7 @@ mod tests_plain_vs_faster8 {
 		let bytes = bytes.as_slice();
 		let fe_plain = encode_sub_plain(bytes, n, k).unwrap();
 		let fe_faster8: Vec<Additive> = encode_sub_faster8(bytes, n, k).unwrap();
-		
+
 		assert_eq!(fe_plain, fe_faster8);
 	}
-
 }

@@ -1,4 +1,3 @@
-
 pub fn reconstruct_sub(
 	codewords: &[Option<Additive>],
 	erasures: &[bool],
@@ -55,13 +54,17 @@ pub fn reconstruct_sub(
 	Ok(recovered_bytes)
 }
 
-
-
 /// recover determines how many shards to recover (starting from 0)
 // technically we only need to recover
 // the first `k` instead of all `n` which
 // would include parity chunks.
-pub(crate) fn decode_main(codeword: &mut [Additive], recover_up_to: usize, erasure: &[bool], log_walsh2: &[Multiplier], n: usize) {
+pub(crate) fn decode_main(
+	codeword: &mut [Additive],
+	recover_up_to: usize,
+	erasure: &[bool],
+	log_walsh2: &[Multiplier],
+	n: usize,
+) {
 	assert_eq!(codeword.len(), n);
 	assert!(n >= recover_up_to);
 	assert_eq!(erasure.len(), n);
@@ -80,7 +83,6 @@ pub(crate) fn decode_main(codeword: &mut [Additive], recover_up_to: usize, erasu
 		codeword[i] = if erasure[i] { codeword[i].mul(log_walsh2[i]) } else { Additive(0) };
 	}
 }
-
 
 // Compute the evaluations of the error locator polynomial
 // `fn decode_init`
