@@ -26,7 +26,7 @@ jobs:
           command: check
           args: --workspace
   
-  check:
+  check_avx:
     name: Check AVX
     runs-on: ubuntu-latest
     steps:
@@ -72,7 +72,7 @@ jobs:
           command: test
           args: --workspace
 
-  test:
+  test_avx:
     name: Test AVX
     runs-on: ubuntu-latest
     strategy:
