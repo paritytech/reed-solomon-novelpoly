@@ -507,7 +507,7 @@ pub mod test_utils {
 		let plain = plain.as_ref();
 		let faster8 = faster8.as_ref();
 
-		itertools::assert_equal(plain, faster8);
+		assert!(plain.eq(faster8));
 	}
 
 }

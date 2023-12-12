@@ -25,12 +25,12 @@ pub fn encode_low_plain(data: &[Additive], k: usize, codeword: &mut [Additive], 
 	assert_eq!((n / k) * k, n);
 
 	// move the data to the codeword
-    codeword.copy_from_slice(data);
+	codeword.copy_from_slice(data);
 
 	// split after the first k
 	let (codeword_first_k, codeword_skip_first_k) = codeword.split_at_mut(k);
 
-    inverse_afft(codeword_first_k, k, 0);
+	inverse_afft(codeword_first_k, k, 0);
 
 	// dbg!(&codeword_first_k);
 	// the first codeword is now the basis for the remaining transforms
@@ -75,7 +75,7 @@ pub fn encode_low_faster8(data: &[Additive], k: usize, codeword: &mut [Additive]
 	let (codeword_first_k, codeword_skip_first_k) = codeword.split_at_mut(k);
 
 	assert!((k >> 1) >= Additive8x::LANE);
-    inverse_afft_faster8(codeword_first_k, k, 0);
+	inverse_afft_faster8(codeword_first_k, k, 0);
 
 
 	// the first codeword is now the basis for the remaining transforms
@@ -194,17 +194,16 @@ pub fn encode_sub_plain(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additive
 	assert!(is_power_of_2(upper_len));
 	assert!(upper_len >= bytes_len);
 
-	// tuple are only used here
-	use itertools::Itertools;
-
 	// pad the incoming bytes with trailing 0s
 	// so we get a buffer of size `N` in `GF` symbols
-	let zero_bytes_to_add = n * 2 - bytes_len;
-	let mut elm_data = Vec::with_capacity(n);
-	let zeros = std::iter::repeat(&0u8).take(zero_bytes_to_add);
-	for (first, second) in bytes.iter().chain(zeros).tuples() {
-		elm_data.push(Additive(Elt::from_be_bytes([*first, *second])));
-	}
+	let mut elm_data = vec![Additive(0); n];
+
+	for i in 0..(bytes_len / 2) {
+		elm_data[i] = Additive(Elt::from_be_bytes([
+			bytes.get(2 * i).copied().unwrap_or_default(),
+			bytes.get(2 * i + 1).copied().unwrap_or_default(),
+		]))
+ 	}
 
 	// update new data bytes with zero padded bytes
 	// `l` is now `GF(2^16)` symbols
@@ -243,17 +242,16 @@ pub fn encode_sub_faster8(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additi
 	assert!(is_power_of_2(upper_len));
 	assert!(upper_len >= bytes_len);
 
-    // tuples are only used here
-    use itertools::Itertools;
-
 	// pad the incoming bytes with trailing 0s
 	// so we get a buffer of size `N` in `GF` symbols
-	let zero_bytes_to_add = n * 2 - bytes_len;
-	let mut elm_data = Vec::with_capacity(n);
-	let zeros = std::iter::repeat(&0u8).take(zero_bytes_to_add);
-	for (first, second) in bytes.iter().chain(zeros).tuples() {
-		elm_data.push(Additive(Elt::from_be_bytes([*first, *second])));
-	}
+	let mut elm_data = vec![Additive(0); n];
+
+	for i in 0..(bytes_len / 2) {
+		elm_data[i] = Additive(Elt::from_be_bytes([
+			bytes.get(2 * i).map(|x| *x).unwrap_or_default(),
+			bytes.get(2 * i + 1).map(|x| *x).unwrap_or_default(),
+		]))
+ 	}
 
 	// update new data bytes with zero padded bytes
 	// `l` is now `GF(2^16)` symbols
