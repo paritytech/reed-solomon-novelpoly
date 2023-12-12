@@ -75,11 +75,6 @@ jobs:
   test_avx:
     name: Test AVX
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
-          - macOS-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rs/toolchain@v1
