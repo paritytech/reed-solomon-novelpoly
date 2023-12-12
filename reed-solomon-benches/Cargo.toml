@@ -15,7 +15,7 @@ reed-solomon-tester = { package = "reed-solomon-tester", path = "../reed-solomon
 color-eyre = "0.6"
 
 rand = { version = "0.8", features = ["alloc", "small_rng"] }
-itertools = "0.11"
+itertools = "0.12"
 assert_matches = "1"
 
 [dev-dependencies]
