@@ -31,7 +31,7 @@ reed-solomon-tester = { path = "../reed-solomon-tester", optional = true }
 rand = { version = "0.8.3", features = ["alloc", "small_rng"], optional = true }
 
 [dev-dependencies]
-itertools = "0.11"
+itertools = "0.12"
 reed-solomon-tester = { path = "../reed-solomon-tester" }
 rand = { version = "0.8.3", features = ["alloc", "small_rng"] }
 assert_matches = "1.5.0"
