@@ -82,9 +82,9 @@ impl std::fmt::Display for Multiplier {
 /// Fast Walsh–Hadamard transform over modulo `ONEMASK`
 #[inline(always)]
 pub fn walsh(data: &mut [Multiplier], size: usize) {
-	#[cfg(all(target_feature = "avx", table_bootstrap_complete))]
+	#[cfg(all(target_feature = "avx", table_bootstrap_complete, feature = "avx"))]
 	walsh_faster8(data, size);
-	#[cfg(not(all(target_feature = "avx", table_bootstrap_complete)))]
+	#[cfg(not(all(target_feature = "avx", table_bootstrap_complete, feature = "avx")))]
 	walsh_plain(data, size);
 }
 

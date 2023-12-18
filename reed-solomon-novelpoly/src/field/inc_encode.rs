@@ -7,7 +7,7 @@ pub fn encode_low(data: &[Additive], k: usize, codeword: &mut [Additive], n: usi
 		encode_low_plain(data, k, codeword, n);
 	}
 
-	#[cfg(not(target_feature = "avx"))]
+	#[cfg(not(all(target_feature = "avx", feature = "avx")))]
 	encode_low_plain(data, k, codeword, n);
 }
 
@@ -188,7 +188,7 @@ pub fn encode_sub(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additive>> {
 	} else {
 		encode_sub_plain(bytes, n, k)
 	}
-	#[cfg(not(target_feature = "avx"))]
+	#[cfg(not(all(target_feature = "avx", feature = "avx")))]
 	encode_sub_plain(bytes, n, k)
 }
 
