@@ -69,15 +69,27 @@ pub(crate) fn decode_main(
 	assert!(n >= recover_up_to);
 	assert_eq!(erasure.len(), n);
 
-	for i in 0..n {
+	for i in 0..codeword.len() {
 		codeword[i] = if erasure[i] { Additive(0) } else { codeword[i].mul(log_walsh2[i]) };
 	}
 
-	inverse_afft(codeword, n, 0);
+	// SAFETY
+	//
+	// - safe because we check in `reconstruct_sub` that n is a power of two and we also check that
+	// codeword.len() is equal to n.
+	// - n is at most 65536. `index + size - 2` is therefore equal to 65536 - 2 = 65534 which
+	// is less than or equal to 65534. qed.
+	unsafe { inverse_afft(codeword, n, 0) };
 
-	tweaked_formal_derivative(codeword, n);
+	tweaked_formal_derivative(codeword);
 
-	afft(codeword, n, 0);
+	// SAFETY
+	//
+	// - safe because we check in `reconstruct_sub` that n is a power of two and we also check that
+	// codeword.len() is equal to n.
+	// - n is at most 65536. `index + size - 2` is therefore equal to 65536 - 2 = 65534 which
+	// is less than or equal to 65534. qed.
+	unsafe { afft(codeword, n, 0) };
 
 	for i in 0..recover_up_to {
 		codeword[i] = if erasure[i] { codeword[i].mul(log_walsh2[i]) } else { Additive(0) };

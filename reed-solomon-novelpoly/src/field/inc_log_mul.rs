@@ -59,6 +59,7 @@ impl Additive {
 
 /// Multiplicaiton friendly LOG form of f2e16
 #[derive(Clone, Debug, Copy, Add, AddAssign, Sub, SubAssign, PartialEq, Eq)] // Default, PartialOrd,Ord
+#[repr(transparent)]
 pub struct Multiplier(pub Elt);
 
 impl Multiplier {
