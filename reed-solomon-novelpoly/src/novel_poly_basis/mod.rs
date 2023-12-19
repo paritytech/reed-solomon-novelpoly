@@ -241,7 +241,7 @@ impl ReedSolomon {
 	/// possible.
 	/// The result may be padded with zeros. Truncate the output to the expected byte length.
 	pub fn reconstruct_from_systematic<S: Shard>(&self, chunks: Vec<S>) -> Result<Vec<u8>> {
-		let Some(first_shard) = chunks.iter().next() else {
+		let Some(first_shard) = chunks.first() else {
 			return Err(Error::NeedMoreShards { have: 0, min: self.k, all: self.n });
 		};
 		let shard_len = AsRef::<[[u8; 2]]>::as_ref(first_shard).len();
