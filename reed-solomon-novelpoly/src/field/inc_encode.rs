@@ -190,7 +190,9 @@ pub fn encode_sub_plain(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additive
 	// so we get a buffer of size `N` in `GF` symbols
 	let mut elm_data = vec![Additive(0); n];
 
-	for i in 0..(bytes_len / 2) {
+	let tmp = if bytes_len % 2 == 0 { bytes_len / 2 } else { (bytes_len + 1) / 2 };
+
+	for i in 0..tmp {
 		elm_data[i] = Additive(Elt::from_be_bytes([
 			bytes.get(2 * i).copied().unwrap_or_default(),
 			bytes.get(2 * i + 1).copied().unwrap_or_default(),
@@ -241,7 +243,9 @@ pub fn encode_sub_faster8(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additi
 	// so we get a buffer of size `N` in `GF` symbols
 	let mut elm_data = vec![Additive(0); n];
 
-	for i in 0..(bytes_len / 2) {
+	let tmp = if bytes_len % 2 == 0 { bytes_len / 2 } else { (bytes_len + 1) / 2 };
+
+	for i in 0..tmp {
 		elm_data[i] = Additive(Elt::from_be_bytes([
 			bytes.get(2 * i).map(|x| *x).unwrap_or_default(),
 			bytes.get(2 * i + 1).map(|x| *x).unwrap_or_default(),
