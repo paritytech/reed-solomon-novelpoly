@@ -156,7 +156,9 @@ impl ReedSolomon {
 		Ok(shards)
 	}
 
-	/// each shard contains one symbol of one run of erasure coding
+	/// Reconstruct from chunks.
+	///
+	/// The result may be padded with zeros. Truncate the output to the expected byte length.
 	pub fn reconstruct<S: Shard>(&self, received_shards: Vec<Option<S>>) -> Result<Vec<u8>> {
 		let gap = self.n.saturating_sub(received_shards.len());
 
@@ -230,6 +232,52 @@ impl ReedSolomon {
 		}
 
 		Ok(acc)
+	}
+
+	/// Reconstruct from the set of systematic chunks.
+	/// Systematic chunks are the first `k` chunks, which contain the initial data.
+	///
+	/// Provide a vector containing chunk data. If too few chunks are provided, recovery is not
+	/// possible.
+	/// The result may be padded with zeros. Truncate the output to the expected byte length.
+	pub fn reconstruct_from_systematic<S: Shard>(&self, chunks: Vec<S>) -> Result<Vec<u8>> {
+		let Some(first_shard) = chunks.iter().next() else {
+			return Err(Error::NeedMoreShards { have: 0, min: self.k, all: self.n });
+		};
+		let shard_len = AsRef::<[[u8; 2]]>::as_ref(first_shard).len();
+
+		if shard_len == 0 {
+			return Err(Error::InconsistentShardLengths { first: 0, other: 0 });
+		}
+
+		if let Some(length) = chunks.iter().find_map(|c| {
+			let length = AsRef::<[[u8; 2]]>::as_ref(c).len();
+			if length != shard_len {
+				Some(length)
+			} else {
+				None
+			}
+		}) {
+			return Err(Error::InconsistentShardLengths { first: shard_len, other: length });
+		}
+
+		if chunks.len() < self.k {
+			return Err(Error::NeedMoreShards { have: chunks.len(), min: self.k, all: self.n });
+		}
+
+		let mut systematic_bytes = Vec::with_capacity(shard_len * 2 * self.k);
+
+		for i in 0..shard_len {
+			for chunk in chunks.iter().take(self.k) {
+				// No need to check for index out of bounds because i goes up to shard_len and
+				// we return an error for non uniform chunks.
+				let chunk = AsRef::<[[u8; 2]]>::as_ref(chunk)[i];
+				systematic_bytes.push(chunk[0]);
+				systematic_bytes.push(chunk[1]);
+			}
+		}
+
+		Ok(systematic_bytes)
 	}
 }
 

@@ -9,6 +9,7 @@ use rand::rngs::SmallRng;
 use rand::seq::index::IndexVec;
 use rand::thread_rng;
 use reed_solomon_tester::*;
+use quickcheck::{Arbitrary, Gen, QuickCheck};
 
 /// Generate a random index
 fn rand_gf_element() -> Additive {
@@ -462,4 +463,35 @@ fn shard_len_is_reasonable() {
 
 	// needs 3 bytes to fit, rounded up to next even number.
 	assert_eq!(rs.shard_len(19), 6);
+}
+
+#[derive(Clone, Debug)]
+struct ArbitraryData(Vec<u8>);
+
+impl Arbitrary for ArbitraryData {
+	fn arbitrary(g: &mut Gen) -> Self {
+		// Limit the len to 1 mib, otherwise the test will take forever
+		let len = u32::arbitrary(g).saturating_add(2) % (1024 * 1024);
+
+		let data: Vec<u8> = (0..len).map(|_| u8::arbitrary(g)).collect();
+
+		ArbitraryData(data)
+	}
+}
+
+#[test]
+fn round_trip_systematic_quickcheck() {
+	fn property(available_data: ArbitraryData, n_validators: u16) {
+		let n_validators = n_validators.saturating_add(2);
+		let rs = CodeParams::derive_parameters(n_validators as usize, (n_validators as usize - 1) / 3 + 1)
+			.unwrap()
+			.make_encoder();
+		let kpow2 = rs.k;
+		let chunks = rs.encode::<WrappedShard>(&available_data.0).unwrap();
+		let mut res = rs.reconstruct_from_systematic(chunks.into_iter().take(kpow2).collect()).unwrap();
+		res.truncate(available_data.0.len());
+		assert_eq!(res, available_data.0);
+	}
+
+	QuickCheck::new().quickcheck(property as fn(ArbitraryData, u16))
 }
