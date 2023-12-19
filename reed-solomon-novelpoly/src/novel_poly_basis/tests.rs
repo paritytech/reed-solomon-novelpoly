@@ -471,7 +471,7 @@ struct ArbitraryData(Vec<u8>);
 impl Arbitrary for ArbitraryData {
 	fn arbitrary(g: &mut Gen) -> Self {
 		// Limit the len to 1 mib, otherwise the test will take forever
-		let len = u32::arbitrary(g).saturating_add(2) % (1024 * 1024);
+		let len = (u32::arbitrary(g) % (1024 * 1024)).max(2);
 
 		let data: Vec<u8> = (0..len).map(|_| u8::arbitrary(g)).collect();
 
@@ -482,13 +482,28 @@ impl Arbitrary for ArbitraryData {
 #[test]
 fn round_trip_systematic_quickcheck() {
 	fn property(available_data: ArbitraryData, n_validators: u16) {
-		let n_validators = n_validators.saturating_add(2);
+		let n_validators = n_validators.max(2);
 		let rs = CodeParams::derive_parameters(n_validators as usize, (n_validators as usize - 1) / 3 + 1)
 			.unwrap()
 			.make_encoder();
 		let kpow2 = rs.k;
 		let chunks = rs.encode::<WrappedShard>(&available_data.0).unwrap();
 		let mut res = rs.reconstruct_from_systematic(chunks.into_iter().take(kpow2).collect()).unwrap();
+		res.truncate(available_data.0.len());
+		assert_eq!(res, available_data.0);
+	}
+
+	QuickCheck::new().quickcheck(property as fn(ArbitraryData, u16))
+}
+
+#[test]
+fn round_trip_quickcheck() {
+	fn property(available_data: ArbitraryData, n_validators: u16) {
+		let n_validators = n_validators.max(2);
+		let wanted_k = (n_validators as usize - 1) / 3 + 1;
+		let rs = CodeParams::derive_parameters(n_validators as usize, wanted_k).unwrap().make_encoder();
+		let chunks = rs.encode::<WrappedShard>(&available_data.0).unwrap();
+		let mut res = rs.reconstruct(chunks.into_iter().take(wanted_k).map(|s| Some(s)).collect()).unwrap();
 		res.truncate(available_data.0.len());
 		assert_eq!(res, available_data.0);
 	}
