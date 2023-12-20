@@ -22,6 +22,9 @@ pub enum Error {
 
 	#[error("Shards do have inconsistent lengths: first = {first}, other = {other})")]
 	InconsistentShardLengths { first: usize, other: usize },
+
+	#[error("Shard is empty")]
+	EmptyShard,
 }
 
 /// Result alias to simplify API.

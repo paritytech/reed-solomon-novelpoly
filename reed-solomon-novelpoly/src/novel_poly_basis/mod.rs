@@ -192,6 +192,10 @@ impl ReedSolomon {
 				})
 				.expect("Existential shard count is at least k shards. qed");
 
+			if first_shard_len == 0 {
+				return Err(Error::EmptyShard);
+			}
+
 			// make sure all shards have the same length as the first one
 			if let Some(other_shard_len) = received_shards[(first_shard_idx + 1)..].iter().find_map(|shard| {
 				shard.as_ref().and_then(|shard| {
@@ -244,10 +248,14 @@ impl ReedSolomon {
 		let Some(first_shard) = chunks.first() else {
 			return Err(Error::NeedMoreShards { have: 0, min: self.k, all: self.n });
 		};
+		if chunks.len() < self.k {
+			return Err(Error::NeedMoreShards { have: chunks.len(), min: self.k, all: self.n });
+		}
+
 		let shard_len = AsRef::<[[u8; 2]]>::as_ref(first_shard).len();
 
 		if shard_len == 0 {
-			return Err(Error::InconsistentShardLengths { first: 0, other: 0 });
+			return Err(Error::EmptyShard);
 		}
 
 		if let Some(length) = chunks.iter().find_map(|c| {
@@ -259,10 +267,6 @@ impl ReedSolomon {
 			}
 		}) {
 			return Err(Error::InconsistentShardLengths { first: shard_len, other: length });
-		}
-
-		if chunks.len() < self.k {
-			return Err(Error::NeedMoreShards { have: chunks.len(), min: self.k, all: self.n });
 		}
 
 		let mut systematic_bytes = Vec::with_capacity(shard_len * 2 * self.k);
