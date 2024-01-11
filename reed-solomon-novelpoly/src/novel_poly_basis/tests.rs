@@ -70,12 +70,12 @@ fn flt_back_and_forth() {
 	let mut data = (0..N).map(|_x| rand_gf_element()).collect::<Vec<Additive>>();
 	let expected = data.clone();
 
-	unsafe { afft(&mut data, N, N / 4) };
+	afft(&mut data, N, N / 4);
 
 	// make sure something is done
 	assert!(data.iter().zip(expected.iter()).filter(|(a, b)| { a != b }).count() > 0);
 
-	unsafe { inverse_afft(&mut data, N, N / 4) };
+	inverse_afft(&mut data, N, N / 4);
 
 	itertools::assert_equal(data, expected);
 }
@@ -314,7 +314,7 @@ fn flt_roundtrip_small() {
 
 	let mut data = EXPECTED;
 
-	unsafe { f2e16::afft(&mut data, N, N / 4) };
+	f2e16::afft(&mut data, N, N / 4);
 
 	println!("novel basis(rust):");
 	data.iter().for_each(|sym| {
@@ -322,7 +322,7 @@ fn flt_roundtrip_small() {
 	});
 	println!();
 
-	unsafe { f2e16::inverse_afft(&mut data, N, N / 4) };
+	f2e16::inverse_afft(&mut data, N, N / 4);
 	itertools::assert_equal(data.iter(), EXPECTED.iter());
 }
 

@@ -88,27 +88,25 @@ fn b_is_one() {
 // We're hunting for the differences and trying to undersrtand the algorithm.
 
 /// Inverse additive FFT in the "novel polynomial basis"
-///
-/// # Safety
-/// See safety section of `AdditiveFFT::inverse_afft`.
-pub unsafe fn inverse_afft(data: &mut [Additive], size: usize, index: usize) {
+#[inline(always)]
+pub fn inverse_afft(data: &mut [Additive], size: usize, index: usize) {
 	unsafe { &AFFT }.inverse_afft(data, size, index)
 }
 
 #[cfg(all(target_feature = "avx", feature = "avx"))]
+#[inline(always)]
 pub fn inverse_afft_faster8(data: &mut [Additive], size: usize, index: usize) {
 	unsafe { &AFFT }.inverse_afft_faster8(data, size, index)
 }
 
 /// Additive FFT in the "novel polynomial basis"
-///
-/// # Safety
-/// See safety section of `AdditiveFFT::afft`.
-pub unsafe fn afft(data: &mut [Additive], size: usize, index: usize) {
+#[inline(always)]
+pub fn afft(data: &mut [Additive], size: usize, index: usize) {
 	unsafe { &AFFT }.afft(data, size, index)
 }
 
 #[cfg(all(target_feature = "avx", feature = "avx"))]
+#[inline(always)]
 /// Additive FFT in the "novel polynomial basis"
 pub fn afft_faster8(data: &mut [Additive], size: usize, index: usize) {
 	unsafe { &AFFT }.afft_faster8(data, size, index)
@@ -138,12 +136,7 @@ impl AdditiveFFT {
 	}
 
 	/// Inverse additive FFT in the "novel polynomial basis"
-	///
-	/// # Safety
-	///
-	/// - caller must ensure than `size` is a power of two and that the length of the `data` slice is at least equal to `size`.
-	/// - caller must ensure that `index + size - 2` is less than or equal to 65534.
-	pub unsafe fn inverse_afft(&self, data: &mut [Additive], size: usize, index: usize) {
+	pub fn inverse_afft(&self, data: &mut [Additive], size: usize, index: usize) {
 		// All line references to Algorithm 2 page 6288 of
 		// https://www.citi.sinica.edu.tw/papers/whc/5524-F.pdf
 
@@ -154,6 +147,8 @@ impl AdditiveFFT {
 		// After this, we start at depth (i of Algorithm 2) = (k of Algorithm 2) - 1
 		// and progress through FIELD_BITS-1 steps, obtaining \Psi_\beta(0,0).
 		let mut depart_no = 1_usize;
+		assert!(data.len() >= size);
+
 		while depart_no < size {
 			// if depart_no >= 8 {
 			// 	println!("\n\n\nplain/Round depart_no={depart_no}");
@@ -180,41 +175,15 @@ impl AdditiveFFT {
 					// if depart_no >= 8  && false{
 					// data[i + depart_no] ^= dbg!(data[dbg!(i)]);
 					// } else {
-					#[cfg(debug)]
-					{
-						data[i + depart_no] ^= data[i];
-					}
 
-					#[cfg(not(debug))]
-					{
-						// SAFETY
-						//
-						// j is smaller than size. depart_no is smaller than size.
-						// depart_no is always doubled, so it's always a power of two smaller than size.
-						// this means that depart_no is at most half of size, assuming size is a power of two.
-						//
-						// i is at most j - 1. j is greater than depart_no but is incremented by double of depart_no.
-						// for the max depart_no value of size/2, j will only have the one value of size/2,
-						// so the index will be size/2 - 1 + size/2, which is equal to size - 1, which is safe.
-						// i will always be smaller than i + depart_no, since they're positive integers. qed.
-						let local = unsafe { *data.get_unchecked(i) };
-						unsafe { *data.get_unchecked_mut(i + depart_no) ^= local };
-					}
-					// }
+					// TODO: Optimising bounds checks on this line will yield a great performance improvement.
+					data[i + depart_no] ^= data[i];
 				}
 
 				// Algorithm 2 indexs the skew factor in line 5 page 6288
 				// by i and \omega_{j 2^{i+1}}, but not by r explicitly.
 				// We further explore this confusion below. (TODO)
-				#[cfg(debug)]
 				let skew = self.skews[j + index - 1];
-
-				#[cfg(not(debug))]
-				// SAFETY:
-				//
-				// Safe because caller ensured that index + size - 2 is less than or equal to 65534 (the skew vector len).
-				// Since, j is at most size - 1, this is safe.
-				let skew = unsafe { *self.skews.get_unchecked(j + index - 1) };
 
 				// It's reasonale to skip the loop if skew is zero, but doing so with
 				// all bits set requires justification.	 (TODO)
@@ -226,18 +195,9 @@ impl AdditiveFFT {
 						// if depart_no >= 8 && false{
 						// 	data[i] ^= dbg!(dbg!(data[dbg!(i + depart_no)]).mul(skew));
 						// } else {
-						#[cfg(debug)]
-						{
-							data[i] ^= data[i + depart_no].mul(skew);
-						}
 
-						#[cfg(not(debug))]
-						// Same safety princicples as the first `for i in (j - depart_no)..j` loop.
-						{
-							let local = unsafe { *data.get_unchecked(i + depart_no) };
-							unsafe { *data.get_unchecked_mut(i) ^= local.mul(skew) };
-						}
-						// }
+						// TODO: Optimising bounds checks on this line will yield a great performance improvement.
+						data[i] ^= data[i + depart_no].mul(skew);
 					}
 				}
 
@@ -304,12 +264,7 @@ impl AdditiveFFT {
 	}
 
 	/// Additive FFT in the "novel polynomial basis"
-	///
-	/// # Safety
-	///
-	/// - caller must ensure than `size` is a power of two and that the length of the `data` slice is at least equal to `size`.
-	/// - caller must ensure that `index + size - 2` is less than or equal to 65534.
-	pub unsafe fn afft(&self, data: &mut [Additive], size: usize, index: usize) {
+	pub fn afft(&self, data: &mut [Additive], size: usize, index: usize) {
 		// All line references to Algorithm 1 page 6287 of
 		// https://www.citi.sinica.edu.tw/papers/whc/5524-F.pdf
 
@@ -320,6 +275,8 @@ impl AdditiveFFT {
 		// After this, we start at depth (i of Algorithm 1) = (k of Algorithm 1) - 1
 		// and progress through FIELD_BITS-1 steps, obtaining \Psi_\beta(0,0).
 		let mut depart_no = size >> 1_usize;
+		assert!(data.len() >= size);
+
 		while depart_no > 0 {
 			// Agrees with for loop (j of Algorithm 1) in (0..2^{k-i-1}) from line 5,
 			// except we've j in (depart_no..size).step_by(2*depart_no), meaning
@@ -342,15 +299,7 @@ impl AdditiveFFT {
 				// like in (19) in the proof of Lemma 4.  (TODO)
 				// We should understand the rest of this basis story, like (8) too.	 (TODO)
 
-				#[cfg(debug)]
 				let skew = self.skews[j + index - 1];
-
-				#[cfg(not(debug))]
-				// SAFETY:
-				//
-				// Safe because caller ensured that index + size - 2 is less than or equal to 65534 (the skew vector len).
-				// Since, j is at most size - 1, this is safe.
-				let skew = unsafe { *self.skews.get_unchecked(j + index - 1) };
 
 				// It's reasonale to skip the loop if skew is zero, but doing so with
 				// all bits set requires justification.	 (TODO)
@@ -360,25 +309,8 @@ impl AdditiveFFT {
 						// Line 6, explained by (28) page 6287, but
 						// adding depart_no acts like the r+2^i superscript.
 
-						#[cfg(debug)]
-						{
-							data[i] ^= data[i + depart_no].mul(skew);
-						}
-
-						#[cfg(not(debug))]
-						{
-							// SAFETY
-							//
-							// j is smaller than size. depart_no is smaller than size/2 and it's always halved.
-							// this means that depart_no is at most half of size, assuming size is a power of two.
-							//
-							// i is at most j - 1. j is greater than depart_no but is incremented by double of depart_no.
-							// for the max depart_no value of size/2, j will only have the one value of size/2,
-							// so the index will be size/2 - 1 + size/2, which is equal to size - 1, which is safe.
-							// i will always be smaller than i + depart_no, since they're positive integers. qed.
-							let local = unsafe { *data.get_unchecked(i + depart_no) };
-							unsafe { *data.get_unchecked_mut(i) ^= local.mul(skew) };
-						}
+						// TODO: Optimising bounds checks on this line will yield a great performance improvement.
+						data[i] ^= data[i + depart_no].mul(skew);
 					}
 				}
 
@@ -386,17 +318,9 @@ impl AdditiveFFT {
 				for i in (j - depart_no)..j {
 					// Line 7, explained by (31) page 6287, but
 					// adding depart_no acts like the r+2^i superscript.
-					#[cfg(debug)]
-					{
-						data[i + depart_no] ^= data[i];
-					}
 
-					#[cfg(not(debug))]
-					{
-						// Same safety princicples as the first `for i in (j - depart_no)..j` loop.
-						let local = unsafe { *data.get_unchecked(i) };
-						unsafe { *data.get_unchecked_mut(i + depart_no) ^= local };
-					}
+					// TODO: Optimising bounds checks on this line will yield a great performance improvement.
+					data[i + depart_no] ^= data[i];
 				}
 
 				// Increment by double depart_no in agreement with

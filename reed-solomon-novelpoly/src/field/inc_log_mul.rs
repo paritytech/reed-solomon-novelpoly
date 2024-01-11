@@ -88,7 +88,10 @@ pub fn walsh(data: &mut [Multiplier], size: usize) {
 	walsh_plain(data, size);
 }
 
+#[inline(always)]
 pub fn walsh_plain(data: &mut [Multiplier], size: usize) {
+	assert!(data.len() >= size);
+
 	let mask = ONEMASK as Wide;
 	let mut depart_no = 1_usize;
 	while depart_no < size {

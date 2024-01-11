@@ -73,23 +73,11 @@ pub(crate) fn decode_main(
 		codeword[i] = if erasure[i] { Additive(0) } else { codeword[i].mul(log_walsh2[i]) };
 	}
 
-	// SAFETY
-	//
-	// - safe because we check in `reconstruct_sub` that n is a power of two and we also check that
-	// codeword.len() is equal to n.
-	// - n is at most 65536. `index + size - 2` is therefore equal to 65536 - 2 = 65534 which
-	// is less than or equal to 65534. qed.
-	unsafe { inverse_afft(codeword, n, 0) };
+	inverse_afft(codeword, n, 0);
 
 	tweaked_formal_derivative(codeword);
 
-	// SAFETY
-	//
-	// - safe because we check in `reconstruct_sub` that n is a power of two and we also check that
-	// codeword.len() is equal to n.
-	// - n is at most 65536. `index + size - 2` is therefore equal to 65536 - 2 = 65534 which
-	// is less than or equal to 65534. qed.
-	unsafe { afft(codeword, n, 0) };
+	afft(codeword, n, 0);
 
 	for i in 0..recover_up_to {
 		codeword[i] = if erasure[i] { codeword[i].mul(log_walsh2[i]) } else { Additive(0) };
@@ -101,6 +89,10 @@ pub(crate) fn decode_main(
 // since this has only to be called once per reconstruction
 pub fn eval_error_polynomial(erasure: &[bool], log_walsh2: &mut [Multiplier], n: usize) {
 	let z = std::cmp::min(n, erasure.len());
+	assert!(z <= erasure.len());
+	assert!(n <= log_walsh2.len());
+	assert!(z <= log_walsh2.len());
+
 	for i in 0..z {
 		log_walsh2[i] = Multiplier(erasure[i] as Elt);
 	}

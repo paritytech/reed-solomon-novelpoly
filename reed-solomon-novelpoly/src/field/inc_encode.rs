@@ -29,36 +29,18 @@ pub fn encode_low_plain(data: &[Additive], k: usize, codeword: &mut [Additive], 
 	// split after the first k
 	let (codeword_first_k, codeword_skip_first_k) = codeword.split_at_mut(k);
 
-	// - safe because codeword_first_k is exactly k elements and k is a power of two.
-	// - safe because `index + size - 2` is `k - 2`. k is at most n/2 and n is at most 65536. Therefore,
-	// k is at most 65536/2-2 = 32766 (smaller than 65535). qed.
-	unsafe { inverse_afft(codeword_first_k, k, 0) };
+	inverse_afft(codeword_first_k, k, 0);
 
 	// dbg!(&codeword_first_k);
 	// the first codeword is now the basis for the remaining transforms
 	// denoted `M_topdash`
 
 	for shift in (k..n).step_by(k) {
-		#[cfg(debug)]
 		let codeword_at_shift = &mut codeword_skip_first_k[(shift - k)..shift];
-
-		#[cfg(not(debug))]
-		// SAFETY
-		//
-		// n is i*k, with i at least 2. shift is at most (i-1)*k.
-		// (i-1) * k will always be smaller than i*k for all i greater than 2.
-		// Similarly, shift - k will always be smaller than shift, since they're positive integers
-		// and shift is at least equal to k.
-		let codeword_at_shift = unsafe { codeword_skip_first_k.get_unchecked_mut((shift - k)..shift) };
 
 		// copy `M_topdash` to the position we are currently at, the n transform
 		codeword_at_shift.copy_from_slice(codeword_first_k);
-		// SAFETY
-		//
-		// - safe because codeword_first_k is exactly k elements and k is a power of two.
-		// - k is at most n/2 (32768). `index + size - 2` is therefore equal to 2*k - 2 = 65534 which
-		// is less than or equal to 65534. qed.
-		unsafe { afft(codeword_at_shift, k, shift) };
+		afft(codeword_at_shift, k, shift);
 	}
 
 	// restore `M` from the derived ones
@@ -118,68 +100,65 @@ pub fn encode_low_faster8(data: &[Additive], k: usize, codeword: &mut [Additive]
 
 //data: message array. parity: parity array. mem: buffer(size>= n-k)
 //Encoding alg for k/n>0.5: parity is a power of two.
-// Function is not exposed/tested. Consider the safety guidelines of the *afft functions before using.
-// #[inline(always)]
-// pub fn encode_high(data: &[Additive], k: usize, parity: &mut [Additive], mem: &mut [Additive], n: usize) {
-// 	#[cfg(all(target_feature = "avx", feature = "avx"))]
-// 	if (n - k) % Additive8x::LANE == 0 && n % Additive8x::LANE == 0 && k % Additive8x::LANE == 0 {
-// 		encode_high_faster8(data, k, parity, mem, n);
-// 	} else {
-// 		encode_high_plain(data, k, parity, mem, n);
-// 	}
-// 	#[cfg(not(target_feature = "avx"))]
-// 	encode_high_plain(data, k, parity, mem, n);
-// }
+#[inline(always)]
+pub fn encode_high(data: &[Additive], k: usize, parity: &mut [Additive], mem: &mut [Additive], n: usize) {
+	#[cfg(all(target_feature = "avx", feature = "avx"))]
+	if (n - k) % Additive8x::LANE == 0 && n % Additive8x::LANE == 0 && k % Additive8x::LANE == 0 {
+		encode_high_faster8(data, k, parity, mem, n);
+	} else {
+		encode_high_plain(data, k, parity, mem, n);
+	}
+	#[cfg(not(target_feature = "avx"))]
+	encode_high_plain(data, k, parity, mem, n);
+}
 
 //data: message array. parity: parity array. mem: buffer(size>= n-k)
 //Encoding alg for k/n>0.5: parity is a power of two.
-// Function is not exposed/tested. Consider the safety guidelines of the *afft functions before using.
-// pub fn encode_high_plain(data: &[Additive], k: usize, parity: &mut [Additive], mem: &mut [Additive], n: usize) {
-// 	assert!(is_power_of_2(n));
+pub fn encode_high_plain(data: &[Additive], k: usize, parity: &mut [Additive], mem: &mut [Additive], n: usize) {
+	assert!(is_power_of_2(n));
 
-// 	let t: usize = n - k;
+	let t: usize = n - k;
 
-// 	// mem_zero(&mut parity[0..t]);
-// 	for i in 0..t {
-// 		parity[i] = Additive(0);
-// 	}
+	// mem_zero(&mut parity[0..t]);
+	for i in 0..t {
+		parity[i] = Additive(0);
+	}
 
-// 	let mut i = t;
-// 	while i < n {
-// 		mem[..t].copy_from_slice(&data[(i - t)..t]);
+	let mut i = t;
+	while i < n {
+		mem[..t].copy_from_slice(&data[(i - t)..t]);
 
-// 		unsafe { inverse_afft(mem, t, i) };
-// 		for j in 0..t {
-// 			parity[j] ^= mem[j];
-// 		}
-// 		i += t;
-// 	}
-// 	unsafe { afft(parity, t, 0) };
-// }
+		inverse_afft(mem, t, i);
+		for j in 0..t {
+			parity[j] ^= mem[j];
+		}
+		i += t;
+	}
+	afft(parity, t, 0);
+}
 
-// #[cfg(all(target_feature = "avx", feature = "avx"))]
-// Function is not exposed/tested. Consider the safety guidelines of the *afft functions before using.
-// pub fn encode_high_faster8(data: &[Additive], k: usize, parity: &mut [Additive], mem: &mut [Additive], n: usize) {
-// 	let t: usize = n - k;
-// 	assert!(t >= 8);
-// 	assert_eq!(t % 8, 0);
+#[cfg(all(target_feature = "avx", feature = "avx"))]
+pub fn encode_high_faster8(data: &[Additive], k: usize, parity: &mut [Additive], mem: &mut [Additive], n: usize) {
+	let t: usize = n - k;
+	assert!(t >= 8);
+	assert_eq!(t % 8, 0);
 
-// 	for i in 0..t {
-// 		parity[i] = Additive::zero();
-// 	}
+	for i in 0..t {
+		parity[i] = Additive::zero();
+	}
 
-// 	let mut i = t;
-// 	while i < n {
-// 		mem[..t].copy_from_slice(&data[(i - t)..t]);
+	let mut i = t;
+	while i < n {
+		mem[..t].copy_from_slice(&data[(i - t)..t]);
 
-// 		inverse_afft_faster8(mem, t, i);
-// 		for j in 0..t {
-// 			parity[j] ^= mem[j];
-// 		}
-// 		i += t;
-// 	}
-// 	afft_faster8(parity, t, 0);
-// }
+		inverse_afft_faster8(mem, t, i);
+		for j in 0..t {
+			parity[j] ^= mem[j];
+		}
+		i += t;
+	}
+	afft_faster8(parity, t, 0);
+}
 
 pub fn encode_sub(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additive>> {
 	#[cfg(all(target_feature = "avx", feature = "avx"))]
@@ -221,32 +200,14 @@ pub fn encode_sub_plain(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additive
 	let mut elm_data = vec![Additive(0); n];
 
 	for i in 0..((bytes_len + 1) / 2) {
-		#[cfg(debug)]
-		{
-			elm_data[i] = Additive(Elt::from_be_bytes([
-				bytes.get(2 * i).copied().unwrap_or_default(),
-				bytes.get(2 * i + 1).copied().unwrap_or_default(),
-			]));
-		}
-		#[cfg(not(debug))]
-		{
-			// SAFETY
-			//
-			// i is used to index `elm_data`, which is preallocated to n elements.
-			// i goes from 0 (bytes.len() / 2) and we assert that bytes.len() <= k/2.
-			// We also assert that k <= n/2, so i will be at most n/4.
-			// n/4 is always smaller than the vector length n. qed.
-			*unsafe { elm_data.get_unchecked_mut(i) } = Additive(Elt::from_be_bytes([
-				bytes.get(2 * i).copied().unwrap_or_default(),
-				bytes.get(2 * i + 1).copied().unwrap_or_default(),
-			]));
-		}
+		elm_data[i] = Additive(Elt::from_be_bytes([
+			bytes.get(2 * i).copied().unwrap_or_default(),
+			bytes.get(2 * i + 1).copied().unwrap_or_default(),
+		]));
 	}
 
 	// update new data bytes with zero padded bytes
 	// `l` is now `GF(2^16)` symbols
-	let elm_len = elm_data.len();
-	assert_eq!(elm_len, n);
 
 	let mut codeword = elm_data.clone();
 	assert_eq!(codeword.len(), n);
