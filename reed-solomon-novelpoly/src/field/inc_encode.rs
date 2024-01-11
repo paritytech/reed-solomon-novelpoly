@@ -76,17 +76,7 @@ pub fn encode_low_faster8(data: &[Additive], k: usize, codeword: &mut [Additive]
 	// denoted `M_topdash`
 
 	for shift in (k..n).step_by(k) {
-		#[cfg(debug)]
 		let codeword_at_shift = &mut codeword_skip_first_k[(shift - k)..shift];
-
-		#[cfg(not(debug))]
-		// SAFETY
-		//
-		// n is i*k, with i at least 2. shift is at most (i-1)*k.
-		// (i-1) * k will always be smaller than i*k for all i greater than 2.
-		// Similarly, shift - k will always be smaller than shift, since they're positive integers
-		// and shift is at least equal to k.
-		let codeword_at_shift = unsafe { codeword_skip_first_k.get_unchecked_mut((shift - k)..shift) };
 
 		// copy `M_topdash` to the position we are currently at, the n transform
 		codeword_at_shift.copy_from_slice(codeword_first_k);
@@ -249,26 +239,10 @@ pub fn encode_sub_faster8(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additi
 	let mut elm_data = vec![Additive(0); n];
 
 	for i in 0..((bytes_len + 1) / 2) {
-		#[cfg(debug)]
-		{
-			elm_data[i] = Additive(Elt::from_be_bytes([
-				bytes.get(2 * i).copied().unwrap_or_default(),
-				bytes.get(2 * i + 1).copied().unwrap_or_default(),
-			]));
-		}
-		#[cfg(not(debug))]
-		{
-			// SAFETY
-			//
-			// i is used to index `elm_data`, which is preallocated to n elements.
-			// i goes from 0 (bytes.len() / 2) and we assert that bytes.len() <= k/2.
-			// We also assert that k <= n/2, so i will be at most n/4.
-			// n/4 is always smaller than the vector length n. qed.
-			*unsafe { elm_data.get_unchecked_mut(i) } = Additive(Elt::from_be_bytes([
-				bytes.get(2 * i).copied().unwrap_or_default(),
-				bytes.get(2 * i + 1).copied().unwrap_or_default(),
-			]));
-		}
+		elm_data[i] = Additive(Elt::from_be_bytes([
+			bytes.get(2 * i).copied().unwrap_or_default(),
+			bytes.get(2 * i + 1).copied().unwrap_or_default(),
+		]));
 	}
 
 	// update new data bytes with zero padded bytes

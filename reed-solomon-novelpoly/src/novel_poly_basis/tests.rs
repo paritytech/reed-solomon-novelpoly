@@ -352,7 +352,12 @@ fn ported_c_test() {
 	//---------encoding----------
 	let mut codeword = [Additive(0); N];
 
-	f2e16::encode_low(&data[..], K, &mut codeword[..], N);
+	if K + K > N && false {
+		let (data_till_t, data_skip_t) = data.split_at_mut(N - K);
+		f2e16::encode_high(data_skip_t, K, data_till_t, &mut codeword[..], N);
+	} else {
+		f2e16::encode_low(&data[..], K, &mut codeword[..], N);
+	}
 
 	// println!("Codeword:");
 	// for i in K..(K+100) {

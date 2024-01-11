@@ -523,9 +523,7 @@ mod afft_tests {
 			let mut data_plain = gen_plain::<SmallRng>(size);
 			let mut data_faster8 = gen_faster8::<SmallRng>(size);
 			println!(">>>>");
-			unsafe {
-				AFFT.afft(&mut data_plain, size, index);
-			}
+			unsafe { &AFFT }.afft(&mut data_plain, size, index);
 			println!(
 				r#"
 
@@ -546,9 +544,7 @@ mod afft_tests {
 			let mut data_plain = gen_plain::<SmallRng>(size);
 			let mut data_faster8 = gen_faster8::<SmallRng>(size);
 			println!(">>>>");
-			unsafe {
-				AFFT.afft(&mut data_plain, size, index);
-			}
+			unsafe { &AFFT }.afft(&mut data_plain, size, index);
 			println!(
 				r#"
 
@@ -557,7 +553,6 @@ mod afft_tests {
 			"#
 			);
 			unsafe { &AFFT }.afft_faster8(&mut data_faster8, size, index);
-
 			println!(">>>>");
 			assert_plain_eq_faster8(data_plain, data_faster8);
 		}
@@ -575,9 +570,7 @@ mod afft_tests {
 			assert_plain_eq_faster8(&data_plain, &data_faster8);
 
 			println!(">>>>");
-			unsafe {
-				AFFT.afft(&mut data_plain, size, index);
-			}
+			unsafe { &AFFT }.afft(&mut data_plain, size, index);
 			println!(
 				r#"
 
@@ -600,9 +593,7 @@ mod afft_tests {
 			assert_plain_eq_faster8(&data_plain, &data_faster8);
 
 			println!(">>>>");
-			unsafe {
-				AFFT.inverse_afft(&mut data_plain, size, index);
-			}
+			unsafe { &AFFT }.inverse_afft(&mut data_plain, size, index);
 			println!(
 				r#"
 
@@ -623,9 +614,7 @@ mod afft_tests {
 			let mut data_plain = gen_plain::<SmallRng>(size);
 			let mut data_faster8 = gen_faster8::<SmallRng>(size);
 			println!(">>>>");
-			unsafe {
-				AFFT.inverse_afft(&mut data_plain, size, index);
-			}
+			unsafe { &AFFT }.inverse_afft(&mut data_plain, size, index);
 			println!(
 				r#"
 
