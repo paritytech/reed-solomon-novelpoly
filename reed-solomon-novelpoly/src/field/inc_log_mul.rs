@@ -59,6 +59,7 @@ impl Additive {
 
 /// Multiplicaiton friendly LOG form of f2e16
 #[derive(Clone, Debug, Copy, Add, AddAssign, Sub, SubAssign, PartialEq, Eq)] // Default, PartialOrd,Ord
+#[repr(transparent)]
 pub struct Multiplier(pub Elt);
 
 impl Multiplier {
@@ -81,13 +82,16 @@ impl std::fmt::Display for Multiplier {
 /// Fast Walsh–Hadamard transform over modulo `ONEMASK`
 #[inline(always)]
 pub fn walsh(data: &mut [Multiplier], size: usize) {
-	#[cfg(all(target_feature = "avx", table_bootstrap_complete))]
+	#[cfg(all(target_feature = "avx", table_bootstrap_complete, feature = "avx"))]
 	walsh_faster8(data, size);
-	#[cfg(not(all(target_feature = "avx", table_bootstrap_complete)))]
+	#[cfg(not(all(target_feature = "avx", table_bootstrap_complete, feature = "avx")))]
 	walsh_plain(data, size);
 }
 
+#[inline(always)]
 pub fn walsh_plain(data: &mut [Multiplier], size: usize) {
+	assert!(data.len() >= size);
+
 	let mask = ONEMASK as Wide;
 	let mut depart_no = 1_usize;
 	while depart_no < size {

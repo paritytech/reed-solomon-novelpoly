@@ -69,13 +69,13 @@ pub(crate) fn decode_main(
 	assert!(n >= recover_up_to);
 	assert_eq!(erasure.len(), n);
 
-	for i in 0..n {
+	for i in 0..codeword.len() {
 		codeword[i] = if erasure[i] { Additive(0) } else { codeword[i].mul(log_walsh2[i]) };
 	}
 
 	inverse_afft(codeword, n, 0);
 
-	tweaked_formal_derivative(codeword, n);
+	tweaked_formal_derivative(codeword);
 
 	afft(codeword, n, 0);
 
@@ -89,6 +89,10 @@ pub(crate) fn decode_main(
 // since this has only to be called once per reconstruction
 pub fn eval_error_polynomial(erasure: &[bool], log_walsh2: &mut [Multiplier], n: usize) {
 	let z = std::cmp::min(n, erasure.len());
+	assert!(z <= erasure.len());
+	assert!(n <= log_walsh2.len());
+	assert!(z <= log_walsh2.len());
+
 	for i in 0..z {
 		log_walsh2[i] = Multiplier(erasure[i] as Elt);
 	}

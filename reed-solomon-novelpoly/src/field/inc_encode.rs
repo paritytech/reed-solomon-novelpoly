@@ -7,7 +7,7 @@ pub fn encode_low(data: &[Additive], k: usize, codeword: &mut [Additive], n: usi
 		encode_low_plain(data, k, codeword, n);
 	}
 
-	#[cfg(not(target_feature = "avx"))]
+	#[cfg(not(all(target_feature = "avx", feature = "avx")))]
 	encode_low_plain(data, k, codeword, n);
 }
 
@@ -37,12 +37,10 @@ pub fn encode_low_plain(data: &[Additive], k: usize, codeword: &mut [Additive], 
 
 	for shift in (k..n).step_by(k) {
 		let codeword_at_shift = &mut codeword_skip_first_k[(shift - k)..shift];
+
 		// copy `M_topdash` to the position we are currently at, the n transform
 		codeword_at_shift.copy_from_slice(codeword_first_k);
-		// dbg!(&codeword_at_shift);
 		afft(codeword_at_shift, k, shift);
-		// let post = &codeword_at_shift;
-		// dbg!(post);
 	}
 
 	// restore `M` from the derived ones
@@ -79,11 +77,10 @@ pub fn encode_low_faster8(data: &[Additive], k: usize, codeword: &mut [Additive]
 
 	for shift in (k..n).step_by(k) {
 		let codeword_at_shift = &mut codeword_skip_first_k[(shift - k)..shift];
+
 		// copy `M_topdash` to the position we are currently at, the n transform
 		codeword_at_shift.copy_from_slice(codeword_first_k);
-
 		afft_faster8(codeword_at_shift, k, shift);
-		// let post = &codeword8x_at_shift;
 	}
 
 	// restore `M` from the derived ones
@@ -108,6 +105,8 @@ pub fn encode_high(data: &[Additive], k: usize, parity: &mut [Additive], mem: &m
 //data: message array. parity: parity array. mem: buffer(size>= n-k)
 //Encoding alg for k/n>0.5: parity is a power of two.
 pub fn encode_high_plain(data: &[Additive], k: usize, parity: &mut [Additive], mem: &mut [Additive], n: usize) {
+	assert!(is_power_of_2(n));
+
 	let t: usize = n - k;
 
 	// mem_zero(&mut parity[0..t]);
@@ -158,7 +157,7 @@ pub fn encode_sub(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additive>> {
 	} else {
 		encode_sub_plain(bytes, n, k)
 	}
-	#[cfg(not(target_feature = "avx"))]
+	#[cfg(not(all(target_feature = "avx", feature = "avx")))]
 	encode_sub_plain(bytes, n, k)
 }
 
@@ -194,13 +193,11 @@ pub fn encode_sub_plain(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additive
 		elm_data[i] = Additive(Elt::from_be_bytes([
 			bytes.get(2 * i).copied().unwrap_or_default(),
 			bytes.get(2 * i + 1).copied().unwrap_or_default(),
-		]))
+		]));
 	}
 
 	// update new data bytes with zero padded bytes
 	// `l` is now `GF(2^16)` symbols
-	let elm_len = elm_data.len();
-	assert_eq!(elm_len, n);
 
 	let mut codeword = elm_data.clone();
 	assert_eq!(codeword.len(), n);
@@ -243,9 +240,9 @@ pub fn encode_sub_faster8(bytes: &[u8], n: usize, k: usize) -> Result<Vec<Additi
 
 	for i in 0..((bytes_len + 1) / 2) {
 		elm_data[i] = Additive(Elt::from_be_bytes([
-			bytes.get(2 * i).map(|x| *x).unwrap_or_default(),
-			bytes.get(2 * i + 1).map(|x| *x).unwrap_or_default(),
-		]))
+			bytes.get(2 * i).copied().unwrap_or_default(),
+			bytes.get(2 * i + 1).copied().unwrap_or_default(),
+		]));
 	}
 
 	// update new data bytes with zero padded bytes

@@ -66,7 +66,7 @@ impl CodeParams {
 		{
 			self.k >= (Additive8x::LANE << 1) && self.n % Additive8x::LANE == 0
 		}
-		#[cfg(not(target_feature = "avx"))]
+		#[cfg(not(all(target_feature = "avx", feature = "avx")))]
 		false
 	}
 

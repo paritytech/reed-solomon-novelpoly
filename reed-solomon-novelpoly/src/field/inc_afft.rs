@@ -14,16 +14,16 @@ pub struct AdditiveFFT {
 }
 
 /// Formal derivative of polynomial in the new?? basis
-pub fn formal_derivative(cos: &mut [Additive], size: usize) {
-	for i in 1..size {
+pub fn formal_derivative(cos: &mut [Additive]) {
+	for i in 1..cos.len() {
 		let length = ((i ^ (i - 1)) + 1) >> 1;
 		for j in (i - length)..i {
 			cos[j] ^= cos.get(j + length).copied().unwrap_or(Additive::ZERO);
 		}
 	}
-	let mut i = size;
+	let mut i = cos.len();
 	while i < FIELD_SIZE && i < cos.len() {
-		for j in 0..size {
+		for j in 0..cos.len() {
 			cos[j] ^= cos.get(j + i).copied().unwrap_or(Additive::ZERO);
 		}
 		i <<= 1;
@@ -32,9 +32,11 @@ pub fn formal_derivative(cos: &mut [Additive], size: usize) {
 
 /// Formal derivative of polynomial in tweaked?? basis
 #[allow(non_snake_case)]
-pub fn tweaked_formal_derivative(codeword: &mut [Additive], n: usize) {
+pub fn tweaked_formal_derivative(codeword: &mut [Additive]) {
 	#[cfg(b_is_not_one)]
 	let B = unsafe { &AFFT.B };
+	#[cfg(b_is_not_one)]
+	let n = codeword.len();
 
 	// We change nothing when multiplying by b from B.
 	#[cfg(b_is_not_one)]
@@ -44,7 +46,7 @@ pub fn tweaked_formal_derivative(codeword: &mut [Additive], n: usize) {
 		codeword[i + 1] = codeword[i + 1].mul(b);
 	}
 
-	formal_derivative(codeword, n);
+	formal_derivative(codeword);
 
 	// Again changes nothing by multiplying by b although b differs here.
 	#[cfg(b_is_not_one)]
@@ -86,21 +88,25 @@ fn b_is_one() {
 // We're hunting for the differences and trying to undersrtand the algorithm.
 
 /// Inverse additive FFT in the "novel polynomial basis"
+#[inline(always)]
 pub fn inverse_afft(data: &mut [Additive], size: usize, index: usize) {
 	unsafe { &AFFT }.inverse_afft(data, size, index)
 }
 
 #[cfg(all(target_feature = "avx", feature = "avx"))]
+#[inline(always)]
 pub fn inverse_afft_faster8(data: &mut [Additive], size: usize, index: usize) {
 	unsafe { &AFFT }.inverse_afft_faster8(data, size, index)
 }
 
 /// Additive FFT in the "novel polynomial basis"
+#[inline(always)]
 pub fn afft(data: &mut [Additive], size: usize, index: usize) {
 	unsafe { &AFFT }.afft(data, size, index)
 }
 
 #[cfg(all(target_feature = "avx", feature = "avx"))]
+#[inline(always)]
 /// Additive FFT in the "novel polynomial basis"
 pub fn afft_faster8(data: &mut [Additive], size: usize, index: usize) {
 	unsafe { &AFFT }.afft_faster8(data, size, index)
@@ -141,6 +147,8 @@ impl AdditiveFFT {
 		// After this, we start at depth (i of Algorithm 2) = (k of Algorithm 2) - 1
 		// and progress through FIELD_BITS-1 steps, obtaining \Psi_\beta(0,0).
 		let mut depart_no = 1_usize;
+		assert!(data.len() >= size);
+
 		while depart_no < size {
 			// if depart_no >= 8 {
 			// 	println!("\n\n\nplain/Round depart_no={depart_no}");
@@ -167,20 +175,16 @@ impl AdditiveFFT {
 					// if depart_no >= 8  && false{
 					// data[i + depart_no] ^= dbg!(data[dbg!(i)]);
 					// } else {
+
+					// TODO: Optimising bounds checks on this line will yield a great performance improvement.
 					data[i + depart_no] ^= data[i];
-					// }
 				}
 
 				// Algorithm 2 indexs the skew factor in line 5 page 6288
 				// by i and \omega_{j 2^{i+1}}, but not by r explicitly.
 				// We further explore this confusion below. (TODO)
-				let skew =
-				// if depart_no >= 8 && false {
-				// 	dbg!(self.skews[j + index - 1])
-				// } else {
-					self.skews[j + index - 1]
-				// }
-				;
+				let skew = self.skews[j + index - 1];
+
 				// It's reasonale to skip the loop if skew is zero, but doing so with
 				// all bits set requires justification.	 (TODO)
 				if skew.0 != ONEMASK {
@@ -191,8 +195,9 @@ impl AdditiveFFT {
 						// if depart_no >= 8 && false{
 						// 	data[i] ^= dbg!(dbg!(data[dbg!(i + depart_no)]).mul(skew));
 						// } else {
+
+						// TODO: Optimising bounds checks on this line will yield a great performance improvement.
 						data[i] ^= data[i + depart_no].mul(skew);
-						// }
 					}
 				}
 
@@ -270,6 +275,8 @@ impl AdditiveFFT {
 		// After this, we start at depth (i of Algorithm 1) = (k of Algorithm 1) - 1
 		// and progress through FIELD_BITS-1 steps, obtaining \Psi_\beta(0,0).
 		let mut depart_no = size >> 1_usize;
+		assert!(data.len() >= size);
+
 		while depart_no > 0 {
 			// Agrees with for loop (j of Algorithm 1) in (0..2^{k-i-1}) from line 5,
 			// except we've j in (depart_no..size).step_by(2*depart_no), meaning
@@ -291,6 +298,7 @@ impl AdditiveFFT {
 				// we think r actually appears but the skew factor repeats itself
 				// like in (19) in the proof of Lemma 4.  (TODO)
 				// We should understand the rest of this basis story, like (8) too.	 (TODO)
+
 				let skew = self.skews[j + index - 1];
 
 				// It's reasonale to skip the loop if skew is zero, but doing so with
@@ -300,6 +308,8 @@ impl AdditiveFFT {
 					for i in (j - depart_no)..j {
 						// Line 6, explained by (28) page 6287, but
 						// adding depart_no acts like the r+2^i superscript.
+
+						// TODO: Optimising bounds checks on this line will yield a great performance improvement.
 						data[i] ^= data[i + depart_no].mul(skew);
 					}
 				}
@@ -308,6 +318,8 @@ impl AdditiveFFT {
 				for i in (j - depart_no)..j {
 					// Line 7, explained by (31) page 6287, but
 					// adding depart_no acts like the r+2^i superscript.
+
+					// TODO: Optimising bounds checks on this line will yield a great performance improvement.
 					data[i + depart_no] ^= data[i];
 				}
 
@@ -484,7 +496,7 @@ pub mod test_utils {
 		let data = gen_plain::<R>(size);
 		gen_faster8_from_plain(data)
 	}
-	
+
 	#[cfg(all(target_feature = "avx", feature = "avx"))]
 	pub fn assert_plain_eq_faster8(plain: impl AsRef<[Additive]>, faster8: impl AsRef<[Additive]>) {
 		let plain = plain.as_ref();
@@ -502,7 +514,7 @@ mod afft_tests {
 		use super::super::*;
 		use super::super::test_utils::*;
 		use rand::rngs::SmallRng;
-		
+
 		#[cfg(all(target_feature = "avx", feature = "avx"))]
 		#[test]
 		fn afft_output_plain_eq_faster8_size_16() {
@@ -544,7 +556,7 @@ mod afft_tests {
 			println!(">>>>");
 			assert_plain_eq_faster8(data_plain, data_faster8);
 		}
-		
+
 		#[cfg(all(target_feature = "avx", feature = "avx"))]
 		#[test]
 		fn afft_output_plain_eq_faster8_impulse_data() {
