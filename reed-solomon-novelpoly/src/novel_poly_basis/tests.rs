@@ -475,6 +475,23 @@ impl Arbitrary for ArbitraryData {
 }
 
 #[test]
+fn round_trip_systematic_quickcheck() {
+	fn property(available_data: ArbitraryData, n_validators: u16) {
+		let n_validators = n_validators.max(2);
+		let rs = CodeParams::derive_parameters(n_validators as usize, (n_validators as usize - 1) / 3 + 1)
+			.unwrap()
+			.make_encoder();
+		let kpow2 = rs.k;
+		let chunks = rs.encode::<WrappedShard>(&available_data.0).unwrap();
+		let mut res = rs.reconstruct_from_systematic(chunks.into_iter().take(kpow2).collect()).unwrap();
+		res.truncate(available_data.0.len());
+		assert_eq!(res, available_data.0);
+	}
+
+	QuickCheck::new().quickcheck(property as fn(ArbitraryData, u16))
+}
+
+#[test]
 fn round_trip_quickcheck() {
 	fn property(available_data: ArbitraryData, n_validators: u16) {
 		let n_validators = n_validators.max(2);
