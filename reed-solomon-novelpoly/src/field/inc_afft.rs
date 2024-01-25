@@ -475,44 +475,38 @@ impl AdditiveFFT {
 
 #[cfg(test)]
 mod afft_tests {
-	use rand::{SeedableRng, Rng};
-	use crate::f2e16::{Additive, Elt};
-	use reed_solomon_tester::SMALL_RNG_SEED;
-
-	pub fn gen_plain<R: Rng + SeedableRng<Seed = [u8; 32]>>(size: usize) -> Vec<Additive> {
-		let rng = <R as SeedableRng>::from_seed(SMALL_RNG_SEED);
-		let dist = rand::distributions::Uniform::new_inclusive(Elt::MIN, Elt::MAX);
-
-		Vec::from_iter(rng.sample_iter::<Elt, _>(dist).take(size).map(Additive))
-	}
-
-	#[cfg(all(target_feature = "avx", feature = "avx"))]
-	pub fn gen_faster8_from_plain(data: impl AsRef<[Additive]>) -> Vec<Additive> {
-		let data = data.as_ref();
-		data.to_vec()
-	}
-
-	#[cfg(all(target_feature = "avx", feature = "avx"))]
-	pub fn gen_faster8<R: Rng + SeedableRng<Seed = [u8; 32]>>(size: usize) -> Vec<Additive> {
-		let data = gen_plain::<R>(size);
-		gen_faster8_from_plain(data)
-	}
-
-	#[cfg(all(target_feature = "avx", feature = "avx"))]
-	pub fn assert_plain_eq_faster8(plain: impl AsRef<[Additive]>, faster8: impl AsRef<[Additive]>) {
-		let plain = plain.as_ref();
-		let faster8 = faster8.as_ref();
-
-		assert!(plain.eq(faster8));
-	}
-
 	#[cfg(all(target_feature = "avx", feature = "avx"))]
 	mod simd {
-		use super::*;
 		use super::super::*;
-		use rand::rngs::SmallRng;
+		use reed_solomon_tester::SMALL_RNG_SEED;
+		use rand::{SeedableRng, Rng, rngs::SmallRng};
+
+		pub fn gen_plain<R: Rng + SeedableRng<Seed = [u8; 32]>>(size: usize) -> Vec<Additive> {
+			let rng = <R as SeedableRng>::from_seed(SMALL_RNG_SEED);
+			let dist = rand::distributions::Uniform::new_inclusive(Elt::MIN, Elt::MAX);
+
+			Vec::from_iter(rng.sample_iter::<Elt, _>(dist).take(size).map(Additive))
+		}
+
+		pub fn gen_faster8_from_plain(data: impl AsRef<[Additive]>) -> Vec<Additive> {
+			let data = data.as_ref();
+			data.to_vec()
+		}
 
 		#[cfg(all(target_feature = "avx", feature = "avx"))]
+		pub fn gen_faster8<R: Rng + SeedableRng<Seed = [u8; 32]>>(size: usize) -> Vec<Additive> {
+			let data = gen_plain::<R>(size);
+			gen_faster8_from_plain(data)
+		}
+
+		#[cfg(all(target_feature = "avx", feature = "avx"))]
+		pub fn assert_plain_eq_faster8(plain: impl AsRef<[Additive]>, faster8: impl AsRef<[Additive]>) {
+			let plain = plain.as_ref();
+			let faster8 = faster8.as_ref();
+
+			assert!(plain.eq(faster8));
+		}
+
 		#[test]
 		fn afft_output_plain_eq_faster8_size_16() {
 			let index = 0;
@@ -533,7 +527,6 @@ mod afft_tests {
 			assert_plain_eq_faster8(data_plain, data_faster8);
 		}
 
-		#[cfg(all(target_feature = "avx", feature = "avx"))]
 		#[test]
 		fn afft_output_plain_eq_faster8_size_32() {
 			let index = 0;
@@ -554,7 +547,6 @@ mod afft_tests {
 			assert_plain_eq_faster8(data_plain, data_faster8);
 		}
 
-		#[cfg(all(target_feature = "avx", feature = "avx"))]
 		#[test]
 		fn afft_output_plain_eq_faster8_impulse_data() {
 			let index = 0;
@@ -580,7 +572,6 @@ mod afft_tests {
 			assert_plain_eq_faster8(data_plain, data_faster8);
 		}
 
-		#[cfg(all(target_feature = "avx", feature = "avx"))]
 		#[test]
 		fn inverse_afft_output_plain_eq_faster8_size_8() {
 			let index = 0;
@@ -603,7 +594,6 @@ mod afft_tests {
 			assert_plain_eq_faster8(data_plain, data_faster8);
 		}
 
-		#[cfg(all(target_feature = "avx", feature = "avx"))]
 		#[test]
 		fn inverse_afft_output_plain_eq_faster8_size_32() {
 			let index = 0;
