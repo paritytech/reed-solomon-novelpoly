@@ -26,9 +26,6 @@ derive_more = { version = "0.99.0", default-features = false, features = [
   "add_assign",
   "add",
 ] }
-# mock only
-reed-solomon-tester = { path = "../reed-solomon-tester", optional = true }
-rand = { version = "0.8.3", features = ["alloc", "small_rng"], optional = true }
 
 [dev-dependencies]
 itertools = "0.12"
@@ -40,7 +37,6 @@ quickcheck = { version = "1.0.3", default-features = false }
 [features]
 default = []
 with-alt-cxx-impl = ["cc", "bindgen"]
-mock = ["rand", "reed-solomon-tester"]
 # enable the small field, experimental support
 f256 = []
 avx = []

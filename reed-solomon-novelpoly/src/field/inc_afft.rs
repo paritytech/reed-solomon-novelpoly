@@ -473,46 +473,13 @@ impl AdditiveFFT {
 	}
 }
 
-#[cfg(any(feature = "mock", test))]
-pub mod test_utils {
-	use super::*;
-	use rand::{Rng, SeedableRng};
-
-	pub fn gen_plain<R: Rng + SeedableRng<Seed = [u8; 32]>>(size: usize) -> Vec<Additive> {
-		let rng = <R as SeedableRng>::from_seed(reed_solomon_tester::SMALL_RNG_SEED);
-		let dist = rand::distributions::Uniform::new_inclusive(Elt::MIN, Elt::MAX);
-
-		Vec::from_iter(rng.sample_iter::<Elt, _>(dist).take(size).map(Additive))
-	}
-
-	#[cfg(all(target_feature = "avx", feature = "avx"))]
-	pub fn gen_faster8_from_plain(data: impl AsRef<[Additive]>) -> Vec<Additive> {
-		let data = data.as_ref();
-		data.to_vec()
-	}
-
-	#[cfg(all(target_feature = "avx", feature = "avx"))]
-	pub fn gen_faster8<R: Rng + SeedableRng<Seed = [u8; 32]>>(size: usize) -> Vec<Additive> {
-		let data = gen_plain::<R>(size);
-		gen_faster8_from_plain(data)
-	}
-
-	#[cfg(all(target_feature = "avx", feature = "avx"))]
-	pub fn assert_plain_eq_faster8(plain: impl AsRef<[Additive]>, faster8: impl AsRef<[Additive]>) {
-		let plain = plain.as_ref();
-		let faster8 = faster8.as_ref();
-
-		assert!(plain.eq(faster8));
-	}
-}
-
 #[cfg(test)]
 mod afft_tests {
 
 	#[cfg(all(target_feature = "avx", feature = "avx"))]
 	mod simd {
 		use super::super::*;
-		use super::super::test_utils::*;
+		use reed_solomon_tester::*;
 		use rand::rngs::SmallRng;
 
 		#[cfg(all(target_feature = "avx", feature = "avx"))]
