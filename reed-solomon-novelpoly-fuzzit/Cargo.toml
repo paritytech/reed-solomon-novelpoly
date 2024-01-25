@@ -10,9 +10,7 @@ hongg = "=0.5.61"
 #hongg = { path = "../../hongg-rs/hongg", package = "hongg", version = "0.5.61" }
 arbitrary = { version = "1", features = ["derive"] }
 rstester = { path = "../reed-solomon-tester", package = "reed-solomon-tester" }
-novelpoly = { path = "../reed-solomon-novelpoly", package = "reed-solomon-novelpoly", features = [
-  "mock",
-] }
+novelpoly = { path = "../reed-solomon-novelpoly", package = "reed-solomon-novelpoly"}
 rand_chacha = "0.3.0"
 rand = "0.8.3"
 

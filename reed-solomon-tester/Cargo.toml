@@ -10,6 +10,11 @@ rand = { version = "0.8", features = ["alloc", "small_rng"] }
 fs-err = "2"
 
 [dependencies]
+reed-solomon-novelpoly = { path = "../reed-solomon-novelpoly" }
+
 rand = { version = "0.8", features = ["alloc", "small_rng"] }
 itertools = "0.12"
 assert_matches = "1"
+
+[features]
+avx = []

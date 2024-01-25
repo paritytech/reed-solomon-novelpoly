@@ -47,14 +47,14 @@ fn run() {
 		fuzz!(|params: AfftParams| {
 			let AfftParams { k, shift, f: _ } = params;
 
-			let mut data_plain = test_utils::gen_plain::<SmallRng>(k);
-			let mut data_faster8 = test_utils::gen_faster8_from_plain(&data_plain);
+			let mut data_plain = rstester::gen_plain::<SmallRng>(k);
+			let mut data_faster8 = rstester::gen_faster8_from_plain(&data_plain);
 
 			// k := size , so we need to have shift as steps of k
 			unsafe { &AFFT }.afft(&mut data_plain, k, shift);
 			unsafe { &AFFT }.afft_faster8(&mut data_faster8[..], k, shift);
 
-			test_utils::assert_plain_eq_faster8(data_plain, data_faster8);
+			rstester::assert_plain_eq_faster8(data_plain, data_faster8);
 		});
 	}
 }
