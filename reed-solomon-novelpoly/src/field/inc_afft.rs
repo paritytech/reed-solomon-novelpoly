@@ -493,13 +493,11 @@ mod afft_tests {
 			data.to_vec()
 		}
 
-		#[cfg(all(target_feature = "avx", feature = "avx"))]
 		pub fn gen_faster8<R: Rng + SeedableRng<Seed = [u8; 32]>>(size: usize) -> Vec<Additive> {
 			let data = gen_plain::<R>(size);
 			gen_faster8_from_plain(data)
 		}
 
-		#[cfg(all(target_feature = "avx", feature = "avx"))]
 		pub fn assert_plain_eq_faster8(plain: impl AsRef<[Additive]>, faster8: impl AsRef<[Additive]>) {
 			let plain = plain.as_ref();
 			let faster8 = faster8.as_ref();
