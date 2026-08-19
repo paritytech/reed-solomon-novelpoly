@@ -319,6 +319,57 @@ pub mod parameterized {
 	}
 }
 
+pub mod afft_radix4 {
+	use criterion::{black_box, BenchmarkId, Criterion};
+	use rand::{rngs::SmallRng, Rng, SeedableRng};
+	use reed_solomon_novelpoly::f2e16::Additive;
+	use reed_solomon_tester::SMALL_RNG_SEED;
+
+	pub fn bench_afft_radix4(crit: &mut Criterion) {
+		let mut rng = SmallRng::from_seed(SMALL_RNG_SEED);
+		let dist = rand::distributions::Uniform::new_inclusive(u16::MIN, u16::MAX);
+
+		let mut group = crit.benchmark_group("afft radix-2 vs radix-4");
+		for k_exp in [8, 10, 12, 14] {
+			let size = 1_usize << k_exp;
+			let data: Vec<Additive> = (&mut rng).sample_iter(dist).take(size).map(Additive).collect();
+
+			group.bench_with_input(BenchmarkId::new("radix-2 afft", size), &data, |b, data| {
+				let mut buf = data.clone();
+				b.iter(|| {
+					buf.copy_from_slice(data);
+					reed_solomon_novelpoly::f2e16::afft(black_box(&mut buf), size, 0);
+				})
+			});
+
+			group.bench_with_input(BenchmarkId::new("radix-4 afft", size), &data, |b, data| {
+				let mut buf = data.clone();
+				b.iter(|| {
+					buf.copy_from_slice(data);
+					reed_solomon_novelpoly::f2e16::afft_radix4(black_box(&mut buf), size, 0);
+				})
+			});
+
+			group.bench_with_input(BenchmarkId::new("radix-2 inverse_afft", size), &data, |b, data| {
+				let mut buf = data.clone();
+				b.iter(|| {
+					buf.copy_from_slice(data);
+					reed_solomon_novelpoly::f2e16::inverse_afft(black_box(&mut buf), size, 0);
+				})
+			});
+
+			group.bench_with_input(BenchmarkId::new("radix-4 inverse_afft", size), &data, |b, data| {
+				let mut buf = data.clone();
+				b.iter(|| {
+					buf.copy_from_slice(data);
+					reed_solomon_novelpoly::f2e16::inverse_afft_radix4(black_box(&mut buf), size, 0);
+				})
+			});
+		}
+		group.finish();
+	}
+}
+
 fn parameterized_criterion() -> Criterion {
 	Criterion::default().sample_size(10).warm_up_time(Duration::from_millis(100))
 }
@@ -332,6 +383,7 @@ criterion_group!(
 		parameterized::bench_encode_fixed_1mb_payload,
 		parameterized::bench_reconstruct_fixed_1mb_payload,
 		parameterized::bench_encode_guts,
+		afft_radix4::bench_afft_radix4,
 );
 
 #[cfg(feature = "upperbounds")]

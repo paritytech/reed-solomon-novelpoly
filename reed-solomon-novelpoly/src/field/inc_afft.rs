@@ -105,6 +105,18 @@ pub fn afft(data: &mut [Additive], size: usize, index: usize) {
 	unsafe { &AFFT }.afft(data, size, index)
 }
 
+/// Radix-4 additive FFT in the "novel polynomial basis"
+#[inline(always)]
+pub fn afft_radix4(data: &mut [Additive], size: usize, index: usize) {
+	unsafe { &AFFT }.afft_radix4(data, size, index)
+}
+
+/// Radix-4 inverse additive FFT in the "novel polynomial basis"
+#[inline(always)]
+pub fn inverse_afft_radix4(data: &mut [Additive], size: usize, index: usize) {
+	unsafe { &AFFT }.inverse_afft_radix4(data, size, index)
+}
+
 #[cfg(all(target_feature = "avx", feature = "avx"))]
 #[inline(always)]
 /// Additive FFT in the "novel polynomial basis"
@@ -382,6 +394,155 @@ impl AdditiveFFT {
 		}
 	}
 
+	/// Radix-4 additive FFT: processes two butterfly levels per pass,
+	/// halving the number of memory traversals compared to `afft`.
+	///
+	/// Falls back to a single radix-2 pass when size is not a power of 4.
+	pub fn afft_radix4(&self, data: &mut [Additive], size: usize, index: usize) {
+		assert!(data.len() >= size);
+		let mut depart_no = size >> 1_usize;
+
+		// Process pairs of levels (radix-4) while we can fit two levels
+		while depart_no > 1 {
+			let inner = depart_no >> 1; // half of depart_no
+
+			let mut j = depart_no;
+			while j < size {
+				// --- Outer butterfly (stride = depart_no) ---
+				let skew_outer = self.skews[j + index - 1];
+				if skew_outer.0 != ONEMASK {
+					for i in (j - depart_no)..j {
+						data[i] ^= data[i + depart_no].mul(skew_outer);
+					}
+				}
+				for i in (j - depart_no)..j {
+					data[i + depart_no] ^= data[i];
+				}
+
+				// --- Inner butterflies (stride = inner) within each half ---
+				// Lower half: [j - depart_no .. j)
+				let base_lo = j - depart_no;
+				let j_inner_lo = base_lo + inner;
+				let skew_inner_lo = self.skews[j_inner_lo + index - 1];
+				if skew_inner_lo.0 != ONEMASK {
+					for i in base_lo..j_inner_lo {
+						data[i] ^= data[i + inner].mul(skew_inner_lo);
+					}
+				}
+				for i in base_lo..j_inner_lo {
+					data[i + inner] ^= data[i];
+				}
+
+				// Upper half: [j .. j + depart_no)
+				let base_hi = j;
+				let j_inner_hi = base_hi + inner;
+				let skew_inner_hi = self.skews[j_inner_hi + index - 1];
+				if skew_inner_hi.0 != ONEMASK {
+					for i in base_hi..j_inner_hi {
+						data[i] ^= data[i + inner].mul(skew_inner_hi);
+					}
+				}
+				for i in base_hi..j_inner_hi {
+					data[i + inner] ^= data[i];
+				}
+
+				j += depart_no << 1;
+			}
+			// We consumed two levels
+			depart_no >>= 2;
+		}
+
+		// If size is not a power of 4, one remaining radix-2 level
+		if depart_no == 1 {
+			let mut j = 1_usize;
+			while j < size {
+				let skew = self.skews[j + index - 1];
+				if skew.0 != ONEMASK {
+					for i in (j - 1)..j {
+						data[i] ^= data[i + 1].mul(skew);
+					}
+				}
+				for i in (j - 1)..j {
+					data[i + 1] ^= data[i];
+				}
+				j += 2;
+			}
+		}
+	}
+
+	/// Radix-4 inverse additive FFT: processes two butterfly levels per pass.
+	pub fn inverse_afft_radix4(&self, data: &mut [Additive], size: usize, index: usize) {
+		assert!(data.len() >= size);
+		let mut depart_no = 1_usize;
+
+		// If size is not a power of 4, start with one radix-2 level
+		if size.trailing_zeros() % 2 == 1 {
+			let mut j = 1_usize;
+			while j < size {
+				for i in (j - 1)..j {
+					data[i + 1] ^= data[i];
+				}
+				let skew = self.skews[j + index - 1];
+				if skew.0 != ONEMASK {
+					for i in (j - 1)..j {
+						data[i] ^= data[i + 1].mul(skew);
+					}
+				}
+				j += 2;
+			}
+			depart_no = 2;
+		}
+
+		// Process pairs of levels (radix-4)
+		while depart_no < size {
+			let outer = depart_no << 1;
+
+			let mut j = outer;
+			while j < size {
+				// --- Inner butterfly on lower half (stride = depart_no) ---
+				let base_lo = j - outer;
+				let mid_lo = base_lo + depart_no;
+				for i in base_lo..mid_lo {
+					data[i + depart_no] ^= data[i];
+				}
+				let skew_lo = self.skews[mid_lo + index - 1];
+				if skew_lo.0 != ONEMASK {
+					for i in base_lo..mid_lo {
+						data[i] ^= data[i + depart_no].mul(skew_lo);
+					}
+				}
+
+				// --- Inner butterfly on upper half (stride = depart_no) ---
+				let base_hi = j;
+				let mid_hi = base_hi + depart_no;
+				for i in base_hi..mid_hi {
+					data[i + depart_no] ^= data[i];
+				}
+				let skew_hi = self.skews[mid_hi + index - 1];
+				if skew_hi.0 != ONEMASK {
+					for i in base_hi..mid_hi {
+						data[i] ^= data[i + depart_no].mul(skew_hi);
+					}
+				}
+
+				// --- Outer butterfly (stride = outer) ---
+				for i in (j - outer)..j {
+					data[i + outer] ^= data[i];
+				}
+				let skew_outer = self.skews[j + index - 1];
+				if skew_outer.0 != ONEMASK {
+					for i in (j - outer)..j {
+						data[i] ^= data[i + outer].mul(skew_outer);
+					}
+				}
+
+				j += outer << 1;
+			}
+
+			depart_no = outer << 1;
+		}
+	}
+
 	//initialize SKEW_FACTOR and B
 	fn initalize() -> AdditiveFFT {
 		// We cannot yet identify if base has an additive or multiplicative
@@ -475,6 +636,115 @@ impl AdditiveFFT {
 
 #[cfg(test)]
 mod afft_tests {
+	mod radix4 {
+		use super::super::*;
+
+		fn make_data(size: usize) -> Vec<Additive> {
+			(0..size).map(|i| Additive(((i * 7 + 13) & ONEMASK as usize) as Elt)).collect()
+		}
+
+		#[test]
+		fn afft_radix4_matches_standard_size_4() {
+			let size = 4;
+			let mut standard = make_data(size);
+			let mut radix4 = standard.clone();
+			afft(&mut standard, size, 0);
+			afft_radix4(&mut radix4, size, 0);
+			assert_eq!(standard, radix4);
+		}
+
+		#[test]
+		fn afft_radix4_matches_standard_size_8() {
+			let size = 8;
+			let mut standard = make_data(size);
+			let mut radix4 = standard.clone();
+			afft(&mut standard, size, 0);
+			afft_radix4(&mut radix4, size, 0);
+			assert_eq!(standard, radix4);
+		}
+
+		#[test]
+		fn afft_radix4_matches_standard_size_16() {
+			let size = 16;
+			let mut standard = make_data(size);
+			let mut radix4 = standard.clone();
+			afft(&mut standard, size, 0);
+			afft_radix4(&mut radix4, size, 0);
+			assert_eq!(standard, radix4);
+		}
+
+		#[test]
+		fn afft_radix4_matches_standard_size_256() {
+			let size = 256;
+			let mut standard = make_data(size);
+			let mut radix4 = standard.clone();
+			afft(&mut standard, size, 0);
+			afft_radix4(&mut radix4, size, 0);
+			assert_eq!(standard, radix4);
+		}
+
+		#[test]
+		fn afft_radix4_matches_standard_with_index() {
+			let size = 64;
+			let index = 128;
+			let mut standard = make_data(size);
+			let mut radix4 = standard.clone();
+			afft(&mut standard, size, index);
+			afft_radix4(&mut radix4, size, index);
+			assert_eq!(standard, radix4);
+		}
+
+		#[test]
+		fn inverse_afft_radix4_matches_standard_size_4() {
+			let size = 4;
+			let mut standard = make_data(size);
+			let mut radix4 = standard.clone();
+			inverse_afft(&mut standard, size, 0);
+			inverse_afft_radix4(&mut radix4, size, 0);
+			assert_eq!(standard, radix4);
+		}
+
+		#[test]
+		fn inverse_afft_radix4_matches_standard_size_16() {
+			let size = 16;
+			let mut standard = make_data(size);
+			let mut radix4 = standard.clone();
+			inverse_afft(&mut standard, size, 0);
+			inverse_afft_radix4(&mut radix4, size, 0);
+			assert_eq!(standard, radix4);
+		}
+
+		#[test]
+		fn inverse_afft_radix4_matches_standard_size_256() {
+			let size = 256;
+			let mut standard = make_data(size);
+			let mut radix4 = standard.clone();
+			inverse_afft(&mut standard, size, 0);
+			inverse_afft_radix4(&mut radix4, size, 0);
+			assert_eq!(standard, radix4);
+		}
+
+		#[test]
+		fn roundtrip_radix4_size_64() {
+			let size = 64;
+			let original = make_data(size);
+			let mut data = original.clone();
+			afft_radix4(&mut data, size, 0);
+			inverse_afft_radix4(&mut data, size, 0);
+			assert_eq!(original, data);
+		}
+
+		#[test]
+		fn roundtrip_radix4_size_1024() {
+			let size = 1024;
+			let original = make_data(size);
+			let mut data = original.clone();
+			afft_radix4(&mut data, size, 0);
+			inverse_afft_radix4(&mut data, size, 0);
+			assert_eq!(original, data);
+		}
+	}
+
 	#[cfg(all(target_feature = "avx", feature = "avx"))]
 	mod simd {
 		use super::super::*;
