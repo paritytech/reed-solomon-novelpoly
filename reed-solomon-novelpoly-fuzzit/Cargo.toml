@@ -12,7 +12,7 @@ arbitrary = { version = "1", features = ["derive"] }
 rstester = { path = "../reed-solomon-tester", package = "reed-solomon-tester" }
 novelpoly = { path = "../reed-solomon-novelpoly", package = "reed-solomon-novelpoly"}
 rand_chacha = "0.3.0"
-rand = "0.8.3"
+rand = "0.10.3"
 
 [[bin]]
 name = "fuzz_reconstruct"
