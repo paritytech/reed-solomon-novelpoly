@@ -10,7 +10,7 @@ keywords = ["reed-solomon", "erasure", "encoding", "algorithm"]
 readme = "../README.md"
 
 [build-dependencies]
-derive_more = { version = "0.99.0", default-features = false, features = [
+derive_more = { version = "2.1.1", default-features = false, features = [
   "add_assign",
   "add",
 ] }
@@ -22,7 +22,7 @@ cc = { version = "1.0.67", features = ["parallel"], optional = true }
 static_init = "1"
 
 thiserror = "1.0.23"
-derive_more = { version = "0.99.0", default-features = false, features = [
+derive_more = { version = "2.1.1", default-features = false, features = [
   "add_assign",
   "add",
 ] }
