@@ -30,7 +30,7 @@ derive_more = { version = "0.99.0", default-features = false, features = [
 [dev-dependencies]
 itertools = "0.12"
 reed-solomon-tester = { path = "../reed-solomon-tester" }
-rand = { version = "0.8.3", features = ["alloc", "small_rng"] }
+rand = { version = "0.10.3", features = ["alloc", "small_rng"] }
 assert_matches = "1.5.0"
 quickcheck = { version = "1.0.3", default-features = false }
 
